@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Shelf & Spine — Reading Tracker</title>
+<link rel="icon" type="image/png" href="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT3mBiNx3NoAoJiRfsX4M5gVBVgbO82ha4SLtbwyYs-yw&s" />
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700;800&display=swap');
+  :root{
+    --ink:#26301F; --oxblood:#3F6B41; --oxblood-dark:#20331F; --oxblood-mid:#2C4A2A;
+    --blush:#E6ECD9; --rose:#C08A4E; --cream:#F8F3E6; --gold:#C29A2E; --sage:#7C9473; --line:#DEE3D0; --muted:#748067;
+    --wood:#6B4A32; --wood-dark:#3D2A1B; --shadow-tint:47,63,42;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;font-family:'Inter',sans-serif;color:var(--ink);
+    background-color:var(--cream);
+    background-image:
+      linear-gradient(rgba(248,243,230,.88), rgba(248,243,230,.88)),
+      url("https://i.imgur.com/u5igRkn.jpeg");
+    background-attachment:fixed;
+    background-size:cover;
+    background-position:center;
+    background-repeat:no-repeat;
+  }
+  ::-webkit-scrollbar{height:8px;width:8px;}
+  ::-webkit-scrollbar-thumb{background:#C7D2B8;border-radius:4px;}
+  h1,h2,h3{margin:0;}
+  .display{font-family:'Fraunces',serif;font-weight:600;letter-spacing:.2px;color:var(--oxblood-dark);}
+  .shell{display:flex;min-height:100vh;}
+  .sidebar{width:210px;flex-shrink:0;background:var(--oxblood-dark);color:#fff;display:flex;flex-direction:column;padding:22px 14px;gap:4px;}
+  .logo{font-family:'Fraunces',serif;font-weight:600;font-style:italic;font-size:23px;padding:2px 8px 14px;margin-bottom:12px;line-height:1.2;border-bottom:1px solid rgba(255,255,255,.16);}
+  .nav-btn{text-align:left;border:none;background:transparent;color:#fff;padding:10px 12px;border-radius:8px;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;}
+  .nav-btn.active{background:rgba(255,255,255,.14);}
+  .main{flex:1;padding:28px 32px;min-width:0;}
+  .page-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:22px;flex-wrap:wrap;gap:10px;padding-bottom:14px;border-bottom:2px solid var(--blush);position:relative;}
+  .page-head::after{content:'';position:absolute;left:0;bottom:-2px;width:56px;height:2px;background:var(--gold);}
+  .page-subtitle{font-size:13px;color:var(--muted);margin-top:4px;font-weight:500;}
+  .btn{border:none;border-radius:8px;padding:9px 16px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.2px;}
+  .btn:active{transform:scale(.97);}
+  .btn-primary{background:var(--oxblood);color:#fff;}
+  .btn-ghost{background:transparent;color:var(--oxblood);border:1.5px solid var(--oxblood);}
+  .btn-subtle{background:var(--blush);color:var(--oxblood-dark);}
+  .btn-danger{background:transparent;color:#A2572B;text-decoration:underline;padding:0;font-size:12.5px;}
+  .btn-text{border:none;background:none;font-weight:700;font-size:11.5px;cursor:pointer;padding:0;font-family:inherit;}
+  .pill{background:var(--blush);color:var(--ink);border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;letter-spacing:.3px;white-space:nowrap;display:inline-block;}
+  .pill.oxblood{background:var(--oxblood);color:#fff;}
+  .pill.dnf{background:#8A7C5E;color:#fff;}
+  .tracker-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px;}
+  .tracker-group{margin-bottom:20px;}
+  .tracker-group-head{display:flex;align-items:baseline;gap:8px;padding:12px 16px 10px;}
+  table.tracker td.chk, table.tracker th.chk{width:34px;padding-left:14px;}
+  table.tracker tr.selected-row{outline:2px solid var(--gold);outline-offset:-2px;}
+  .fact-list{display:flex;flex-direction:column;gap:10px;}
+  .fact-row{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.5;}
+  .fact-row .fact-icon{font-size:15px;flex-shrink:0;}
+  .card{background:#fff;border-radius:12px;padding:16px 18px;box-shadow:0 2px 8px rgba(47,63,42,.10);}
+  .field{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:600;color:var(--oxblood-dark);margin-bottom:12px;}
+  .input, select.input, textarea.input{border:1.5px solid var(--line);border-radius:7px;padding:8px 10px;font-size:13.5px;font-family:inherit;color:var(--ink);outline:none;background:#fff;width:100%;}
+  textarea.input{min-height:60px;resize:vertical;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .stars span{font-size:15px;line-height:1;color:#DDD1CC;}
+  .stars span.filled{color:var(--gold);}
+  .stars.editable span{cursor:pointer;}
+  .empty-state{text-align:center;padding:60px 20px;color:var(--muted);}
+  .empty-state .icon{font-size:34px;margin-bottom:10px;}
+  .empty-state p{font-size:13.5px;max-width:380px;margin:0 auto 16px;line-height:1.5;}
+  table.tracker{width:100%;border-collapse:collapse;font-size:12.5px;}
+  table.tracker thead tr{background:var(--oxblood-dark);color:#fff;}
+  table.tracker th{padding:10px 12px;text-align:left;font-weight:700;cursor:pointer;white-space:nowrap;letter-spacing:.3px;}
+  table.tracker td{padding:9px 12px;}
+  table.tracker tbody tr{cursor:pointer;}
+table.tracker tbody tr:nth-child(odd){background:#F1EEDE;}
+table.tracker tbody tr:nth-child(even){background:#fffdf7;}
+  .stat-card{background:#fff;border-radius:12px;padding:16px 18px;box-shadow:0 2px 8px rgba(47,63,42,.10);min-width:120px;}
+  .stat-card .num{font-family:'Anton',sans-serif;font-size:30px;color:var(--oxblood);}
+  .stat-card .label{font-size:11.5px;color:var(--muted);font-weight:600;letter-spacing:.3px;margin-top:2px;}
+  .section-label{font-size:11.5px;font-weight:700;color:var(--muted);letter-spacing:.4px;margin-bottom:10px;text-transform:uppercase;}
+  .cover{border-radius:8px;display:flex;align-items:center;justify-content:center;padding:12px;box-shadow:0 6px 16px rgba(0,0,0,.16);position:relative;overflow:hidden;}
+  .cover span{color:#fff;font-family:'Fraunces',serif;font-weight:600;font-size:15px;text-align:center;text-shadow:0 2px 4px rgba(0,0,0,.3);letter-spacing:.2px;position:relative;z-index:1;}
+  .cover::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 30% 20%, rgba(255,255,255,.25), transparent 60%);}
+  .cover.has-img{padding:0;}
+  .cover.has-img img{width:100%;height:100%;object-fit:cover;position:relative;z-index:1;}
+  .cover.has-img::before{display:none;}
+  .cover-upload-box{border:1.5px dashed var(--line);border-radius:8px;padding:10px;display:flex;gap:12px;align-items:center;}
+  .cover-preview{width:60px;height:88px;border-radius:5px;overflow:hidden;flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,.15);}
+  .cover-preview img{width:100%;height:100%;object-fit:cover;display:block;}
+  .cover-preview.empty{display:flex;align-items:center;justify-content:center;background:var(--blush);font-size:18px;}
+  .cover-card{cursor:pointer;width:128px;}
+  .cover-card .cover{height:176px;margin-bottom:8px;}
+  .cover-card .title{font-size:12.5px;font-weight:700;line-height:1.25;}
+  .cover-card .author{font-size:11px;color:var(--muted);margin-bottom:4px;}
+  .spine{width:46px;border-radius:3px 3px 5px 5px;display:flex;align-items:flex-end;justify-content:center;padding:10px 4px;cursor:pointer;box-shadow:inset -3px 0 6px rgba(0,0,0,.18),2px 3px 6px rgba(0,0,0,.15);flex-shrink:0;}
+  .spine span{writing-mode:vertical-rl;transform:rotate(180deg);color:#fff;font-size:10.5px;font-weight:700;letter-spacing:.2px;text-shadow:0 1px 2px rgba(0,0,0,.35);max-height:100%;overflow:hidden;}
+  .shelf-box{background:linear-gradient(180deg,var(--wood),var(--wood-dark));border-radius:10px;padding:18px 16px 0;}
+  .shelf-row{display:flex;gap:6px;align-items:flex-end;overflow-x:auto;padding-bottom:12px;}
+  .shelf-floor{height:10px;background:#2A1B10;border-radius:0 0 6px 6px;}
+  .modal-overlay{position:fixed;inset:0;background:rgba(31,42,26,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
+  .modal-card{background:var(--cream);border-radius:16px;width:480px;max-width:94vw;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);}
+  .modal-card.wide{width:720px;}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1.5px solid var(--line);position:sticky;top:0;background:var(--cream);}
+  .modal-head h3{font-family:'Anton',sans-serif;font-size:20px;color:var(--oxblood-dark);letter-spacing:.5px;text-transform:uppercase;}
+  .modal-body{padding:22px;}
+  .modal-close{border:none;background:none;font-size:20px;cursor:pointer;color:var(--oxblood-dark);}
+  .filters-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
+  .filters-row .input{width:auto;flex:0 0 auto;font-size:12.5px;padding:7px 10px;}
+  .filters-row input.input{flex:1;min-width:180px;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
+  .cal-dow{text-align:center;font-size:11px;font-weight:700;color:var(--muted);}
+  .cal-cell{background:#fff;border-radius:8px;min-height:62px;padding:6px;border:1px solid var(--line);}
+  .cal-cell.has-events{cursor:pointer;}
+  .cal-cell.picked{border:2px solid var(--oxblood);}
+  .cal-daynum{font-size:11px;color:var(--muted);font-weight:700;}
+  .cal-dots{display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;}
+  .dot{width:7px;height:7px;border-radius:50%;display:inline-block;}
+  .legend{display:flex;gap:16px;margin-top:12px;font-size:11.5px;color:var(--muted);align-items:center;}
+  .legend .dot{margin-right:5px;}
+  .pie-wrap{display:flex;align-items:center;gap:16px;}
+  .pie{width:120px;height:120px;border-radius:50%;position:relative;flex-shrink:0;}
+  .pie::after{content:'';position:absolute;inset:26px;background:#fff;border-radius:50%;}
+  .pie-legend{font-size:11.5px;display:flex;flex-direction:column;gap:6px;}
+  .pie-legend .row{display:flex;align-items:center;gap:6px;}
+  .pie-legend .sw{width:9px;height:9px;border-radius:2px;flex-shrink:0;}
+  .bars{display:flex;gap:4px;align-items:flex-end;height:180px;overflow-x:auto;padding-top:10px;}
+  .bar-col{display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:34px;}
+  .bar-pair{display:flex;gap:2px;align-items:flex-end;height:150px;}
+  .bar{width:12px;border-radius:3px 3px 0 0;}
+  .bar-month{font-size:9.5px;color:var(--muted);margin-top:4px;}
+  .wish-card{width:210px;background:#fff;border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(47,63,42,.10);}
+  .wish-top{display:flex;justify-content:space-between;align-items:flex-start;}
+  .wish-title{font-weight:700;font-size:13.5px;}
+  .wish-author{font-size:11.5px;color:var(--muted);}
+  .wish-bottom{display:flex;justify-content:space-between;align-items:center;margin-top:10px;}
+  .wish-price{font-weight:700;color:var(--oxblood);font-size:13px;}
+  .wish-actions{display:flex;gap:8px;margin-top:10px;}
+  .flexwrap{display:flex;flex-wrap:wrap;gap:16px;}
+  @media (max-width:780px){
+    .shell{flex-direction:column;}
+    .sidebar{flex-direction:row;overflow-x:auto;width:100%;}
+    .grid2{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+  <div class="shell">
+    <div class="sidebar" id="sidebar"></div>
+    <div class="main">
+      <div id="sync-banner"></div>
+      <div class="page-head">
+        <div>
+          <h1 class="display" id="page-title" style="font-size:32px;"></h1>
+          <div class="page-subtitle" id="page-subtitle"></div>
+        </div>
+        <div id="page-actions" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;"></div>
+      </div>
+      <div id="content"></div>
+    </div>
+  </div>
+  <div id="modal-root"></div>
+
+<script>
+/* ---------------- tokens & constants ---------------- */
+const COLORS = { oxblood:'#3F6B41', rose:'#C08A4E', sage:'#7C9473', gold:'#C29A2E' };
+const SPINE_COLORS = ["#4A7A4C","#C08A4E","#7FB59A","#C29A2E","#8A9C5E","#B5794A","#5E8F87","#A0703F","#6E8A4E","#9C8248"];
+const STATUS = { want:"Want to read", reading:"Currently reading", done:"Completed", dnf:"Did not finish" };
+const TRACKER_GROUPS = [["want","To Be Read"],["reading","Currently Reading"],["done","Completed"],["dnf","Did Not Finish"]];
+const FORMATS = ["Physical","Digital","Audio"];
+const SOURCES = ["Purchased","Borrowed","Gift","Free"];
+const PRIORITIES = ["Must-read","Interested","Maybe"];
+const GENRES = ["Fiction","Non-fiction","Romance","Fantasy","Sci-fi","Mystery","Historical","Young Adult","Memoir","Poetry"];
+const TABS = [
+  {key:"dashboard",label:"Dashboard"},
+  {key:"tracker",label:"Book Tracker"},
+  {key:"gallery",label:"Gallery"},
+  {key:"shelf",label:"Shelf"},
+  {key:"calendar",label:"Calendar"},
+  {key:"wishlist",label:"Wishlist"},
+];
+const TAB_SUBTITLES = {
+  dashboard:"An overview of your reading life",
+  tracker:"Every book, logged and organized",
+  gallery:"Browse your collection by cover",
+  shelf:"Your bookshelf, arranged by genre",
+  calendar:"See when you started and finished",
+  wishlist:"Books you can't wait to read",
+};
+
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+function hashStr(s){ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h; }
+function genreColor(g){ if(!g) return SPINE_COLORS[0]; return SPINE_COLORS[hashStr(g)%SPINE_COLORS.length]; }
+function spineHeight(title){ return 190 + (hashStr(title||"x")%40); }
+function esc(s){ return (s==null?"":String(s)).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function fmtDate(d){ if(!d) return "—"; const dt=new Date(d+"T00:00:00"); if(isNaN(dt)) return d; return dt.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}); }
+function yearOf(d){ return d ? d.slice(0,4) : null; }
+
+const SEED_BOOKS = [
+  { id:uid(), title:"Fourth Wing", author:"Rebecca Yarros", genre:"Fantasy", subGenre:"Young Adult", format:"Physical", source:"Purchased", status:"done", priority:"Must-read", rating:5, dateStarted:"2026-01-02", dateFinished:"2026-01-14", cost:"18.99", pagesHours:"512", review:"Dragons, danger, and a slow burn that actually delivers.", notes:"Reread before book 3 drops.", recommendedBy:"Maya", isExample:true },
+  { id:uid(), title:"Circe", author:"Madeline Miller", genre:"Fantasy", subGenre:"Mythology", format:"Digital", source:"Borrowed", status:"done", priority:"Must-read", rating:5, dateStarted:"2026-02-01", dateFinished:"2026-02-10", cost:"0", pagesHours:"393", review:"Gorgeous, patient, quietly devastating.", notes:"Favorite line about immortality and boredom.", recommendedBy:"", isExample:true },
+  { id:uid(), title:"The Seven Husbands of Evelyn Hugo", author:"Taylor Jenkins Reid", genre:"Fiction", subGenre:"Contemporary", format:"Audio", source:"Gift", status:"reading", priority:"Must-read", rating:0, dateStarted:"2026-04-01", dateFinished:"", cost:"0", pagesHours:"14", review:"", notes:"Halfway through — did not see that coming.", recommendedBy:"Book club", isExample:true },
+  { id:uid(), title:"Metamorphosis", author:"Franz Kafka", genre:"Fiction", subGenre:"Classic", format:"Physical", source:"Purchased", status:"want", priority:"Interested", rating:0, dateStarted:"", dateFinished:"", cost:"6.50", pagesHours:"96", review:"", notes:"Short enough for a rainy weekend.", recommendedBy:"", isExample:true },
+];
+const SEED_WISHLIST = [
+  { id:uid(), title:"The Song of Achilles", author:"Madeline Miller", price:"14.99", priority:"Must-read", bought:false, isExample:true },
+  { id:uid(), title:"Piranesi", author:"Susanna Clarke", price:"12.50", priority:"Interested", bought:false, isExample:true },
+];
+
+/* ---------------- state ---------------- */
+let state = {
+  tab: "dashboard",
+  books: [],
+  wishlist: [],
+  loaded: false,
+  modal: null, // {type:'book-form'|'book-detail'|'wish-form'|'backup-export'|'backup-import', payload}
+};
+let ui = {
+  sortKey: "title",
+  galleryQuery: "", galleryStatus: "", galleryGenre: "", galleryRating: "",
+  shelfGenre: "",
+  calMonth: (()=>{ const d=new Date(); d.setDate(1); return d; })(),
+  calPicked: null,
+  selected: new Set(),
+};
+
+/* ---------------- persistence (Local Storage) ---------------- */
+const LS_BOOKS_KEY = "shelf_spine_books";
+const LS_WISHL_KEY = "shelf_spine_wishlist";
+
+async function loadData(){
+  try {
+    const storedBooks = localStorage.getItem(LS_BOOKS_KEY);
+    const storedWishlist = localStorage.getItem(LS_WISHL_KEY);
+
+    if (storedBooks) {
+      state.books = JSON.parse(storedBooks);
+    } else {
+      state.books = SEED_BOOKS;
+      persistBooks();
+    }
+
+    if (storedWishlist) {
+      state.wishlist = JSON.parse(storedWishlist);
+    } else {
+      state.wishlist = SEED_WISHLIST;
+      persistWishlist();
+    }
+  } catch (err) {
+    console.error("Failed to parse local storage data:", err);
+    state.books = SEED_BOOKS;
+    state.wishlist = SEED_WISHLIST;
+  }
+  
+  state.loaded = true;
+  render();
+}
+
+function persistBooks(){
+  try {
+    localStorage.setItem(LS_BOOKS_KEY, JSON.stringify(state.books));
+  } catch(err) {
+    console.error("Failed to save books to local storage:", err);
+  }
+}
+
+function persistWishlist(){
+  try {
+    localStorage.setItem(LS_WISHL_KEY, JSON.stringify(state.wishlist));
+  } catch(err) {
+    console.error("Failed to save wishlist to local storage:", err);
+  }
+}
+
+/* ---------------- JSON Backup & Restore ---------------- */
+function exportBackupJSON(){
+  const backupData = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    books: state.books,
+    wishlist: state.wishlist
+  };
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+  const dlAnchor = document.createElement('a');
+  dlAnchor.setAttribute("href", dataStr);
+  dlAnchor.setAttribute("download", `shelf-spine-backup-${new Date().toISOString().slice(0,10)}.json`);
+  document.body.appendChild(dlAnchor);
+  dlAnchor.click();
+  dlAnchor.remove();
+  state.modal = null;
+  renderModal();
+}
+
+function importBackupJSON(file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      if(parsed && (Array.isArray(parsed.books) || Array.isArray(parsed.wishlist))){
+        if(Array.isArray(parsed.books)) state.books = parsed.books;
+        if(Array.isArray(parsed.wishlist)) state.wishlist = parsed.wishlist;
+        persistBooks();
+        persistWishlist();
+        state.modal = null;
+        render();
+        alert("Backup restored successfully!");
+      } else {
+        alert("Invalid backup file format.");
+      }
+    } catch(err) {
+      alert("Error parsing backup file.");
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* ---------------- small UI builders ---------------- */
+function starsHTML(value, editable, target, size){
+  size = size || 15;
+  let out = `<span class="stars${editable?" editable":""}" ${editable?`data-star-target="${target}"`:""} style="font-size:${size}px">`;
+  for(let n=1;n<=5;n++){
+    out += `<span class="${n<=value?"filled":""}" ${editable?`data-star="${n}"`:""}>★</span>`;
+  }
+  return out + `</span>`;
+}
+function pillHTML(text, tone){ return `<span class="pill ${tone?esc(tone):''}">${esc(text)}</span>`; }
+function coverHTML(book, h){
+  const c = genreColor(book.genre);
+  if(book.coverUrl){
+    return `<div class="cover has-img" style="height:${h}px;background:linear-gradient(150deg, ${c}, ${c}99)"><img src="${esc(book.coverUrl)}" alt="${esc(book.title)} cover" loading="lazy" onerror="this.parentElement.classList.remove('has-img'); this.remove();" /><span style="display:none">${esc(book.title)}</span></div>`;
+  }
+  return `<div class="cover" style="height:${h}px;background:linear-gradient(150deg, ${c}, ${c}99)"><span>${esc(book.title)}</span></div>`;
+}
+function selectOptions(list, current){
+  return list.map(v=>`<option value="${esc(v)}" ${v===current?"selected":""}>${esc(v)}</option>`).join("");
+}
+function resizeImageFile(file, maxDim, cb){
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      let w = img.width, h = img.height;
+      if(w > h){ if(w > maxDim){ h = Math.round(h*maxDim/w); w = maxDim; } }
+      else { if(h > maxDim){ w = Math.round(w*maxDim/h); h = maxDim; } }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      cb(canvas.toDataURL("image/jpeg", 0.78));
+    };
+    img.onerror = ()=>cb(null);
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function emptyState(text, ctaLabel, ctaAction){
+  return `<div class="empty-state"><div class="icon">📖</div><p>${esc(text)}</p>${ctaLabel?`<button class="btn btn-primary" data-action="${ctaAction}">${esc(ctaLabel)}</button>`:""}</div>`;
+}
+
+/* ---------------- fun facts ---------------- */
+function computeFunFacts(books){
+  const facts = [];
+  const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const completed = books.filter(b=>b.status==="done" && b.dateFinished);
+  const now = new Date();
+  const cutoff = new Date(now); cutoff.setDate(cutoff.getDate()-30);
+
+  const recent = completed.filter(b=>{ const d=new Date(b.dateFinished+"T00:00:00"); return !isNaN(d) && d>=cutoff && d<=now; });
+  if(recent.length){
+    const gmap={}; recent.forEach(b=>{ if(b.genre) gmap[b.genre]=(gmap[b.genre]||0)+1; });
+    const top = Object.entries(gmap).sort((a,b)=>b[1]-a[1])[0];
+    if(top) facts.push({icon:"📚", text:`In the past month you've read mostly <strong>${esc(top[0])}</strong> (${top[1]} of ${recent.length} book${recent.length===1?"":"s"} finished).`});
+    else facts.push({icon:"📚", text:`You finished ${recent.length} book${recent.length===1?"":"s"} in the past month — nice pace!`});
+  }
+
+  const rated = completed.filter(b=>b.rating>0).sort((a,b)=>b.rating-a.rating || (b.dateFinished||"").localeCompare(a.dateFinished||""))[0];
+  if(rated) facts.push({icon:"⭐", text:`Your top-rated read is <strong>${esc(rated.title)}</strong> at ${rated.rating}★.`});
+
+  const withDur = completed.filter(b=>b.dateStarted && b.dateFinished).map(b=>({b,days:Math.max(0,Math.round((new Date(b.dateFinished)-new Date(b.dateStarted))/86400000))})).filter(x=>!isNaN(x.days));
+  if(withDur.length){
+    const fastest = withDur.sort((a,b)=>a.days-b.days)[0];
+    facts.push({icon:"⚡", text:`You blazed through <strong>${esc(fastest.b.title)}</strong> in ${fastest.days} day${fastest.days===1?"":"s"}.`});
+  }
+
+  const withPages = completed.filter(b=>b.pagesHours && !isNaN(Number(b.pagesHours))).sort((a,b)=>Number(b.pagesHours)-Number(a.pagesHours))[0];
+  if(withPages) facts.push({icon:"📖", text:`Your longest read was <strong>${esc(withPages.title)}</strong> at ${withPages.pagesHours} pages/hours.`});
+
+  const monthMap={};
+  completed.forEach(b=>{ const key=b.dateFinished.slice(0,7); monthMap[key]=(monthMap[key]||0)+1; });
+  const topMonth = Object.entries(monthMap).sort((a,b)=>b[1]-a[1])[0];
+  if(topMonth && topMonth[1]>1){
+    const [y,m] = topMonth[0].split("-");
+    facts.push({icon:"🔥", text:`Your best month was ${monthNames[Number(m)-1]} ${y} — ${topMonth[1]} books finished.`});
+  }
+
+  const ratedAll = completed.filter(b=>b.rating>0);
+  if(ratedAll.length){
+    const avg = (ratedAll.reduce((s,b)=>s+b.rating,0)/ratedAll.length).toFixed(1);
+    facts.push({icon:"🌟", text:`Your average rating for finished books is ${avg}★ across ${ratedAll.length} rated read${ratedAll.length===1?"":"s"}.`});
+  }
+
+  const dnfCount = books.filter(b=>b.status==="dnf").length;
+  if(dnfCount) facts.push({icon:"👋", text:`You've set aside ${dnfCount} book${dnfCount===1?"":"s"} as did-not-finish — no shame in that.`});
+
+  const gmapAll={}; completed.forEach(b=>{ if(b.genre) gmapAll[b.genre]=(gmapAll[b.genre]||0)+1; });
+  const topAll = Object.entries(gmapAll).sort((a,b)=>b[1]-a[1])[0];
+  if(topAll) facts.push({icon:"🏆", text:`All-time, your most-read genre is <strong>${esc(topAll[0])}</strong> with ${topAll[1]} book${topAll[1]===1?"":"s"} finished.`});
+
+  return facts;
+}
+
+/* ---------------- dashboard ---------------- */
+function renderDashboard(){
+  const books = state.books;
+  if(books.length===0) return emptyState("Your dashboard wakes up once you've logged a book. Add one from the Book Tracker to see your stats here.");
+  const year = new Date().getFullYear().toString();
+  const completed = books.filter(b=>b.status==="done");
+  const completedThisYear = completed.filter(b=>yearOf(b.dateFinished)===year);
+  const reading = books.filter(b=>b.status==="reading").length;
+  const dnfCount = books.filter(b=>b.status==="dnf").length;
+  const lastFinished = completed.slice().sort((a,b)=>(b.dateFinished||"").localeCompare(a.dateFinished||""))[0];
+  const funFacts = computeFunFacts(books);
+
+  const genreMap = {}; books.forEach(b=>{ if(b.genre) genreMap[b.genre]=(genreMap[b.genre]||0)+1; });
+  const genreEntries = Object.entries(genreMap);
+  const formatMap = {}; books.forEach(b=>{ if(b.format) formatMap[b.format]=(formatMap[b.format]||0)+1; });
+  const formatEntries = Object.entries(formatMap);
+  const formatColors = { Physical: COLORS.oxblood, Digital: COLORS.rose, Audio: COLORS.sage };
+
+  function pie(entries, colorFn){
+    const total = entries.reduce((s,[,v])=>s+v,0) || 1;
+    let acc = 0; const stops = [];
+    entries.forEach(([name,val])=>{
+      const start = acc/total*100; acc += val; const end = acc/total*100;
+      stops.push(`${colorFn(name)} ${start}% ${end}%`);
+    });
+    const bg = stops.length ? `conic-gradient(${stops.join(",")})` : "#eee";
+    const legend = entries.map(([name,val])=>`<div class="row"><span class="sw" style="background:${colorFn(name)}"></span>${esc(name)} · ${val}</div>`).join("");
+    return `<div class="pie-wrap"><div class="pie" style="background:${bg}"></div><div class="pie-legend">${legend||"<span style='color:var(--muted)'>No data yet</span>"}</div></div>`;
+  }
+
+  const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const started = new Array(12).fill(0), finished = new Array(12).fill(0);
+  books.forEach(b=>{
+    if(b.dateStarted && yearOf(b.dateStarted)===year) started[new Date(b.dateStarted).getMonth()]++;
+    if(b.dateFinished && yearOf(b.dateFinished)===year) finished[new Date(b.dateFinished).getMonth()]++;
+  });
+  const maxVal = Math.max(1, ...started, ...finished);
+  const bars = monthNames.map((m,i)=>`
+    <div class="bar-col">
+      <div class="bar-pair">
+        <div class="bar" style="height:${started[i]/maxVal*100}%;background:${COLORS.rose}" title="${m} started: ${started[i]}"></div>
+        <div class="bar" style="height:${finished[i]/maxVal*100}%;background:${COLORS.oxblood}" title="${m} finished: ${finished[i]}"></div>
+      </div>
+      <div class="bar-month">${m}</div>
+    </div>`).join("");
+
+  return `
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px;">
+      <div class="stat-card"><div class="num">${books.length}</div><div class="label">Total books</div></div>
+      <div class="stat-card"><div class="num">${completedThisYear.length}</div><div class="label">Read in ${year}</div></div>
+      <div class="stat-card"><div class="num">${reading}</div><div class="label">Currently reading</div></div>
+      <div class="stat-card"><div class="num">${completed.length}</div><div class="label">All-time completed</div></div>
+      <div class="stat-card"><div class="num">${dnfCount}</div><div class="label">Did not finish</div></div>
+    </div>
+    ${funFacts.length ? `
+    <div class="card" style="margin-bottom:18px;">
+      <div class="section-label">Fun facts</div>
+      <div class="fact-list">
+        ${funFacts.map(f=>`<div class="fact-row"><span class="fact-icon">${f.icon}</span><span>${f.text}</span></div>`).join("")}
+      </div>
+    </div>` : ""}
+    <div style="display:grid;grid-template-columns:260px 1fr 1fr;gap:16px;margin-bottom:18px;">
+      <div class="card">
+        <div class="section-label">Last finished</div>
+        ${lastFinished ? `
+          ${coverHTML(lastFinished, 90)}
+          <div style="font-weight:700;font-size:13.5px;margin-top:10px;">${esc(lastFinished.title)}</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">${esc(lastFinished.author)}</div>
+          ${starsHTML(lastFinished.rating,false,null,12)}
+          <div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.4;">${esc(lastFinished.review)}</div>
+        ` : `<div style="font-size:12.5px;color:var(--muted);">Nothing finished yet.</div>`}
+      </div>
+      <div class="card">
+        <div class="section-label">By genre</div>
+        ${pie(genreEntries, genreColor)}
+      </div>
+      <div class="card">
+        <div class="section-label">By format</div>
+        ${pie(formatEntries, n=>formatColors[n]||COLORS.oxblood)}
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-label">${year} in books</div>
+      <div class="bars">${bars}</div>
+      <div class="legend">
+        <div><span class="dot" style="background:${COLORS.rose}"></span>Started</div>
+        <div><span class="dot" style="background:${COLORS.oxblood}"></span>Finished</div>
+      </div>
+    </div>
+  `;
+}
+
+/* ---------------- tracker ---------------- */
+function statusPillTone(status){ return status==="done" ? "oxblood" : status==="dnf" ? "dnf" : ""; }
+function renderTrackerGroupTable(books, cols){
+  const head = cols.map(([k,label])=>`<th data-action="sort" data-key="${k}">${esc(label)} ${ui.sortKey===k?"▾":""}</th>`).join("");
+  const rows = books.map(b=>`
+    <tr data-action="edit-book" data-id="${b.id}" class="${ui.selected.has(b.id)?"selected-row":""}">
+      <td class="chk"><input type="checkbox" data-action="toggle-select" data-id="${b.id}" ${ui.selected.has(b.id)?"checked":""} /></td>
+      <td style="font-weight:700;">${esc(b.title)}</td>
+      <td>${esc(b.author)}</td>
+      <td>${b.genre?pillHTML(b.genre):""}</td>
+      <td style="color:var(--muted);">${esc(b.subGenre)}</td>
+      <td>${esc(b.format)}</td>
+      <td style="color:var(--muted);">${esc(b.priority)}</td>
+      <td>${starsHTML(b.rating,false,null,12)}</td>
+      <td>${esc(b.source)}</td>
+      <td>${pillHTML(STATUS[b.status], statusPillTone(b.status))}</td>
+    </tr>`).join("");
+  return `<table class="tracker"><thead><tr><th class="chk"></th>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+}
+function renderTracker(){
+  const cols = [["title","Title"],["author","Author"],["genre","Genre"],["subGenre","Sub-genre"],["format","Format"],["priority","Priority"],["rating","Rating"],["source","Source"],["status","Status"]];
+  if(state.books.length===0){
+    return emptyState("Nothing logged yet. Add the book you're reading right now, or one you finished recently.", "+ Add your first book", "add-book");
+  }
+  const sorted = [...state.books].sort((a,b)=>(a[ui.sortKey]||"").toString().localeCompare((b[ui.sortKey]||"").toString()));
+  const selectedCount = ui.selected.size;
+  const groups = TRACKER_GROUPS.map(([key,label])=>{
+    const list = sorted.filter(b=>b.status===key);
+    if(list.length===0) return "";
+    return `
+      <div class="tracker-group">
+        <div class="tracker-group-head">
+          <div class="section-label" style="margin-bottom:0;">${esc(label)}</div>
+          <span class="pill">${list.length}</span>
+        </div>
+        <div class="card" style="overflow-x:auto;padding:0;">
+          ${renderTrackerGroupTable(list, cols)}
+        </div>
+      </div>`;
+  }).join("");
+  
+  const selectionControls = selectedCount > 0 
+    ? `<button class="btn btn-subtle" data-action="bulk-edit">Bulk edit (${selectedCount})</button>
+       <button class="btn-text" style="color:var(--oxblood);" data-action="clear-selection">Deselect all</button>`
+    : `<button class="btn-text" style="color:var(--oxblood);" data-action="select-all-books">Select all</button>`;
+
+  const toolbarRight = `
+    ${selectionControls}
+    <button class="btn btn-primary" data-action="add-book">+ Add book</button>
+  `;
+  return `
+    <div class="tracker-toolbar">
+      <div style="font-size:12.5px;color:var(--muted);">${state.books.length} book${state.books.length===1?"":"s"} logged${selectedCount>0?` · ${selectedCount} selected`:""}</div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">${toolbarRight}</div>
+    </div>
+    ${groups}
+  `;
+}
+
+/* ---------------- gallery ---------------- */
+function renderGallery(){
+  const books = state.books;
+  if(books.length===0) return emptyState("Once you log books, they'll show up here as a browsable cover gallery.");
+  const genres = [...new Set(books.map(b=>b.genre).filter(Boolean))];
+  const q = ui.galleryQuery.toLowerCase();
+  const filtered = books.filter(b=>{
+    if(q && !`${b.title} ${b.author}`.toLowerCase().includes(q)) return false;
+    if(ui.galleryStatus && b.status!==ui.galleryStatus) return false;
+    if(ui.galleryGenre && b.genre!==ui.galleryGenre) return false;
+    if(ui.galleryRating && b.rating < Number(ui.galleryRating)) return false;
+    return true;
+  });
+  const cards = filtered.map(b=>`
+    <div class="cover-card" data-action="open-book" data-id="${b.id}">
+      ${coverHTML(b,176)}
+      <div class="title">${esc(b.title)}</div>
+      <div class="author">${esc(b.author)}</div>
+      ${starsHTML(b.rating,false,null,11)}
+    </div>`).join("");
+  return `
+    <div class="filters-row">
+      <input class="input" id="gallery-q" placeholder="Search title or author…" value="${esc(ui.galleryQuery)}" />
+      <select class="input" id="gallery-status">
+        <option value="">All statuses</option>
+        ${Object.entries(STATUS).map(([k,v])=>`<option value="${k}" ${ui.galleryStatus===k?"selected":""}>${v}</option>`).join("")}
+      </select>
+      <select class="input" id="gallery-genre">
+        <option value="">All genres</option>
+        ${genres.map(g=>`<option value="${esc(g)}" ${ui.galleryGenre===g?"selected":""}>${esc(g)}</option>`).join("")}
+      </select>
+      <select class="input" id="gallery-rating">
+        <option value="">Any rating</option>
+        ${[5,4,3,2,1].map(n=>`<option value="${n}" ${ui.galleryRating==String(n)?"selected":""}>${n}+ stars</option>`).join("")}
+      </select>
+    </div>
+    ${filtered.length===0 ? emptyState("No books match those filters. Try clearing one.") : `<div class="flexwrap">${cards}</div>`}
+  `;
+}
+
+/* ---------------- shelf ---------------- */
+function shelfSpinesHTML(list){
+  return list.map(b=>`
+    <div class="spine" data-action="open-book" data-id="${b.id}" style="height:${spineHeight(b.title)}px;background:linear-gradient(160deg, ${genreColor(b.genre)}, ${genreColor(b.genre)}CC)">
+      <span>${esc(b.title)}</span>
+    </div>`).join("");
+}
+function renderShelf(){
+  const books = state.books;
+  if(books.length===0) return emptyState("Your visual shelf fills in as you log books — sorted automatically by genre.");
+  const completedBooks = books.filter(b=>b.status==="done");
+  const completedShelf = `
+    <div>
+      <div class="section-label">✓ Completed</div>
+      <div class="shelf-box">
+        <div class="shelf-row">${completedBooks.length ? shelfSpinesHTML(completedBooks) : `<div style="color:rgba(255,255,255,.6);font-size:12.5px;padding:10px 4px;">No completed books yet.</div>`}</div>
+        <div class="shelf-floor"></div>
+      </div>
+    </div>`;
+  const genres = [...new Set(books.map(b=>b.genre).filter(Boolean))];
+  const filtered = ui.shelfGenre ? books.filter(b=>b.genre===ui.shelfGenre) : books;
+  const map = {};
+  filtered.forEach(b=>{ const key=b.genre||"Unsorted"; (map[key]=map[key]||[]).push(b); });
+  const shelves = Object.entries(map).map(([genre,list],idx)=>{
+    const spines = shelfSpinesHTML(list);
+    const decor = idx % 2 === 0
+      ? `<svg width="34" height="40" viewBox="0 0 34 40" style="flex-shrink:0;align-self:flex-end;"><path d="M10 38h14l-2-14H12z" fill="#B56B4A"/><path d="M17 24c0-10-8-14-8-14s0 10 8 14z" fill="${COLORS.sage}"/><path d="M17 24c0-12 9-17 9-17s1 11-9 17z" fill="${COLORS.sage}" opacity=".85"/><path d="M17 24c-6-3-6-9-6-9s6 1 6 9z" fill="${COLORS.sage}" opacity=".7"/></svg>`
+      : `<svg width="52" height="34" viewBox="0 0 52 34" style="flex-shrink:0;align-self:flex-end;margin-bottom:4px;"><ellipse cx="26" cy="26" rx="24" ry="7" fill="${COLORS.oxblood}" opacity=".15"/><path d="M4 26c0-9 7-16 17-16s19 6 23 13c2 3 1 6-3 6H8c-3 0-4-1-4-3z" fill="#EAD8DB"/><circle cx="41" cy="14" r="6" fill="#EAD8DB"/><path d="M37 10l-2-4 4 2M45 9l3-4-1 5" stroke="#EAD8DB" stroke-width="2" fill="none" stroke-linecap="round"/></svg>`;
+    return `
+      <div>
+        <div class="section-label">${esc(genre)}</div>
+        <div class="shelf-box">
+          <div class="shelf-row">${spines}${decor}</div>
+          <div class="shelf-floor"></div>
+        </div>
+      </div>`;
+  }).join("<div style='height:26px'></div>");
+  return `
+    <select class="input" id="shelf-genre" style="max-width:220px;margin-bottom:18px;">
+      <option value="">All shelves</option>
+      ${genres.map(g=>`<option value="${esc(g)}" ${ui.shelfGenre===g?"selected":""}>${esc(g)}</option>`).join("")}
+    </select>
+    ${completedShelf}
+    <div style="height:26px"></div>
+    <div style="display:grid;gap:0;">${shelves}</div>
+  `;
+}
+
+/* ---------------- calendar ---------------- */
+function renderCalendar(){
+  const books = state.books;
+  const byDate = {};
+  books.forEach(b=>{
+    if(b.dateStarted) (byDate[b.dateStarted]=byDate[b.dateStarted]||{started:[],finished:[]}).started.push(b);
+    if(b.dateFinished) (byDate[b.dateFinished]=byDate[b.dateFinished]||{started:[],finished:[]}).finished.push(b);
+  });
+  const month = ui.calMonth;
+  const year = month.getFullYear(), mo = month.getMonth();
+  const firstDay = new Date(year,mo,1).getDay();
+  const daysInMonth = new Date(year,mo+1,0).getDate();
+  const dateStr = d => `${year}-${String(mo+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+  let cells = "";
+  for(let i=0;i<firstDay;i++) cells += `<div></div>`;
+  for(let d=1;d<=daysInMonth;d++){
+    const ds = dateStr(d);
+    const info = byDate[ds];
+    const dots = info ? [
+      ...info.started.map(b=>`<span class="dot" style="background:${COLORS.rose}" title="${esc(b.title)} — started"></span>`),
+      ...info.finished.map(b=>`<span class="dot" style="background:${COLORS.oxblood}" title="${esc(b.title)} — finished"></span>`)
+    ].join("") : "";
+    cells += `<div class="cal-cell ${info?"has-events":""} ${ui.calPicked===ds?"picked":""}" ${info?`data-action="cal-day" data-day="${ds}"`:""}>
+      <div class="cal-daynum">${d}</div>
+      <div class="cal-dots">${dots}</div>
+    </div>`;
+  }
+  const dow = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=>`<div class="cal-dow">${d}</div>`).join("");
+  let dayPanel = "";
+  if(ui.calPicked && byDate[ui.calPicked]){
+    const info = byDate[ui.calPicked];
+    dayPanel = `<div class="card" style="margin-top:16px;">
+      <div style="font-weight:700;margin-bottom:6px;">${fmtDate(ui.calPicked)}</div>
+      ${info.started.map(b=>`<div style="font-size:12.5px;margin-bottom:3px;">▸ Started <b>${esc(b.title)}</b></div>`).join("")}
+      ${info.finished.map(b=>`<div style="font-size:12.5px;margin-bottom:3px;">▸ Finished <b>${esc(b.title)}</b></div>`).join("")}
+    </div>`;
+  }
+  return `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <button class="btn btn-ghost" data-action="cal-prev">‹ Prev</button>
+      <div class="display" style="font-size:20px;">${month.toLocaleDateString(undefined,{month:"long",year:"numeric"})}</div>
+      <button class="btn btn-ghost" data-action="cal-next">Next ›</button>
+    </div>
+    <div class="cal-grid" style="margin-bottom:6px;">${dow}</div>
+    <div class="cal-grid">${cells}</div>
+    <div class="legend">
+      <div><span class="dot" style="background:${COLORS.rose}"></span>Started</div>
+      <div><span class="dot" style="background:${COLORS.oxblood}"></span>Finished</div>
+    </div>
+    ${dayPanel}
+  `;
+}
+
+/* ---------------- wishlist ---------------- */
+function renderWishlist(){
+  const items = state.wishlist;
+  const total = items.reduce((s,i)=>s+(Number(i.price)||0),0);
+  if(items.length===0){
+    return emptyState("Nothing on your wishlist yet. Add books you're eyeing so they never slip your mind.", "+ Add a book", "add-wish");
+  }
+  const cards = items.map(w=>`
+    <div class="wish-card" style="opacity:${w.bought?0.55:1}">
+      <div class="wish-top">
+        <div>
+          <div class="wish-title" style="text-decoration:${w.bought?"line-through":"none"}">${esc(w.title)}</div>
+          <div class="wish-author">${esc(w.author)}</div>
+        </div>
+        <input type="checkbox" ${w.bought?"checked":""} data-action="toggle-bought" data-id="${w.id}" title="Bought" />
+      </div>
+      <div class="wish-bottom">
+        ${pillHTML(w.priority)}
+        <span class="wish-price">$${Number(w.price||0).toFixed(2)}</span>
+      </div>
+      <div class="wish-actions">
+        <button class="btn-text" style="color:var(--oxblood)" data-action="edit-wish" data-id="${w.id}">Edit</button>
+        <button class="btn-text" style="color:var(--sage)" data-action="move-wish" data-id="${w.id}">Move to tracker</button>
+        <button class="btn-text" style="color:#A2572B" data-action="delete-wish" data-id="${w.id}">Remove</button>
+      </div>
+    </div>`).join("");
+  return `
+    <div style="display:flex;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-size:12.5px;color:var(--muted);">${items.length} book${items.length===1?"":"s"} · $${total.toFixed(2)} total</div>
+      <button class="btn btn-primary" data-action="add-wish">+ Add to wishlist</button>
+    </div>
+    <div class="flexwrap">${cards}</div>
+  `;
+}
+
+/* ---------------- goodreads import ---------------- */
+let goodreadsParsed = null;
+function parseCSV(text){
+  const rows = [];
+  let row = [], field = "", inQuotes = false;
+  for(let i=0;i<text.length;i++){
+    const c = text[i];
+    if(inQuotes){
+      if(c === '"'){ if(text[i+1] === '"'){ field += '"'; i++; } else inQuotes = false; }
+      else field += c;
+    } else {
+      if(c === '"') inQuotes = true;
+      else if(c === ","){ row.push(field); field = ""; }
+      else if(c === "\n"){ row.push(field); rows.push(row); row = []; field = ""; }
+      else if(c === "\r"){ /* skip */ }
+      else field += c;
+    }
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  return rows.filter(r => r.length > 1 || (r.length === 1 && r[0] !== ""));
+}
+function normalizeGoodreadsDate(s){
+  if(!s) return "";
+  const m = s.trim().match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if(!m) return "";
+  return `${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`;
+}
+function mapGoodreadsFormat(binding){
+  const s = (binding||"").toLowerCase();
+  if(s.includes("audio")) return "Audio";
+  if(s.includes("kindle")||s.includes("ebook")||s.includes("digital")||s.includes("nook")) return "Digital";
+  return "Physical";
+}
+function mapGoodreadsStatus(shelf){
+  const s = (shelf||"").toLowerCase();
+  if(s.includes("currently")) return "reading";
+  if(s.includes("to-read")) return "want";
+  return "done";
+}
+function rowsToBooks(rows){
+  if(rows.length < 2) return [];
+  const header = rows[0].map(h=>h.trim());
+  const idx = name => header.indexOf(name);
+  const iTitle=idx("Title"), iAuthor=idx("Author"), iRating=idx("My Rating"), iDateRead=idx("Date Read"),
+        iShelf=idx("Exclusive Shelf"), iBinding=idx("Binding"), iPages=idx("Number of Pages"),
+        iReview=idx("My Review"), iNotes=idx("Private Notes"), iShelves=idx("Bookshelves");
+  const out = [];
+  for(let r=1;r<rows.length;r++){
+    const row = rows[r];
+    if(!row || row.length<2) continue;
+    const title = iTitle>=0 ? row[iTitle].trim() : "";
+    if(!title) continue;
+    const shelvesRaw = iShelves>=0 ? row[iShelves] : "";
+    const genreGuess = shelvesRaw ? (shelvesRaw.split(",").map(s=>s.trim()).filter(Boolean)[0]||"") : "";
+    out.push({
+      id: uid(), isExample:false, title,
+      author: iAuthor>=0 ? row[iAuthor].trim() : "",
+      genre: genreGuess, subGenre: "",
+      format: mapGoodreadsFormat(iBinding>=0?row[iBinding]:""),
+      source: "", status: mapGoodreadsStatus(iShelf>=0?row[iShelf]:""),
+      priority: "Interested",
+      rating: Number(iRating>=0?row[iRating]:0)||0,
+      dateStarted: "", dateFinished: normalizeGoodreadsDate(iDateRead>=0?row[iDateRead]:""),
+      cost: "", pagesHours: iPages>=0 ? row[iPages].trim() : "",
+      review: iReview>=0 ? row[iReview].trim() : "", notes: iNotes>=0 ? row[iNotes].trim() : "",
+      recommendedBy: "", coverUrl: "",
+    });
+  }
+  return out;
+}
+function handleGoodreadsFile(file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{ goodreadsParsed = rowsToBooks(parseCSV(e.target.result)); }
+    catch(err){ goodreadsParsed = []; }
+    renderModal();
+  };
+  reader.readAsText(file);
+}
+function runGoodreadsImport(){
+  if(!goodreadsParsed || goodreadsParsed.length===0) return;
+  const skipDupes = document.getElementById("gr-skip-dupes") ? document.getElementById("gr-skip-dupes").checked : true;
+  const existingKeys = new Set(state.books.map(b=>(b.title+"|"+b.author).toLowerCase()));
+  goodreadsParsed.forEach(b=>{
+    const key = (b.title+"|"+b.author).toLowerCase();
+    if(skipDupes && existingKeys.has(key)) return;
+    state.books.push(b);
+    existingKeys.add(key);
+  });
+  persistBooks();
+  goodreadsParsed = null;
+  state.modal = null;
+  state.tab = "tracker";
+  render();
+}
+function goodreadsImportHTML(){
+  const preview = goodreadsParsed;
+  return `
+    <div style="font-size:13px;line-height:1.65;margin-bottom:16px;">
+      <div class="section-label">How to export your Goodreads library</div>
+      <ol style="margin:0;padding-left:18px;">
+        <li>Sign in at goodreads.com and open <b>My Books</b>.</li>
+        <li>In the left sidebar, scroll down to <b>Tools</b> and click <b>Import and export</b>.</li>
+        <li>Click the <b>Export Library</b> button, then wait for the download link and click it.</li>
+        <li>Upload the downloaded .csv file below.</li>
+      </ol>
+    </div>
+    <label class="field">Goodreads export (.csv)
+      <input type="file" accept=".csv,text/csv" id="goodreads-file" class="input" style="padding:6px;" />
+    </label>
+    ${preview ? `
+      <div class="card" style="margin:14px 0;">
+        <div style="font-weight:700;margin-bottom:4px;">${preview.length} book${preview.length===1?"":"s"} found</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.5;">Title, author, rating, shelf, date read, review, and notes will be imported. Goodreads exports don't include cover images or a start date — add covers manually and set start dates afterward if you'd like.</div>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;margin-bottom:14px;">
+        <input type="checkbox" id="gr-skip-dupes" checked /> Skip books that already match a title + author in your tracker
+      </label>
+    ` : `<div style="font-size:12px;color:var(--muted);margin-top:8px;">Choose your exported file to preview what will be imported.</div>`}
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:10px;">
+      <button class="btn btn-ghost" data-action="close-modal">Cancel</button>
+      <button class="btn btn-primary" data-action="do-goodreads-import" ${preview&&preview.length?"":"disabled"}>${preview?`Import ${preview.length} book${preview.length===1?"":"s"}`:"Import"}</button>
+    </div>
+  `;
+}
+
+/* ---------------- modals ---------------- */
+function bookFormHTML(book){
+  const b = book || { id:uid(), title:"", author:"", genre:"", subGenre:"", format:"Physical", source:"Purchased", status:"want", priority:"Interested", rating:0, dateStarted:"", dateFinished:"", cost:"", pagesHours:"", review:"", notes:"", recommendedBy:"", coverUrl:"" };
+  return `
+    <input type="hidden" id="f-id" value="${b.id}" />
+    <input type="hidden" id="f-cover" value="${esc(b.coverUrl||"")}" />
+    <div class="field">Cover image
+      <div class="cover-upload-box">
+        <div class="cover-preview ${b.coverUrl?"":"empty"}" id="cover-preview">${b.coverUrl?`<img src="${esc(b.coverUrl)}" alt="cover preview"/>`:"📖"}</div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+          <input class="input" id="f-cover-url" placeholder="Paste a Goodreads cover image URL…" value="${esc(b.coverUrl && b.coverUrl.startsWith('data:')?'':b.coverUrl||'')}" />
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label class="btn btn-ghost" style="padding:6px 12px;font-size:12px;cursor:pointer;">Upload image<input type="file" accept="image/*" id="f-cover-file" style="display:none;" /></label>
+            ${b.coverUrl?`<button type="button" class="btn-text" style="color:#A2572B;" data-action="clear-cover">Remove cover</button>`:""}
+          </div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);font-weight:500;margin-top:4px;line-height:1.4;">
+        Tip: on a book's Goodreads page, right-click the cover → "Copy image address" → paste it above. Or upload your own image.
+      </div>
+    </div>
+    <div class="grid2">
+      <label class="field">Title<input class="input" id="f-title" value="${esc(b.title)}" placeholder="Book title" /></label>
+      <label class="field">Author<input class="input" id="f-author" value="${esc(b.author)}" placeholder="Author name" /></label>
+      <label class="field">Genre<input class="input" id="f-genre" list="genre-list" value="${esc(b.genre)}" placeholder="e.g. Fantasy" />
+        <datalist id="genre-list">${GENRES.map(g=>`<option value="${g}">`).join("")}</datalist>
+      </label>
+      <label class="field">Sub-genre<input class="input" id="f-subgenre" value="${esc(b.subGenre)}" placeholder="e.g. Historical" /></label>
+      <label class="field">Format<select class="input" id="f-format">${selectOptions(FORMATS,b.format)}</select></label>
+      <label class="field">Source<select class="input" id="f-source">${selectOptions(SOURCES,b.source)}</select></label>
+      <label class="field">Status<select class="input" id="f-status">${Object.entries(STATUS).map(([k,v])=>`<option value="${k}" ${b.status===k?"selected":""}>${v}</option>`).join("")}</select></label>
+      <label class="field">Priority<select class="input" id="f-priority">${selectOptions(PRIORITIES,b.priority)}</select></label>
+      <label class="field">Date started<input type="date" class="input" id="f-started" value="${b.dateStarted}" /></label>
+      <label class="field">Date finished<input type="date" class="input" id="f-finished" value="${b.dateFinished}" /></label>
+      <label class="field">Pages / hours<input class="input" id="f-pages" value="${esc(b.pagesHours)}" placeholder="e.g. 320" /></label>
+      <label class="field">Cost ($)<input class="input" id="f-cost" value="${esc(b.cost)}" placeholder="0.00" /></label>
+    </div>
+    <label class="field">Rating ${starsHTML(b.rating, true, "f-rating", 22)}<input type="hidden" id="f-rating" value="${b.rating}" /></label>
+    <label class="field">Brief review<textarea class="input" id="f-review" placeholder="What did you think?">${esc(b.review)}</textarea></label>
+    <label class="field">Notes / thoughts<textarea class="input" id="f-notes" placeholder="Quotes, annotations, anything to remember">${esc(b.notes)}</textarea></label>
+    <label class="field">Recommended by<input class="input" id="f-recby" value="${esc(b.recommendedBy)}" placeholder="Optional" /></label>
+    <div style="display:flex;justify-content:space-between;margin-top:6px;">
+      <div>${book ? `<button class="btn-danger" data-action="delete-book" data-id="${b.id}">Remove book</button>` : ""}</div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-ghost" data-action="close-modal">Cancel</button>
+        <button class="btn btn-primary" data-action="save-book">Save book</button>
+      </div>
+    </div>
+  `;
+}
+function bookDetailHTML(book){
+  return `
+    <div style="display:grid;grid-template-columns:180px 1fr;gap:22px;">
+      <div>${coverHTML(book,250)}</div>
+      <div>
+        <div class="display" style="font-size:22px;">${esc(book.title)}</div>
+        <div style="color:var(--muted);margin-bottom:8px;">${esc(book.author)}</div>
+        ${starsHTML(book.rating,false,null,18)}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0;">
+          ${book.genre?pillHTML(book.genre):""}
+          ${book.subGenre?pillHTML(book.subGenre):""}
+          ${pillHTML(book.format)}
+          ${pillHTML(STATUS[book.status], statusPillTone(book.status))}
+        </div>
+        <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">Started ${fmtDate(book.dateStarted)} · Finished ${fmtDate(book.dateFinished)}</div>
+        ${book.review?`<div style="margin-bottom:10px;"><div class="section-label" style="margin-bottom:2px;">Brief review</div><div style="font-size:13px;line-height:1.5;">${esc(book.review)}</div></div>`:""}
+        ${book.notes?`<div style="margin-bottom:14px;"><div class="section-label" style="margin-bottom:2px;">Notes / thoughts</div><div style="font-size:13px;line-height:1.5;">${esc(book.notes)}</div></div>`:""}
+        <button class="btn btn-primary" data-action="edit-from-detail" data-id="${book.id}">Edit book</button>
+      </div>
+    </div>
+  `;
+}
+function bulkEditFormHTML(count){
+  const noChange = `<option value="">— No change —</option>`;
+  return `
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px;">Editing ${count} book${count===1?"":"s"}. Only fields you change will be applied — leave a field as "No change" to keep each book's existing value.</div>
+    <div class="grid2">
+      <label class="field">Status<select class="input" id="bf-status">${noChange}${Object.entries(STATUS).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select></label>
+      <label class="field">Genre<select class="input" id="bf-genre">${noChange}${GENRES.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join("")}</select></label>
+      <label class="field">Format<select class="input" id="bf-format">${noChange}${FORMATS.map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join("")}</select></label>
+      <label class="field">Source<select class="input" id="bf-source">${noChange}${SOURCES.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join("")}</select></label>
+      <label class="field">Priority<select class="input" id="bf-priority">${noChange}${PRIORITIES.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join("")}</select></label>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:6px;">
+      <button class="btn btn-ghost" data-action="close-modal">Cancel</button>
+      <button class="btn btn-primary" data-action="save-bulk-edit">Apply to ${count} book${count===1?"":"s"}</button>
+    </div>
+  `;
+}
+function wishFormHTML(w){
+  const item = w || { id:uid(), title:"", author:"", price:"", priority:"Interested", bought:false };
+  return `
+    <input type="hidden" id="wf-id" value="${item.id}" />
+    <label class="field">Title<input class="input" id="wf-title" value="${esc(item.title)}" /></label>
+    <label class="field">Author<input class="input" id="wf-author" value="${esc(item.author)}" /></label>
+    <div class="grid2">
+      <label class="field">Price ($)<input class="input" id="wf-price" value="${esc(item.price)}" /></label>
+      <label class="field">Priority<select class="input" id="wf-priority">${selectOptions(PRIORITIES,item.priority)}</select></label>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      <button class="btn btn-ghost" data-action="close-modal">Cancel</button>
+      <button class="btn btn-primary" data-action="save-wish">Save</button>
+    </div>
+  `;
+}
+function backupExportModalHTML(){
+  return `
+    <div style="font-size:13px;line-height:1.5;margin-bottom:16px;">
+      Export your complete reading data (books, wishlist, ratings, reviews, and images) to a JSON file.
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      <button class="btn btn-ghost" data-action="close-modal">Cancel</button>
+      <button class="btn btn-primary" data-action="do-export-json">Download JSON Backup</button>
+    </div>
+  `;
+}
+function backupImportModalHTML(){
+  return `
+    <div style="font-size:13px;line-height:1.5;margin-bottom:16px;">
+      Restore your reading tracker state by uploading a previously saved JSON backup file.
+    </div>
+    <label class="field">Select JSON file
+      <input type="file" accept=".json,application/json" id="import-json-file" class="input" style="padding:6px;" />
+    </label>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px;">
+      <button class="btn btn-ghost" data-action="close-modal">Cancel</button>
+      <button class="btn btn-primary" data-action="do-import-json">Restore Data</button>
+    </div>
+  `;
+}
+
+function renderModal(){
+  const root = document.getElementById("modal-root");
+  if(!state.modal){ root.innerHTML = ""; return; }
+  const m = state.modal;
+  let title="", body="", wide=false;
+  if(m.type==="book-form"){ title = m.payload ? "Edit book" : "Add a book"; body = bookFormHTML(m.payload); }
+  else if(m.type==="book-detail"){ title="Book details"; body = bookDetailHTML(m.payload); wide=true; }
+  else if(m.type==="wish-form"){ title = m.payload ? "Edit wishlist item" : "Add to wishlist"; body = wishFormHTML(m.payload); }
+  else if(m.type==="bulk-edit-form"){ title = "Bulk edit books"; body = bulkEditFormHTML(ui.selected.size); }
+  else if(m.type==="goodreads-import"){ title = "Import from Goodreads"; body = goodreadsImportHTML(); }
+  else if(m.type==="backup-export"){ title = "Export Backup"; body = backupExportModalHTML(); }
+  else if(m.type==="backup-import"){ title = "Restore Backup"; body = backupImportModalHTML(); }
+  root.innerHTML = `
+    <div class="modal-overlay" data-action="overlay-close">
+      <div class="modal-card ${wide?"wide":""}" data-stop>
+        <div class="modal-head"><h3>${esc(title)}</h3><button class="modal-close" data-action="close-modal">✕</button></div>
+        <div class="modal-body">${body}</div>
+      </div>
+    </div>`;
+}
+
+/* ---------------- main render ---------------- */
+function renderSidebar(){
+  document.getElementById("sidebar").innerHTML = `
+    <div class="logo">Shelf &amp; Spine</div>
+    ${TABS.map(t=>`<button class="nav-btn ${state.tab===t.key?"active":""}" data-action="set-tab" data-tab="${t.key}">${t.label}</button>`).join("")}
+    <div style="margin-top:auto;"></div>
+  `;
+}
+function hasExamples(){ return state.books.some(b=>b.isExample) || state.wishlist.some(w=>w.isExample); }
+function render(){
+  const banner = document.getElementById("sync-banner");
+  if(banner){
+    banner.innerHTML = "";
+  }
+  renderSidebar();
+  document.getElementById("page-title").textContent = TABS.find(t=>t.key===state.tab).label;
+  document.getElementById("page-subtitle").textContent = TAB_SUBTITLES[state.tab] || "";
+  
+  const backupBtns = state.tab==="tracker" ? `
+    <button class="btn btn-subtle" data-action="open-export">Export Backup</button>
+    <button class="btn btn-subtle" data-action="open-import">Restore Backup</button>
+  ` : "";
+  const importBtn = state.tab==="tracker" ? `<button class="btn btn-subtle" data-action="import-goodreads">Import from Goodreads</button>` : "";
+  const clearBtn = hasExamples() ? `<button class="btn btn-ghost" data-action="clear-examples">Clear example data</button>` : "";
+  
+  document.getElementById("page-actions").innerHTML = backupBtns + importBtn + clearBtn;
+  
+  const content = document.getElementById("content");
+  if(state.tab==="dashboard") content.innerHTML = renderDashboard();
+  else if(state.tab==="tracker") content.innerHTML = renderTracker();
+  else if(state.tab==="gallery") content.innerHTML = renderGallery();
+  else if(state.tab==="shelf") content.innerHTML = renderShelf();
+  else if(state.tab==="calendar") content.innerHTML = renderCalendar();
+  else if(state.tab==="wishlist") content.innerHTML = renderWishlist();
+  renderModal();
+}
+
+/* ---------------- actions ---------------- */
+function findBook(id){ return state.books.find(b=>b.id===id); }
+function saveBookFromForm(){
+  const id = document.getElementById("f-id").value;
+  const existing = findBook(id);
+  const b = {
+    id, isExample:false,
+    title: document.getElementById("f-title").value.trim(),
+    author: document.getElementById("f-author").value.trim(),
+    genre: document.getElementById("f-genre").value.trim(),
+    subGenre: document.getElementById("f-subgenre").value.trim(),
+    format: document.getElementById("f-format").value,
+    source: document.getElementById("f-source").value,
+    status: document.getElementById("f-status").value,
+    priority: document.getElementById("f-priority").value,
+    rating: Number(document.getElementById("f-rating").value)||0,
+    dateStarted: document.getElementById("f-started").value,
+    dateFinished: document.getElementById("f-finished").value,
+    pagesHours: document.getElementById("f-pages").value.trim(),
+    cost: document.getElementById("f-cost").value.trim(),
+    review: document.getElementById("f-review").value.trim(),
+    notes: document.getElementById("f-notes").value.trim(),
+    recommendedBy: document.getElementById("f-recby").value.trim(),
+    coverUrl: document.getElementById("f-cover").value.trim(),
+  };
+  if(!b.title) return;
+  if(existing) state.books = state.books.map(x=>x.id===id?b:x);
+  else state.books.push(b);
+  persistBooks();
+  state.modal = null;
+  render();
+}
+function deleteBook(id){
+  state.books = state.books.filter(b=>b.id!==id);
+  persistBooks();
+  state.modal = null;
+  render();
+}
+function saveWishFromForm(){
+  const id = document.getElementById("wf-id").value;
+  const existing = state.wishlist.find(w=>w.id===id);
+  const w = {
+    id, isExample:false,
+    title: document.getElementById("wf-title").value.trim(),
+    author: document.getElementById("wf-author").value.trim(),
+    price: document.getElementById("wf-price").value.trim(),
+    priority: document.getElementById("wf-priority").value,
+    bought: existing ? existing.bought : false,
+  };
+  if(!w.title) return;
+  if(existing) state.wishlist = state.wishlist.map(x=>x.id===id?w:x);
+  else state.wishlist.push(w);
+  persistWishlist();
+  state.modal = null;
+  render();
+}
+function deleteWish(id){ state.wishlist = state.wishlist.filter(w=>w.id!==id); persistWishlist(); render(); }
+function moveWishToTracker(id){
+  const w = state.wishlist.find(x=>x.id===id);
+  if(!w) return;
+  state.books.push({ id:uid(), title:w.title, author:w.author, genre:"", subGenre:"", format:"Physical", source:"Purchased", status:"want", priority:w.priority, rating:0, dateStarted:"", dateFinished:"", cost:w.price, pagesHours:"", review:"", notes:"", recommendedBy:"", isExample:false });
+  state.wishlist = state.wishlist.filter(x=>x.id!==id);
+  persistBooks(); persistWishlist();
+  state.tab = "tracker";
+  render();
+}
+function toggleSelect(id){ if(ui.selected.has(id)) ui.selected.delete(id); else ui.selected.add(id); }
+function selectAllBooks(){ state.books.forEach(b=>ui.selected.add(b.id)); }
+function clearSelection(){ ui.selected.clear(); }
+function deleteSelectedBooks(){
+  if(ui.selected.size===0) return;
+  if(!confirm(`Delete ${ui.selected.size} book(s)? This can't be undone.`)) return;
+  state.books = state.books.filter(b=>!ui.selected.has(b.id));
+  ui.selected.clear();
+  persistBooks(); render();
+}
+function saveBulkEditFromForm(){
+  const fields = [["bf-status","status"],["bf-genre","genre"],["bf-format","format"],["bf-source","source"],["bf-priority","priority"]];
+  const changes = {};
+  fields.forEach(([elId,key])=>{
+    const el = document.getElementById(elId);
+    if(el && el.value) changes[key] = el.value;
+  });
+  if(Object.keys(changes).length>0){
+    state.books = state.books.map(b=> ui.selected.has(b.id) ? {...b, ...changes} : b);
+    persistBooks();
+  }
+  ui.selected.clear();
+  state.modal = null;
+  render();
+}
+function clearExamples(){
+  state.books = state.books.filter(b=>!b.isExample);
+  state.wishlist = state.wishlist.filter(w=>!w.isExample);
+  persistBooks(); persistWishlist();
+  render();
+}
+
+/* ---------------- event delegation ---------------- */
+document.addEventListener("click", (e)=>{
+  const overlay = e.target.closest("[data-action='overlay-close']");
+  if(overlay && !e.target.closest("[data-stop]")){ state.modal=null; goodreadsParsed=null; render(); return; }
+
+  const star = e.target.closest("[data-star]");
+  if(star){
+    const wrap = star.closest(".stars");
+    const target = wrap.getAttribute("data-star-target");
+    const hidden = document.getElementById(target);
+    const n = Number(star.getAttribute("data-star"));
+    const current = Number(hidden.value)||0;
+    const val = n===current ? 0 : n;
+    hidden.value = val;
+    [...wrap.children].forEach((s,i)=> s.classList.toggle("filled", i < val));
+    return;
+  }
+
+  const el = e.target.closest("[data-action]");
+  if(!el) return;
+  const action = el.getAttribute("data-action");
+  const id = el.getAttribute("data-id");
+
+  if(action==="set-tab"){ state.tab = el.getAttribute("data-tab"); render(); }
+  else if(action==="add-book"){ state.modal = {type:"book-form", payload:null}; renderModal(); }
+  else if(action==="edit-book"){ state.modal = {type:"book-form", payload: findBook(id)}; renderModal(); }
+  else if(action==="open-book"){ state.modal = {type:"book-detail", payload: findBook(id)}; renderModal(); }
+  else if(action==="edit-from-detail"){ state.modal = {type:"book-form", payload: findBook(id)}; renderModal(); }
+  else if(action==="delete-book"){ deleteBook(id); }
+  else if(action==="save-book"){ saveBookFromForm(); }
+  else if(action==="close-modal"){ state.modal = null; goodreadsParsed = null; renderModal(); }
+  else if(action==="sort"){ ui.sortKey = el.getAttribute("data-key"); render(); }
+  else if(action==="clear-examples"){ clearExamples(); }
+  else if(action==="cal-prev"){ ui.calMonth = new Date(ui.calMonth.getFullYear(), ui.calMonth.getMonth()-1, 1); ui.calPicked=null; render(); }
+  else if(action==="cal-next"){ ui.calMonth = new Date(ui.calMonth.getFullYear(), ui.calMonth.getMonth()+1, 1); ui.calPicked=null; render(); }
+  else if(action==="cal-day"){ ui.calPicked = el.getAttribute("data-day"); render(); }
+  else if(action==="add-wish"){ state.modal = {type:"wish-form", payload:null}; renderModal(); }
+  else if(action==="edit-wish"){ state.modal = {type:"wish-form", payload: state.wishlist.find(w=>w.id===id)}; renderModal(); }
+  else if(action==="save-wish"){ saveWishFromForm(); }
+  else if(action==="delete-wish"){ deleteWish(id); }
+  else if(action==="move-wish"){ moveWishToTracker(id); }
+  else if(action==="clear-cover"){
+    document.getElementById("f-cover").value = "";
+    const urlInput = document.getElementById("f-cover-url"); if(urlInput) urlInput.value = "";
+    const prev = document.getElementById("cover-preview");
+    if(prev){ prev.classList.add("empty"); prev.innerHTML = "📖"; }
+  }
+  else if(action==="import-goodreads"){ state.modal = {type:"goodreads-import", payload:null}; renderModal(); }
+  else if(action==="do-goodreads-import"){ runGoodreadsImport(); }
+  else if(action==="toggle-select"){ toggleSelect(id); render(); }
+  else if(action==="select-all-books"){ selectAllBooks(); render(); }
+  else if(action==="clear-selection"){ clearSelection(); render(); }
+  else if(action==="delete-selected-books"){ deleteSelectedBooks(); }
+  else if(action==="bulk-edit"){ state.modal = {type:"bulk-edit-form", payload:null}; renderModal(); }
+  else if(action==="save-bulk-edit"){ saveBulkEditFromForm(); }
+  else if(action==="open-export"){ state.modal = {type:"backup-export", payload:null}; renderModal(); }
+  else if(action==="open-import"){ state.modal = {type:"backup-import", payload:null}; renderModal(); }
+  else if(action==="do-export-json"){ exportBackupJSON(); }
+  else if(action==="do-import-json"){
+    const fileInput = document.getElementById("import-json-file");
+    if(fileInput && fileInput.files[0]){
+      importBackupJSON(fileInput.files[0]);
+    }
+  }
+});
+
+document.addEventListener("change", (e)=>{
+  if(e.target.id==="f-cover-file"){
+    const file = e.target.files[0];
+    if(!file) return;
+    resizeImageFile(file, 400, (dataUrl)=>{
+      if(!dataUrl) return;
+      const hidden = document.getElementById("f-cover");
+      const urlInput = document.getElementById("f-cover-url");
+      const prev = document.getElementById("cover-preview");
+      if(hidden) hidden.value = dataUrl;
+      if(urlInput) urlInput.value = "";
+      if(prev){ prev.classList.remove("empty"); prev.innerHTML = `<img src="${dataUrl}" alt="cover preview"/>`; }
+    });
+  }
+  else if(e.target.id==="goodreads-file"){ handleGoodreadsFile(e.target.files[0]); }
+  else if(e.target.id==="gallery-q") { ui.galleryQuery = e.target.value; render(); }
+  else if(e.target.id==="gallery-status"){ ui.galleryStatus = e.target.value; render(); }
+  else if(e.target.id==="gallery-genre"){ ui.galleryGenre = e.target.value; render(); }
+  else if(e.target.id==="gallery-rating"){ ui.galleryRating = e.target.value; render(); }
+  else if(e.target.id==="shelf-genre"){ ui.shelfGenre = e.target.value; render(); }
+  else if(e.target.getAttribute && e.target.getAttribute("data-action")==="toggle-bought"){
+    const id = e.target.getAttribute("data-id");
+    state.wishlist = state.wishlist.map(w=> w.id===id ? {...w, bought:e.target.checked} : w);
+    persistWishlist(); render();
+  }
+});
+document.addEventListener("input", (e)=>{
+  if(e.target.id==="gallery-q"){ ui.galleryQuery = e.target.value; render(); document.getElementById("gallery-q") && document.getElementById("gallery-q").focus(); }
+  else if(e.target.id==="f-cover-url"){
+    const val = e.target.value.trim();
+    const hidden = document.getElementById("f-cover");
+    const prev = document.getElementById("cover-preview");
+    if(hidden) hidden.value = val;
+    if(prev){
+      if(val){ prev.classList.remove("empty"); prev.innerHTML = `<img src="${esc(val)}" alt="cover preview" onerror="this.parentElement.classList.add('empty'); this.remove();"/>`; }
+      else { prev.classList.add("empty"); prev.innerHTML = "📖"; }
+    }
+  }
+});
+
+/* ---------------- boot ---------------- */
+(async function init(){
+  await loadData();
+})();
+</script>
+</body>
+</html>
