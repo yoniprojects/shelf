@@ -365,6 +365,7 @@ let state = {
   tab: "dashboard",
   books: [],
   wishlist: [],
+  goals: {},
   loaded: false,
   modal: null,
 };
@@ -393,6 +394,7 @@ async function loadData(){
     const data = snap.data();
     state.books = Array.isArray(data.books) ? data.books : [];
     state.wishlist = Array.isArray(data.wishlist) ? data.wishlist : [];
+    state.goals = (data.goals && typeof data.goals === "object") ? data.goals : {};
     state.loaded = true;
     firestoreReady = true;
     render();
@@ -410,6 +412,11 @@ function persistBooks(){
 function persistWishlist(){
   SHARED_DOC.set({ wishlist: state.wishlist }, { merge: true })
     .catch(err => console.error("Failed to save wishlist to Firestore:", err));
+}
+
+function persistGoals(){
+  SHARED_DOC.set({ goals: state.goals }, { merge: true })
+    .catch(err => console.error("Failed to save goals to Firestore:", err));
 }
 
 /* ---------------- JSON Backup & Restore ---------------- */
@@ -602,6 +609,24 @@ function renderDashboard(){
 
   const funFacts = computeFunFacts(books);
 
+  const goalVal = Number(state.goals[year]) || 0;
+  let goalNum, goalPaceHTML = "";
+  if(goalVal > 0){
+    goalNum = `${completedThisYear.length}<span style="font-size:16px;color:var(--muted);">/${goalVal}</span>`;
+    const startOfYear = new Date(Number(year), 0, 0);
+    const dayOfYear = Math.floor((now - startOfYear) / 86400000);
+    const isLeap = (Number(year)%4===0 && Number(year)%100!==0) || Number(year)%400===0;
+    const daysInYear = isLeap ? 366 : 365;
+    const expectedByNow = goalVal * dayOfYear / daysInYear;
+    const diff = Math.round(completedThisYear.length - expectedByNow);
+    const paceText = diff > 0 ? `${diff} book${diff===1?"":"s"} ahead of pace`
+      : diff < 0 ? `${Math.abs(diff)} book${Math.abs(diff)===1?"":"s"} behind pace`
+      : `Right on pace`;
+    goalPaceHTML = `<div style="font-size:11px;font-weight:600;color:var(--muted);margin-top:3px;">${paceText}</div>`;
+  } else {
+    goalNum = `<span style="font-size:16px;">Set goal</span>`;
+  }
+
   const genreMap = {}; books.forEach(b=>{ if(b.genre) genreMap[b.genre]=(genreMap[b.genre]||0)+1; });
   const genreEntries = Object.entries(genreMap);
   const formatMap = {}; books.forEach(b=>{ if(b.format) formatMap[b.format]=(formatMap[b.format]||0)+1; });
@@ -641,6 +666,11 @@ function renderDashboard(){
       <div class="stat-card"><div class="num">${reading}</div><div class="label">Currently reading</div></div>
       <div class="stat-card"><div class="num">${completed.length}</div><div class="label">All-time completed</div></div>
       <div class="stat-card"><div class="num">${dnfCount}</div><div class="label">Did not finish</div></div>
+      <div class="stat-card" style="cursor:pointer;" data-action="open-goal-form" title="Set your yearly reading goal">
+        <div class="num">${goalNum}</div>
+        <div class="label">${year} Goal</div>
+        ${goalPaceHTML}
+      </div>
     </div>
     ${funFacts.length ? `
     <div class="card" style="margin-bottom:18px;">
@@ -1221,6 +1251,19 @@ function wishFormHTML(w){
     </div>
   `;
 }
+function goalFormHTML(payload){
+  const { year, goal } = payload;
+  return `
+    <input type="hidden" id="gf-year" value="${esc(year)}" />
+    <label class="field">Books to read in ${esc(year)}
+      <input class="input" id="gf-goal" type="number" min="0" step="1" value="${goal ? esc(String(goal)) : ""}" placeholder="e.g. 100" />
+    </label>
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      <button class="btn btn-ghost" data-action="close-modal">Cancel</button>
+      <button class="btn btn-primary" data-action="save-goal">Save</button>
+    </div>
+  `;
+}
 function backupExportModalHTML(){
   return `
     <div style="font-size:13px;line-height:1.5;margin-bottom:16px;">
@@ -1260,6 +1303,7 @@ function renderModal(){
   else if(m.type==="goodreads-import"){ title = "Import from Goodreads"; body = goodreadsImportHTML(); }
   else if(m.type==="backup-export"){ title = "Export Backup"; body = backupExportModalHTML(); }
   else if(m.type==="backup-import"){ title = "Restore Backup"; body = backupImportModalHTML(); }
+  else if(m.type==="goal-form"){ title = "Yearly Reading Goal"; body = goalFormHTML(m.payload); }
   root.innerHTML = `
     <div class="modal-overlay" data-action="overlay-close">
       <div class="modal-card ${wide?"wide":""}" data-stop>
@@ -1277,6 +1321,7 @@ function renderSidebar(){
     <a href="bingo.html" class="nav-btn" style="text-decoration:none;display:block;">Bingo</a>
     <a href="wrapped.html" class="nav-btn" style="text-decoration:none;display:block;">Monthly wrap</a>
     <a href="wheel.html" class="nav-btn" style="text-decoration:none;display:block;">Random wheel</a>
+    <a href="goals.html" class="nav-btn" style="text-decoration:none;display:block;">Goals</a>
     <div style="margin-top:auto;"></div>
   `;
 
@@ -1294,6 +1339,7 @@ function renderSidebar(){
         <a href="bingo.html" class="nav-btn" style="text-decoration:none;display:block;">Bingo</a>
         <a href="wrapped.html" class="nav-btn" style="text-decoration:none;display:block;">Monthly wrap</a>
         <a href="wheel.html" class="nav-btn" style="text-decoration:none;display:block;">Random wheel</a>
+        <a href="goals.html" class="nav-btn" style="text-decoration:none;display:block;">Goals</a>
       </div>
     ` : ""}
   `;
@@ -1430,6 +1476,14 @@ function saveWishFromForm(){
   render();
 }
 function deleteWish(id){ state.wishlist = state.wishlist.filter(w=>w.id!==id); persistWishlist(); render(); }
+function saveGoalFromForm(){
+  const year = document.getElementById("gf-year").value;
+  const val = Math.max(0, Math.floor(Number(document.getElementById("gf-goal").value) || 0));
+  state.goals = { ...state.goals, [year]: val };
+  persistGoals();
+  state.modal = null;
+  render();
+}
 function moveWishToTracker(id){
   const w = state.wishlist.find(x=>x.id===id);
   if(!w) return;
@@ -1532,6 +1586,12 @@ document.addEventListener("click", (e)=>{
   else if(action==="save-wish"){ saveWishFromForm(); }
   else if(action==="delete-wish"){ deleteWish(id); }
   else if(action==="move-wish"){ moveWishToTracker(id); }
+  else if(action==="open-goal-form"){
+    const year = new Date().getFullYear().toString();
+    state.modal = {type:"goal-form", payload: { year, goal: state.goals[year] || "" }};
+    renderModal();
+  }
+  else if(action==="save-goal"){ saveGoalFromForm(); }
   else if(action==="clear-cover"){
     document.getElementById("f-cover").value = "";
     const urlInput = document.getElementById("f-cover-url"); if(urlInput) urlInput.value = "";
