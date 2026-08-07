@@ -532,16 +532,21 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+// Same per-user document scheme as the main Shelf & Spine app.
+function getCurrentUserId(){
+  return localStorage.getItem('shelf:currentUser') || 'shared';
+}
 
-// Wrappd gets its own document in the same Firebase project as Shelf & Spine, so
-// saved wraps sync across devices/browsers instead of being stuck in one browser's
-// localStorage. It never touches the shelf's own document.
-const WRAPPD_DOC = db.collection("wrappd-app").doc("shared");
+// Wrappd gets its own document per user in the same Firebase project as Shelf
+// & Spine, so saved wraps sync across devices/browsers instead of being stuck
+// in one browser's localStorage. It never touches the shelf's own document.
+const WRAPPD_DOC = db.collection("wrappd-app").doc(getCurrentUserId());
 
-// Read-only view of the Shelf's shared library, so Wrappd can offer real covers,
-// titles, formats and ratings straight from what's already logged on the shelf,
-// instead of the user having to search Open Library or re-type things by hand.
-const SHELF_DOC = db.collection("shelf-spine").doc("shared");
+// Read-only view of the active user's shelf library, so Wrappd can offer real
+// covers, titles, formats and ratings straight from what's already logged on
+// the shelf, instead of the user having to search Open Library or re-type
+// things by hand.
+const SHELF_DOC = db.collection("shelf-spine").doc(getCurrentUserId());
 let shelfBooks = [];
 SHELF_DOC.onSnapshot((snap) => {
   const data = snap.exists ? snap.data() : {};
