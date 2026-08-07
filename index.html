@@ -201,7 +201,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
 /* ---------------- firebase setup ---------------- */
-// TODO: paste the config object from Firebase Console → Project settings → Your apps → SDK setup
 const firebaseConfig = {
   apiKey: "AIzaSyBqOuK-l7h5Do9sAk1y4MBxwYkFFu2pusY",
   authDomain: "readingtracker-73e78.firebaseapp.com",
@@ -212,7 +211,6 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-// Everyone who opens this page reads/writes the SAME document, so the shelf is identical for all users.
 const SHARED_DOC = db.collection("shelf-spine").doc("shared");
 </script>
 
@@ -271,7 +269,7 @@ let state = {
   books: [],
   wishlist: [],
   loaded: false,
-  modal: null, // {type:'book-form'|'book-detail'|'wish-form'|'backup-export'|'backup-import', payload}
+  modal: null,
 };
 let ui = {
   sortKey: "title",
@@ -284,20 +282,16 @@ let ui = {
 };
 
 /* ---------------- persistence (Firebase Firestore) ---------------- */
-// One shared document holds both arrays. onSnapshot fires immediately with
-// whatever is currently in Firestore, and again in real time whenever ANY
-// user (including this tab) writes — that's what keeps every user's screen identical.
 let firestoreReady = false;
 
 async function loadData(){
   SHARED_DOC.onSnapshot((snap) => {
     if (!snap.exists) {
-      // Nobody has ever saved to this doc yet — seed it once.
       if (!firestoreReady) {
         SHARED_DOC.set({ books: SEED_BOOKS, wishlist: SEED_WISHLIST })
           .catch(err => console.error("Failed to seed Firestore:", err));
       }
-      return; // the .set() above will re-trigger this listener with real data
+      return;
     }
     const data = snap.data();
     state.books = Array.isArray(data.books) ? data.books : [];
@@ -1108,6 +1102,7 @@ function renderSidebar(){
     ${TABS.map(t=>`<button class="nav-btn ${state.tab===t.key?"active":""}" data-action="set-tab" data-tab="${t.key}">${t.label}</button>`).join("")}
     <a href="bingo.html" class="nav-btn" style="text-decoration:none;display:block;">🎲 Bingo</a>
     <a href="wrapped.html" class="nav-btn" style="text-decoration:none;display:block;">✦ Wrappd</a>
+    <a href="wheel.html" class="nav-btn" style="text-decoration:none;display:block;">🎡 Wheel</a>
     <div style="margin-top:auto;"></div>
   `;
 
@@ -1124,6 +1119,7 @@ function renderSidebar(){
         ${moreTabs.map(t=>`<button class="nav-btn ${state.tab===t.key?"active":""}" data-action="set-tab" data-tab="${t.key}">${t.label}</button>`).join("")}
         <a href="bingo.html" class="nav-btn" style="text-decoration:none;display:block;">🎲 Bingo</a>
         <a href="wrapped.html" class="nav-btn" style="text-decoration:none;display:block;">✦ Wrappd</a>
+        <a href="wheel.html" class="nav-btn" style="text-decoration:none;display:block;">🎡 Wheel</a>
       </div>
     ` : ""}
   `;
