@@ -551,6 +551,9 @@ SHELF_DOC.onSnapshot((snap) => {
 </script>
 
 <script>
+// Resume where I left off: mark this page as the last one visited.
+localStorage.setItem('shelf:lastPage', 'wrapped.html');
+
 /* ============================ DATA ============================ */
 const uid = () => Math.random().toString(36).slice(2,10);
 
