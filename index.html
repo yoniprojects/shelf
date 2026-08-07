@@ -129,10 +129,11 @@
   .dot{width:7px;height:7px;border-radius:50%;display:inline-block;}
   .legend{display:flex;gap:16px;margin-top:12px;font-size:11.5px;color:var(--muted);align-items:center;}
   .legend .dot{margin-right:5px;}
-  .pie-wrap{display:flex;align-items:center;gap:16px;}
-  .pie{width:120px;height:120px;border-radius:50%;position:relative;flex-shrink:0;}
-  .pie::after{content:'';position:absolute;inset:26px;background:#fff;border-radius:50%;}
-  .pie-legend{font-size:11.5px;display:flex;flex-direction:column;gap:6px;}
+  .pie-card{display:flex;flex-direction:column;height:100%;}
+  .pie-wrap{display:flex;align-items:center;justify-content:center;gap:28px;flex:1;flex-wrap:wrap;}
+  .pie{width:min(46%,320px);aspect-ratio:1/1;border-radius:50%;position:relative;flex-shrink:0;}
+  .pie::after{content:'';position:absolute;inset:21.7%;background:#fff;border-radius:50%;}
+  .pie-legend{font-size:12.5px;display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px 18px;flex:1;min-width:130px;max-width:420px;}
   .pie-legend .row{display:flex;align-items:center;gap:6px;}
   .pie-legend .sw{width:9px;height:9px;border-radius:2px;flex-shrink:0;}
   .bars{display:flex;gap:4px;align-items:flex-end;height:180px;overflow-x:auto;padding-top:10px;}
@@ -148,6 +149,19 @@
   .wish-price{font-weight:700;color:var(--oxblood);font-size:13px;}
   .wish-actions{display:flex;gap:8px;margin-top:10px;}
   .flexwrap{display:flex;flex-wrap:wrap;gap:16px;}
+  
+  .btn-complete {
+    background: #2E7D32;
+    color: #fff;
+    padding: 2px 6px;
+    font-size: 10px;
+    border-radius: 4px;
+    font-weight: 700;
+  }
+  .btn-complete:hover {
+    background: #1B5E20;
+  }
+
   @media (max-width:780px){
     .shell{flex-direction:column;}
     .sidebar{display:none;}
@@ -161,7 +175,8 @@
     .grid2{grid-template-columns:1fr;}
     .dash-grid{grid-template-columns:1fr !important;}
     .book-detail-grid{grid-template-columns:120px 1fr !important;gap:14px !important;}
-    .pie{width:96px;height:96px;}
+    .pie{width:96px;height:96px;aspect-ratio:unset;}
+    .pie::after{inset:26px;}
     .main{padding:16px;max-width:100vw;}
     .page-head{align-items:flex-start;}
     #page-title{font-size:24px !important;}
@@ -175,6 +190,49 @@
     table.tracker th:nth-child(2),table.tracker td:nth-child(2){min-width:160px;padding-right:10px;}
     table.tracker td:nth-child(2){font-size:12.5px;line-height:1.35;}
     .stat-card{min-width:100px;flex:1 1 calc(50% - 7px);}
+  }
+
+  /* Phone-only gallery scaling: fill the screen width, keep every detail (cover, title, author, stars) visible */
+  @media (max-width:600px){
+    .gallery-grid{
+      display:grid;
+      grid-template-columns:repeat(2, 1fr);
+      gap:14px 12px;
+      width:100%;
+    }
+    .gallery-grid .cover-card{
+      width:100% !important;
+      display:flex;
+      flex-direction:column;
+    }
+    .gallery-grid .cover-card .cover{
+      width:100%;
+      height:auto !important;
+      aspect-ratio:2/3;
+      margin-bottom:8px;
+    }
+    .gallery-grid .cover-card .cover span{
+      font-size:16px;
+    }
+    .gallery-grid .cover-card .title{
+      font-size:14.5px !important;
+      line-height:1.3 !important;
+    }
+    .gallery-grid .cover-card .author{
+      font-size:12.5px !important;
+      margin-bottom:5px !important;
+    }
+    .gallery-grid .cover-card .stars{
+      font-size:14px !important;
+    }
+    .filters-row{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+    }
+    .filters-row #gallery-q{
+      grid-column:1 / -1;
+    }
   }
 </style>
 </head>
@@ -218,8 +276,8 @@ const SHARED_DOC = db.collection("shelf-spine").doc("shared");
 /* ---------------- tokens & constants ---------------- */
 const COLORS = { oxblood:'#3F6B41', rose:'#C08A4E', sage:'#7C9473', gold:'#C29A2E' };
 const SPINE_COLORS = ["#4A7A4C","#C08A4E","#7FB59A","#C29A2E","#8A9C5E","#B5794A","#5E8F87","#A0703F","#6E8A4E","#9C8248"];
-const STATUS = { want:"Want to read", reading:"Currently reading", done:"Completed", dnf:"Did not finish" };
-const TRACKER_GROUPS = [["want","To Be Read"],["reading","Currently Reading"],["done","Completed"],["dnf","Did Not Finish"]];
+const STATUS = { reading:"Currently reading", done:"Completed", dnf:"Did not finish" };
+const TRACKER_GROUPS = [["reading","Currently Reading"],["done","Completed"],["dnf","Did Not Finish"]];
 const FORMATS = ["Physical","Digital","Audio"];
 const SOURCES = ["Purchased","Borrowed","Gift","Free"];
 const PRIORITIES = ["Must-read","Interested","Maybe"];
@@ -252,11 +310,49 @@ function esc(s){ return (s==null?"":String(s)).replace(/[&<>"']/g, c=>({"&":"&am
 function fmtDate(d){ if(!d) return "—"; const dt=new Date(d+"T00:00:00"); if(isNaN(dt)) return d; return dt.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}); }
 function yearOf(d){ return d ? d.slice(0,4) : null; }
 
+/* Helper to sort suggestions by the index of the typed letter */
+function sortSuggestionsByInput(list, typedValue) {
+  const query = (typedValue || "").trim().toLowerCase();
+  if (!query) return [...list].sort((a, b) => a.localeCompare(b));
+  
+  return [...list].sort((a, b) => {
+    const aLower = a.toLowerCase();
+    const bLower = b.toLowerCase();
+    const aIdx = aLower.indexOf(query);
+    const bIdx = bLower.indexOf(query);
+
+    // If both contain the query string, sort by the earliest occurrence index of that string
+    if (aIdx !== -1 && bIdx !== -1) {
+      if (aIdx !== bIdx) return aIdx - bIdx;
+    } else if (aIdx !== -1) {
+      return -1;
+    } else if (bIdx !== -1) {
+      return 1;
+    }
+
+    // Fallback: check matching order of the individual letters typed
+    let aMatchIndex = 0;
+    let bMatchIndex = 0;
+    for (let char of query) {
+      aMatchIndex = aLower.indexOf(char, aMatchIndex);
+      bMatchIndex = bLower.indexOf(char, bMatchIndex);
+      if (aMatchIndex === -1) aMatchIndex = Infinity;
+      if (bMatchIndex === -1) bMatchIndex = Infinity;
+    }
+
+    if (aMatchIndex !== bMatchIndex) {
+      return aMatchIndex - bMatchIndex;
+    }
+
+    return a.localeCompare(b);
+  });
+}
+
 const SEED_BOOKS = [
   { id:uid(), title:"Fourth Wing", author:"Rebecca Yarros", genre:"Fantasy", subGenre:"Young Adult", format:"Physical", source:"Purchased", status:"done", priority:"", rating:4.75, dateFinished:"2026-01-14", language:"English", pagesHours:"512", review:"Dragons, danger, and a slow burn that actually delivers.", notes:"Reread before book 3 drops.", recommendedBy:"Maya", isExample:true },
   { id:uid(), title:"Circe", author:"Madeline Miller", genre:"Fantasy", subGenre:"Mythology", format:"Digital", source:"Borrowed", status:"done", priority:"", rating:5, dateFinished:"2026-02-10", language:"English", pagesHours:"393", review:"Gorgeous, patient, quietly devastating.", notes:"Favorite line about immortality and boredom.", recommendedBy:"", isExample:true },
   { id:uid(), title:"The Seven Husbands of Evelyn Hugo", author:"Taylor Jenkins Reid", genre:"Fiction", subGenre:"Contemporary", format:"Audio", source:"Gift", status:"reading", priority:"Must-read", rating:0, dateFinished:"", language:"English", pagesHours:"14", review:"", notes:"Halfway through — did not see that coming.", recommendedBy:"Book club", isExample:true },
-  { id:uid(), title:"Metamorphosis", author:"Franz Kafka", genre:"Fiction", subGenre:"Classic", format:"Physical", source:"Purchased", status:"want", priority:"Interested", rating:0, dateFinished:"", language:"Hebrew", pagesHours:"96", review:"", notes:"Short enough for a rainy weekend.", recommendedBy:"", isExample:true },
+  { id:uid(), title:"Metamorphosis", author:"Franz Kafka", genre:"Fiction", subGenre:"Classic", format:"Physical", source:"Purchased", status:"reading", priority:"Interested", rating:0, dateFinished:"", language:"Hebrew", pagesHours:"96", review:"", notes:"Short enough for a rainy weekend.", recommendedBy:"", isExample:true },
 ];
 const SEED_WISHLIST = [
   { id:uid(), title:"The Song of Achilles", author:"Madeline Miller", price:"14.99", priority:"Must-read", bought:false, isExample:true },
@@ -323,13 +419,39 @@ function exportBackupJSON(){
     books: state.books,
     wishlist: state.wishlist
   };
-  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
-  const dlAnchor = document.createElement('a');
-  dlAnchor.setAttribute("href", dataStr);
-  dlAnchor.setAttribute("download", `shelf-spine-backup-${new Date().toISOString().slice(0,10)}.json`);
-  document.body.appendChild(dlAnchor);
-  dlAnchor.click();
-  dlAnchor.remove();
+  const filename = `shelf-spine-backup-${new Date().toISOString().slice(0,10)}.json`;
+  const jsonStr = JSON.stringify(backupData, null, 2);
+  const blob = new Blob([jsonStr], { type: "application/json" });
+
+  // iOS Safari (and in-app browsers) largely ignore the `download` attribute
+  // and silently drop data: URIs, so a synthetic <a download> click is a
+  // no-op there even though it works fine on desktop. Detect iOS and fall
+  // back to opening the JSON in a new tab so the user can save it via the
+  // share sheet.
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  if (!isIOS) {
+    const url = URL.createObjectURL(blob);
+    const dlAnchor = document.createElement('a');
+    dlAnchor.href = url;
+    dlAnchor.download = filename;
+    document.body.appendChild(dlAnchor);
+    dlAnchor.click();
+    dlAnchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } else {
+    // iOS fallback: open in a new tab. The user can then use the Share
+    // button in Safari to save/send the file.
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, '_blank');
+    if (!win) {
+      // Popup blocked — fall back to navigating the current tab.
+      window.location.href = url;
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+
   state.modal = null;
   renderModal();
 }
@@ -466,7 +588,17 @@ function renderDashboard(){
   const completedThisYear = completed.filter(b=>yearOf(b.dateFinished)===year);
   const reading = books.filter(b=>b.status==="reading").length;
   const dnfCount = books.filter(b=>b.status==="dnf").length;
-  const lastFinished = completed.slice().sort((a,b)=>(b.dateFinished||"").localeCompare(a.dateFinished||""))[0];
+  
+  // Find all books finished in the current calendar month
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const finishedThisMonth = completed.filter(b => {
+    if (!b.dateFinished) return false;
+    const d = new Date(b.dateFinished + "T00:00:00");
+    return !isNaN(d) && d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+  }).sort((a, b) => (b.dateFinished || "").localeCompare(a.dateFinished || ""));
+
   const funFacts = computeFunFacts(books);
 
   const genreMap = {}; books.forEach(b=>{ if(b.genre) genreMap[b.genre]=(genreMap[b.genre]||0)+1; });
@@ -518,20 +650,28 @@ function renderDashboard(){
     </div>` : ""}
     <div class="dash-grid" style="display:grid;grid-template-columns:260px 1fr 1fr;gap:16px;margin-bottom:18px;">
       <div class="card">
-        <div class="section-label">Last finished</div>
-        ${lastFinished ? `
-          ${coverHTML(lastFinished, 90)}
-          <div style="font-weight:700;font-size:13.5px;margin-top:10px;">${esc(lastFinished.title)}</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">${esc(lastFinished.author)}</div>
-          ${starsHTML(lastFinished.rating,false,null,12)}
-          <div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.4;">${esc(lastFinished.review)}</div>
-        ` : `<div style="font-size:12.5px;color:var(--muted);">Nothing finished yet.</div>`}
+        <div class="section-label">Last Finished</div>
+        ${finishedThisMonth.length > 0 ? `
+          <div style="display:flex;flex-direction:column;gap:14px;max-height:360px;overflow-y:auto;padding-right:4px;">
+            ${finishedThisMonth.map(b => `
+              <div style="padding-bottom:10px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:flex-start;">
+                <div style="width:50px;flex-shrink:0;">${coverHTML(b, 70)}</div>
+                <div style="flex:1;min-width:0;">
+                  <div style="font-weight:700;font-size:13px;line-height:1.2;" title="${esc(b.title)}">${esc(b.title)}</div>
+                  <div style="font-size:11.5px;color:var(--muted);margin-bottom:2px;" title="${esc(b.author)}">${esc(b.author)}</div>
+                  <div style="font-size:10.5px;color:var(--muted);margin-bottom:4px;">Finished ${fmtDate(b.dateFinished)}</div>
+                  ${starsHTML(b.rating, false, null, 11)}
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        ` : `<div style="font-size:12.5px;color:var(--muted);">No books finished this month yet.</div>`}
       </div>
-      <div class="card">
+      <div class="card pie-card">
         <div class="section-label">By genre</div>
         ${pie(genreEntries, genreColor)}
       </div>
-      <div class="card">
+      <div class="card pie-card">
         <div class="section-label">By format</div>
         ${pie(formatEntries, n=>formatColors[n]||COLORS.oxblood)}
       </div>
@@ -562,7 +702,12 @@ function renderTrackerGroupTable(books, cols){
       ${showPriority?`<td style="color:var(--muted);">${esc(b.priority)}</td>`:""}
       <td>${starsHTML(b.rating,false,null,12)}</td>
       <td>${esc(b.source)}</td>
-      <td>${pillHTML(STATUS[b.status], statusPillTone(b.status))}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${pillHTML(STATUS[b.status], statusPillTone(b.status))}
+          ${b.status==='reading'?`<button class="btn btn-complete" data-action="mark-completed" data-id="${b.id}">Complete ✓</button>`:''}
+        </div>
+      </td>
     </tr>`).join("");
   return `<table class="tracker"><thead><tr><th class="chk"></th>${head}</tr></thead><tbody>${rows}</tbody></table>`;
 }
@@ -611,7 +756,7 @@ function renderTracker(){
 function renderGallery(){
   const books = state.books;
   if(books.length===0) return emptyState("Once you log books, they'll show up here as a browsable cover gallery.");
-  const genres = [...new Set(books.map(b=>b.genre).filter(Boolean))];
+  const genres = sortSuggestionsByInput([...new Set(books.map(b=>b.genre).filter(Boolean))], ui.galleryGenre);
   const q = ui.galleryQuery.toLowerCase();
   const filtered = books.filter(b=>{
     if(q && !`${b.title} ${b.author}`.toLowerCase().includes(q)) return false;
@@ -643,7 +788,7 @@ function renderGallery(){
         ${[5,4,3,2,1].map(n=>`<option value="${n}" ${ui.galleryRating==String(n)?"selected":""}>${n}+ stars</option>`).join("")}
       </select>
     </div>
-    ${filtered.length===0 ? emptyState("No books match those filters. Try clearing one.") : `<div class="flexwrap">${cards}</div>`}
+    ${filtered.length===0 ? emptyState("No books match those filters. Try clearing one.") : `<div class="flexwrap gallery-grid">${cards}</div>`}
   `;
 }
 
@@ -680,7 +825,7 @@ function renderShelf(){
         <div class="shelf-floor"></div>
       </div>
     </div>`;
-  const genres = [...new Set(books.map(b=>b.genre).filter(Boolean))];
+  const genres = sortSuggestionsByInput([...new Set(books.map(b=>b.genre).filter(Boolean))], ui.shelfGenre);
   const filtered = ui.shelfGenre ? books.filter(b=>b.genre===ui.shelfGenre) : books;
   const map = {};
   filtered.forEach(b=>{ const key=b.genre||"Unsorted"; (map[key]=map[key]||[]).push(b); });
@@ -932,12 +1077,39 @@ function goodreadsImportHTML(){
 }
 
 /* ---------------- modals ---------------- */
+function completeBookModalHTML(book){
+  const todayStr = new Date().toISOString().slice(0, 10);
+  return `
+    <input type="hidden" id="cf-id" value="${book.id}" />
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">
+      Marking <b>${esc(book.title)}</b> as completed. Add your completion date and rating below!
+    </div>
+    <label class="field">Date finished
+      <input type="date" class="input" id="cf-finished" value="${todayStr}" />
+    </label>
+    <label class="field">Rating <span style="color:#A2572B;">*</span>
+      <span style="display:flex;align-items:center;gap:10px;">
+        ${starsHTML(0, true, "cf-rating", 22)}
+        <input type="number" class="input" id="cf-rating-num" min="0.25" max="5" step="0.25" value="" placeholder="0-5" style="width:80px;" required />
+      </span>
+      <input type="hidden" id="cf-rating" value="0" />
+    </label>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;">
+      <button class="btn-danger" data-action="mark-dnf" data-id="${book.id}">Mark as Did Not Finish instead</button>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-ghost" data-action="close-modal">Cancel</button>
+        <button class="btn btn-primary" data-action="save-complete-book">Complete Book</button>
+      </div>
+    </div>
+  `;
+}
+
 function bookFormHTML(book){
-  const b = book || { id:uid(), title:"", author:"", genre:"", subGenre:"", format:"Physical", source:"Purchased", status:"want", priority:"Interested", rating:0, dateFinished:"", language:"English", pagesHours:"", review:"", notes:"", recommendedBy:"", coverUrl:"" };
+  const b = book || { id:uid(), title:"", author:"", genre:"", subGenre:"", format:"Physical", source:"Purchased", status:"reading", priority:"Interested", rating:0, dateFinished:"", language:"English", pagesHours:"", review:"", notes:"", recommendedBy:"", coverUrl:"" };
   const priorityHidden = (b.status==="done" || b.status==="dnf");
   
-  const allGenres = Array.from(new Set([...DEFAULT_GENRES, ...state.books.map(x=>x.genre).filter(Boolean)]));
-  const allSubGenres = Array.from(new Set(state.books.map(x=>x.subGenre).filter(Boolean)));
+  const allGenres = sortSuggestionsByInput(Array.from(new Set([...DEFAULT_GENRES, ...state.books.map(x=>x.genre).filter(Boolean)])), b.genre);
+  const allSubGenres = sortSuggestionsByInput(Array.from(new Set(state.books.map(x=>x.subGenre).filter(Boolean))), b.subGenre);
 
   return `
     <input type="hidden" id="f-id" value="${b.id}" />
@@ -1016,7 +1188,7 @@ function bookDetailHTML(book){
 }
 function bulkEditFormHTML(count){
   const noChange = `<option value="">— No change —</option>`;
-  const allGenres = Array.from(new Set([...DEFAULT_GENRES, ...state.books.map(x=>x.genre).filter(Boolean)]));
+  const allGenres = sortSuggestionsByInput(Array.from(new Set([...DEFAULT_GENRES, ...state.books.map(x=>x.genre).filter(Boolean)])), "");
   return `
     <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px;">Editing ${count} book${count===1?"":"s"}. Only fields you change will be applied — leave a field as "No change" to keep each book's existing value.</div>
     <div class="grid2">
@@ -1080,6 +1252,7 @@ function renderModal(){
   const m = state.modal;
   let title="", body="", wide=false;
   if(m.type==="book-form"){ title = m.payload ? "Edit book" : "Add a book"; body = bookFormHTML(m.payload); }
+  else if(m.type==="complete-book"){ title = "Complete book"; body = completeBookModalHTML(m.payload); }
   else if(m.type==="book-detail"){ title="Book details"; body = bookDetailHTML(m.payload); wide=true; }
   else if(m.type==="wish-form"){ title = m.payload ? "Edit wishlist item" : "Add to wishlist"; body = wishFormHTML(m.payload); }
   else if(m.type==="bulk-edit-form"){ title = "Bulk edit books"; body = bulkEditFormHTML(ui.selected.size); }
@@ -1100,9 +1273,9 @@ function renderSidebar(){
   document.getElementById("sidebar").innerHTML = `
     <div class="logo">Shelf &amp; Spine</div>
     ${TABS.map(t=>`<button class="nav-btn ${state.tab===t.key?"active":""}" data-action="set-tab" data-tab="${t.key}">${t.label}</button>`).join("")}
-    <a href="bingo.html" class="nav-btn" style="text-decoration:none;display:block;">🎲 Bingo</a>
-    <a href="wrapped.html" class="nav-btn" style="text-decoration:none;display:block;">✦ Wrappd</a>
-    <a href="wheel.html" class="nav-btn" style="text-decoration:none;display:block;">🎡 Wheel</a>
+    <a href="bingo.html" class="nav-btn" style="text-decoration:none;display:block;">Bingo</a>
+    <a href="wrapped.html" class="nav-btn" style="text-decoration:none;display:block;">Monthly wrap</a>
+    <a href="wheel.html" class="nav-btn" style="text-decoration:none;display:block;">Random wheel</a>
     <div style="margin-top:auto;"></div>
   `;
 
@@ -1117,9 +1290,9 @@ function renderSidebar(){
       <div class="mobile-more-backdrop" data-action="close-mobile-more"></div>
       <div class="mobile-more-panel">
         ${moreTabs.map(t=>`<button class="nav-btn ${state.tab===t.key?"active":""}" data-action="set-tab" data-tab="${t.key}">${t.label}</button>`).join("")}
-        <a href="bingo.html" class="nav-btn" style="text-decoration:none;display:block;">🎲 Bingo</a>
-        <a href="wrapped.html" class="nav-btn" style="text-decoration:none;display:block;">✦ Wrappd</a>
-        <a href="wheel.html" class="nav-btn" style="text-decoration:none;display:block;">🎡 Wheel</a>
+        <a href="bingo.html" class="nav-btn" style="text-decoration:none;display:block;">Bingo</a>
+        <a href="wrapped.html" class="nav-btn" style="text-decoration:none;display:block;">Monthly wrap</a>
+        <a href="wheel.html" class="nav-btn" style="text-decoration:none;display:block;">Random wheel</a>
       </div>
     ` : ""}
   `;
@@ -1189,6 +1362,48 @@ function saveBookFromForm(){
   state.modal = null;
   render();
 }
+function saveCompleteBookFromModal(){
+  const id = document.getElementById("cf-id").value;
+  const dateFinished = document.getElementById("cf-finished").value;
+  const rating = Number(document.getElementById("cf-rating").value) || 0;
+  
+  if (rating <= 0) {
+    alert("Please provide a rating before completing.");
+    return;
+  }
+
+  state.books = state.books.map(b => {
+    if(b.id === id){
+      return {
+        ...b,
+        status: "done",
+        dateFinished: dateFinished,
+        rating: rating,
+        priority: ""
+      };
+    }
+    return b;
+  });
+  persistBooks();
+  state.modal = null;
+  render();
+}
+function markDNFFromModal(id){
+  state.books = state.books.map(b => {
+    if(b.id === id){
+      return {
+        ...b,
+        status: "dnf",
+        rating: 0,
+        priority: ""
+      };
+    }
+    return b;
+  });
+  persistBooks();
+  state.modal = null;
+  render();
+}
 function deleteBook(id){
   state.books = state.books.filter(b=>b.id!==id);
   persistBooks();
@@ -1217,7 +1432,7 @@ function deleteWish(id){ state.wishlist = state.wishlist.filter(w=>w.id!==id); p
 function moveWishToTracker(id){
   const w = state.wishlist.find(x=>x.id===id);
   if(!w) return;
-  state.books.push({ id:uid(), title:w.title, author:w.author, genre:"", subGenre:"", format:"Physical", source:"Purchased", status:"want", priority:w.priority, rating:0, dateFinished:"", language:"English", pagesHours:"", review:"", notes:"", recommendedBy:"", isExample:false });
+  state.books.push({ id:uid(), title:w.title, author:w.author, genre:"", subGenre:"", format:"Physical", source:"Purchased", status:"reading", priority:w.priority, rating:0, dateFinished:"", language:"English", pagesHours:"", review:"", notes:"", recommendedBy:"", isExample:false });
   state.wishlist = state.wishlist.filter(x=>x.id!==id);
   persistBooks(); persistWishlist();
   state.tab = "tracker";
@@ -1297,11 +1512,14 @@ document.addEventListener("click", (e)=>{
   else if(action==="toggle-mobile-more"){ ui.mobileMoreOpen = !ui.mobileMoreOpen; render(); }
   else if(action==="close-mobile-more"){ ui.mobileMoreOpen = false; render(); }
   else if(action==="add-book"){ state.modal = {type:"book-form", payload:null}; renderModal(); }
+  else if(action==="mark-completed"){ state.modal = {type:"complete-book", payload: findBook(id)}; renderModal(); }
   else if(action==="edit-book"){ state.modal = {type:"book-form", payload: findBook(id)}; renderModal(); }
   else if(action==="open-book"){ state.modal = {type:"book-detail", payload: findBook(id)}; renderModal(); }
   else if(action==="edit-from-detail"){ state.modal = {type:"book-form", payload: findBook(id)}; renderModal(); }
   else if(action==="delete-book"){ deleteBook(id); }
   else if(action==="save-book"){ saveBookFromForm(); }
+  else if(action==="save-complete-book"){ saveCompleteBookFromModal(); }
+  else if(action==="mark-dnf"){ markDNFFromModal(id); }
   else if(action==="close-modal"){ state.modal = null; goodreadsParsed = null; renderModal(); }
   else if(action==="sort"){ ui.sortKey = el.getAttribute("data-key"); render(); }
   else if(action==="clear-examples"){ clearExamples(); }
@@ -1369,7 +1587,6 @@ document.addEventListener("change", (e)=>{
     if(priWrap) priWrap.style.display = hide ? "none" : "";
   }
   else if(e.target.id==="goodreads-file"){ handleGoodreadsFile(e.target.files[0]); }
-  else if(e.target.id==="gallery-q") { ui.galleryQuery = e.target.value; render(); }
   else if(e.target.id==="gallery-status"){ ui.galleryStatus = e.target.value; render(); }
   else if(e.target.id==="gallery-genre"){ ui.galleryGenre = e.target.value; render(); }
   else if(e.target.id==="gallery-rating"){ ui.galleryRating = e.target.value; render(); }
@@ -1382,6 +1599,22 @@ document.addEventListener("change", (e)=>{
 });
 document.addEventListener("input", (e)=>{
   if(e.target.id==="gallery-q"){ ui.galleryQuery = e.target.value; render(); document.getElementById("gallery-q") && document.getElementById("gallery-q").focus(); }
+  else if(e.target.id==="f-genre"){
+    const val = e.target.value;
+    const datalist = document.getElementById("genre-list");
+    if (datalist) {
+      const allGenres = Array.from(new Set([...DEFAULT_GENRES, ...state.books.map(x=>x.genre).filter(Boolean)]));
+      datalist.innerHTML = sortSuggestionsByInput(allGenres, val).map(g=>`<option value="${esc(g)}">`).join("");
+    }
+  }
+  else if(e.target.id==="f-subgenre"){
+    const val = e.target.value;
+    const datalist = document.getElementById("subgenre-list");
+    if (datalist) {
+      const allSubGenres = Array.from(new Set(state.books.map(x=>x.subGenre).filter(Boolean)));
+      datalist.innerHTML = sortSuggestionsByInput(allSubGenres, val).map(sg=>`<option value="${esc(sg)}">`).join("");
+    }
+  }
   else if(e.target.id==="f-cover-url"){
     const val = e.target.value.trim();
     const hidden = document.getElementById("f-cover");
@@ -1392,21 +1625,19 @@ document.addEventListener("input", (e)=>{
       else { prev.classList.add("empty"); prev.innerHTML = "📖"; }
     }
   }
-  else if(e.target.id==="f-rating-num"){
-    let val = Number(e.target.value);
-    if(isNaN(val)) val = 0;
-    val = Math.max(0, Math.min(5, Math.round(val*4)/4));
-    const hidden = document.getElementById("f-rating");
+  else if(e.target.id==="f-rating-num" || e.target.id==="cf-rating-num"){
+    const targetId = e.target.id === "cf-rating-num" ? "cf-rating" : "f-rating";
+    const hidden = document.getElementById(targetId);
+    let val = Number(e.target.value)||0;
+    val = Math.max(0, Math.min(5, val));
     if(hidden) hidden.value = val;
-    const wrap = document.querySelector('.stars[data-star-target="f-rating"]');
+    const wrap = e.target.closest("span")?.querySelector(".stars");
     if(wrap) applyStarFills(wrap, val);
   }
 });
 
-/* ---------------- boot ---------------- */
-(async function init(){
-  await loadData();
-})();
+/* ---------------- init ---------------- */
+loadData();
 </script>
 </body>
 </html>
