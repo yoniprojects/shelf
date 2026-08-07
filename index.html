@@ -60,9 +60,12 @@
   .input, select.input, textarea.input{border:1.5px solid var(--line);border-radius:7px;padding:8px 10px;font-size:13.5px;font-family:inherit;color:var(--ink);outline:none;background:#fff;width:100%;}
   textarea.input{min-height:60px;resize:vertical;}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-  .stars span{font-size:15px;line-height:1;color:#DDD1CC;}
-  .stars span.filled{color:var(--gold);}
-  .stars.editable span{cursor:pointer;}
+  .stars{display:inline-flex;line-height:1;}
+  .stars .star-slot{position:relative;display:inline-block;width:1em;height:1em;}
+  .stars .star-slot .star-base,.stars .star-slot .star-fill{position:absolute;left:0;top:0;pointer-events:none;white-space:nowrap;}
+  .stars .star-slot .star-base{color:#DDD1CC;}
+  .stars .star-slot .star-fill{color:var(--gold);overflow:hidden;width:0%;}
+  .stars.editable .star-slot{cursor:pointer;}
   .empty-state{text-align:center;padding:60px 20px;color:var(--muted);}
   .empty-state .icon{font-size:34px;margin-bottom:10px;}
   .empty-state p{font-size:13.5px;max-width:380px;margin:0 auto 16px;line-height:1.5;}
@@ -71,8 +74,8 @@
   table.tracker th{padding:10px 12px;text-align:left;font-weight:700;cursor:pointer;white-space:nowrap;letter-spacing:.3px;}
   table.tracker td{padding:9px 12px;}
   table.tracker tbody tr{cursor:pointer;}
-table.tracker tbody tr:nth-child(odd){background:#F1EEDE;}
-table.tracker tbody tr:nth-child(even){background:#fffdf7;}
+  table.tracker tbody tr:nth-child(odd){background:#F1EEDE;}
+  table.tracker tbody tr:nth-child(even){background:#fffdf7;}
   .stat-card{background:#fff;border-radius:12px;padding:16px 18px;box-shadow:0 2px 8px rgba(47,63,42,.10);min-width:120px;}
   .stat-card .num{font-family:'Anton',sans-serif;font-size:30px;color:var(--oxblood);}
   .stat-card .label{font-size:11.5px;color:var(--muted);font-weight:600;letter-spacing:.3px;margin-top:2px;}
@@ -91,15 +94,17 @@ table.tracker tbody tr:nth-child(even){background:#fffdf7;}
   .cover-card .cover{height:176px;margin-bottom:8px;}
   .cover-card .title{font-size:12.5px;font-weight:700;line-height:1.25;}
   .cover-card .author{font-size:11px;color:var(--muted);margin-bottom:4px;}
-  .spine{width:46px;border-radius:3px 3px 5px 5px;display:flex;align-items:flex-end;justify-content:center;padding:10px 4px;cursor:pointer;box-shadow:inset -3px 0 6px rgba(0,0,0,.18),2px 3px 6px rgba(0,0,0,.15);flex-shrink:0;}
-  .spine span{writing-mode:vertical-rl;transform:rotate(180deg);color:#fff;font-size:10.5px;font-weight:700;letter-spacing:.2px;text-shadow:0 1px 2px rgba(0,0,0,.35);max-height:100%;overflow:hidden;}
+  .spine{width:46px;border-radius:3px 3px 5px 5px;display:flex;align-items:flex-end;justify-content:center;padding:10px 4px;cursor:pointer;box-shadow:inset -3px 0 6px rgba(0,0,0,.35),2px 3px 6px rgba(0,0,0,.25);flex-shrink:0;position:relative;overflow:hidden;}
+  .spine span{writing-mode:vertical-rl;transform:rotate(180deg);color:#fff;font-size:10.5px;font-weight:700;letter-spacing:.2px;text-shadow:-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 2px 4px rgba(0,0,0,.9);max-height:100%;overflow:hidden;position:relative;z-index:2;}
+  .spine-bg{position:absolute;inset:0;background-size:cover;background-position:center;filter:brightness(0.8) contrast(1.1);z-index:0;}
+  .spine-overlay{position:absolute;inset:0;background:linear-gradient(180deg, rgba(255,255,255,0.3) 0%, rgba(0,0,0,0.1) 20%, rgba(0,0,0,0.3) 80%, rgba(0,0,0,0.6) 100%), linear-gradient(90deg, rgba(255,255,255,0.25) 0%, rgba(0,0,0,0) 25%, rgba(0,0,0,0) 75%, rgba(0,0,0,0.4) 100%);z-index:1;pointer-events:none;}
   .shelf-box{background:linear-gradient(180deg,var(--wood),var(--wood-dark));border-radius:10px;padding:18px 16px 0;}
   .shelf-row{display:flex;gap:6px;align-items:flex-end;overflow-x:auto;padding-bottom:12px;}
   .shelf-floor{height:10px;background:#2A1B10;border-radius:0 0 6px 6px;}
   .modal-overlay{position:fixed;inset:0;background:rgba(31,42,26,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
   .modal-card{background:var(--cream);border-radius:16px;width:480px;max-width:94vw;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);}
   .modal-card.wide{width:720px;}
-  .modal-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1.5px solid var(--line);position:sticky;top:0;background:var(--cream);}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1.5px solid var(--line);position:sticky;top:0;background:var(--cream);z-index:10;}
   .modal-head h3{font-family:'Anton',sans-serif;font-size:20px;color:var(--oxblood-dark);letter-spacing:.5px;text-transform:uppercase;}
   .modal-body{padding:22px;}
   .modal-close{border:none;background:none;font-size:20px;cursor:pointer;color:var(--oxblood-dark);}
@@ -108,11 +113,13 @@ table.tracker tbody tr:nth-child(even){background:#fffdf7;}
   .filters-row input.input{flex:1;min-width:180px;}
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
   .cal-dow{text-align:center;font-size:11px;font-weight:700;color:var(--muted);}
-  .cal-cell{background:#fff;border-radius:8px;min-height:62px;padding:6px;border:1px solid var(--line);}
+  .cal-cell{background:#fff;border-radius:8px;min-height:78px;padding:6px;border:1px solid var(--line);display:flex;flex-direction:column;justify-content:space-between;}
   .cal-cell.has-events{cursor:pointer;}
   .cal-cell.picked{border:2px solid var(--oxblood);}
   .cal-daynum{font-size:11px;color:var(--muted);font-weight:700;}
-  .cal-dots{display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;}
+  .cal-dots{display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;align-items:center;}
+  .cal-covers{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;}
+  .cal-cover-thumb{width:22px;height:32px;border-radius:3px;object-fit:cover;box-shadow:0 1px 3px rgba(0,0,0,.3);}
   .dot{width:7px;height:7px;border-radius:50%;display:inline-block;}
   .legend{display:flex;gap:16px;margin-top:12px;font-size:11.5px;color:var(--muted);align-items:center;}
   .legend .dot{margin-right:5px;}
@@ -159,6 +166,26 @@ table.tracker tbody tr:nth-child(even){background:#fffdf7;}
   </div>
   <div id="modal-root"></div>
 
+<!-- Firebase (compat SDKs — plain <script> tags, no bundler needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+/* ---------------- firebase setup ---------------- */
+// TODO: paste the config object from Firebase Console → Project settings → Your apps → SDK setup
+const firebaseConfig = {
+  apiKey: "AIzaSyBqOuK-l7h5Do9sAk1y4MBxwYkFFu2pusY",
+  authDomain: "readingtracker-73e78.firebaseapp.com",
+  projectId: "readingtracker-73e78",
+  storageBucket: "readingtracker-73e78.firebasestorage.app",
+  messagingSenderId: "391536984056",
+  appId: "1:391536984056:web:ec841e6e42dbfd51e8e00d"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+// Everyone who opens this page reads/writes the SAME document, so the shelf is identical for all users.
+const SHARED_DOC = db.collection("shelf-spine").doc("shared");
+</script>
+
 <script>
 /* ---------------- tokens & constants ---------------- */
 const COLORS = { oxblood:'#3F6B41', rose:'#C08A4E', sage:'#7C9473', gold:'#C29A2E' };
@@ -168,7 +195,8 @@ const TRACKER_GROUPS = [["want","To Be Read"],["reading","Currently Reading"],["
 const FORMATS = ["Physical","Digital","Audio"];
 const SOURCES = ["Purchased","Borrowed","Gift","Free"];
 const PRIORITIES = ["Must-read","Interested","Maybe"];
-const GENRES = ["Fiction","Non-fiction","Romance","Fantasy","Sci-fi","Mystery","Historical","Young Adult","Memoir","Poetry"];
+const LANGUAGES = ["English","Hebrew"];
+const DEFAULT_GENRES = ["Fiction","Non-fiction","Romance","Fantasy","Sci-fi","Mystery","Historical","Young Adult","Memoir","Poetry"];
 const TABS = [
   {key:"dashboard",label:"Dashboard"},
   {key:"tracker",label:"Book Tracker"},
@@ -182,7 +210,7 @@ const TAB_SUBTITLES = {
   tracker:"Every book, logged and organized",
   gallery:"Browse your collection by cover",
   shelf:"Your bookshelf, arranged by genre",
-  calendar:"See when you started and finished",
+  calendar:"See when you finished",
   wishlist:"Books you can't wait to read",
 };
 
@@ -195,10 +223,10 @@ function fmtDate(d){ if(!d) return "—"; const dt=new Date(d+"T00:00:00"); if(i
 function yearOf(d){ return d ? d.slice(0,4) : null; }
 
 const SEED_BOOKS = [
-  { id:uid(), title:"Fourth Wing", author:"Rebecca Yarros", genre:"Fantasy", subGenre:"Young Adult", format:"Physical", source:"Purchased", status:"done", priority:"Must-read", rating:5, dateStarted:"2026-01-02", dateFinished:"2026-01-14", cost:"18.99", pagesHours:"512", review:"Dragons, danger, and a slow burn that actually delivers.", notes:"Reread before book 3 drops.", recommendedBy:"Maya", isExample:true },
-  { id:uid(), title:"Circe", author:"Madeline Miller", genre:"Fantasy", subGenre:"Mythology", format:"Digital", source:"Borrowed", status:"done", priority:"Must-read", rating:5, dateStarted:"2026-02-01", dateFinished:"2026-02-10", cost:"0", pagesHours:"393", review:"Gorgeous, patient, quietly devastating.", notes:"Favorite line about immortality and boredom.", recommendedBy:"", isExample:true },
-  { id:uid(), title:"The Seven Husbands of Evelyn Hugo", author:"Taylor Jenkins Reid", genre:"Fiction", subGenre:"Contemporary", format:"Audio", source:"Gift", status:"reading", priority:"Must-read", rating:0, dateStarted:"2026-04-01", dateFinished:"", cost:"0", pagesHours:"14", review:"", notes:"Halfway through — did not see that coming.", recommendedBy:"Book club", isExample:true },
-  { id:uid(), title:"Metamorphosis", author:"Franz Kafka", genre:"Fiction", subGenre:"Classic", format:"Physical", source:"Purchased", status:"want", priority:"Interested", rating:0, dateStarted:"", dateFinished:"", cost:"6.50", pagesHours:"96", review:"", notes:"Short enough for a rainy weekend.", recommendedBy:"", isExample:true },
+  { id:uid(), title:"Fourth Wing", author:"Rebecca Yarros", genre:"Fantasy", subGenre:"Young Adult", format:"Physical", source:"Purchased", status:"done", priority:"", rating:4.75, dateFinished:"2026-01-14", language:"English", pagesHours:"512", review:"Dragons, danger, and a slow burn that actually delivers.", notes:"Reread before book 3 drops.", recommendedBy:"Maya", isExample:true },
+  { id:uid(), title:"Circe", author:"Madeline Miller", genre:"Fantasy", subGenre:"Mythology", format:"Digital", source:"Borrowed", status:"done", priority:"", rating:5, dateFinished:"2026-02-10", language:"English", pagesHours:"393", review:"Gorgeous, patient, quietly devastating.", notes:"Favorite line about immortality and boredom.", recommendedBy:"", isExample:true },
+  { id:uid(), title:"The Seven Husbands of Evelyn Hugo", author:"Taylor Jenkins Reid", genre:"Fiction", subGenre:"Contemporary", format:"Audio", source:"Gift", status:"reading", priority:"Must-read", rating:0, dateFinished:"", language:"English", pagesHours:"14", review:"", notes:"Halfway through — did not see that coming.", recommendedBy:"Book club", isExample:true },
+  { id:uid(), title:"Metamorphosis", author:"Franz Kafka", genre:"Fiction", subGenre:"Classic", format:"Physical", source:"Purchased", status:"want", priority:"Interested", rating:0, dateFinished:"", language:"Hebrew", pagesHours:"96", review:"", notes:"Short enough for a rainy weekend.", recommendedBy:"", isExample:true },
 ];
 const SEED_WISHLIST = [
   { id:uid(), title:"The Song of Achilles", author:"Madeline Miller", price:"14.99", priority:"Must-read", bought:false, isExample:true },
@@ -222,52 +250,42 @@ let ui = {
   selected: new Set(),
 };
 
-/* ---------------- persistence (Local Storage) ---------------- */
-const LS_BOOKS_KEY = "shelf_spine_books";
-const LS_WISHL_KEY = "shelf_spine_wishlist";
+/* ---------------- persistence (Firebase Firestore) ---------------- */
+// One shared document holds both arrays. onSnapshot fires immediately with
+// whatever is currently in Firestore, and again in real time whenever ANY
+// user (including this tab) writes — that's what keeps every user's screen identical.
+let firestoreReady = false;
 
 async function loadData(){
-  try {
-    const storedBooks = localStorage.getItem(LS_BOOKS_KEY);
-    const storedWishlist = localStorage.getItem(LS_WISHL_KEY);
-
-    if (storedBooks) {
-      state.books = JSON.parse(storedBooks);
-    } else {
-      state.books = SEED_BOOKS;
-      persistBooks();
+  SHARED_DOC.onSnapshot((snap) => {
+    if (!snap.exists) {
+      // Nobody has ever saved to this doc yet — seed it once.
+      if (!firestoreReady) {
+        SHARED_DOC.set({ books: SEED_BOOKS, wishlist: SEED_WISHLIST })
+          .catch(err => console.error("Failed to seed Firestore:", err));
+      }
+      return; // the .set() above will re-trigger this listener with real data
     }
-
-    if (storedWishlist) {
-      state.wishlist = JSON.parse(storedWishlist);
-    } else {
-      state.wishlist = SEED_WISHLIST;
-      persistWishlist();
-    }
-  } catch (err) {
-    console.error("Failed to parse local storage data:", err);
-    state.books = SEED_BOOKS;
-    state.wishlist = SEED_WISHLIST;
-  }
-  
-  state.loaded = true;
-  render();
+    const data = snap.data();
+    state.books = Array.isArray(data.books) ? data.books : [];
+    state.wishlist = Array.isArray(data.wishlist) ? data.wishlist : [];
+    state.loaded = true;
+    firestoreReady = true;
+    render();
+  }, (err) => {
+    console.error("Firestore sync error:", err);
+    alert("Couldn't connect to the shared library. Check your internet connection.");
+  });
 }
 
 function persistBooks(){
-  try {
-    localStorage.setItem(LS_BOOKS_KEY, JSON.stringify(state.books));
-  } catch(err) {
-    console.error("Failed to save books to local storage:", err);
-  }
+  SHARED_DOC.set({ books: state.books }, { merge: true })
+    .catch(err => console.error("Failed to save books to Firestore:", err));
 }
 
 function persistWishlist(){
-  try {
-    localStorage.setItem(LS_WISHL_KEY, JSON.stringify(state.wishlist));
-  } catch(err) {
-    console.error("Failed to save wishlist to local storage:", err);
-  }
+  SHARED_DOC.set({ wishlist: state.wishlist }, { merge: true })
+    .catch(err => console.error("Failed to save wishlist to Firestore:", err));
 }
 
 /* ---------------- JSON Backup & Restore ---------------- */
@@ -316,11 +334,22 @@ function importBackupJSON(file){
 /* ---------------- small UI builders ---------------- */
 function starsHTML(value, editable, target, size){
   size = size || 15;
+  value = Math.max(0, Math.min(5, Number(value)||0));
   let out = `<span class="stars${editable?" editable":""}" ${editable?`data-star-target="${target}"`:""} style="font-size:${size}px">`;
   for(let n=1;n<=5;n++){
-    out += `<span class="${n<=value?"filled":""}" ${editable?`data-star="${n}"`:""}>★</span>`;
+    const frac = Math.max(0, Math.min(1, value-(n-1)));
+    out += `<span class="star-slot" ${editable?`data-star="${n}"`:""}><span class="star-base">★</span><span class="star-fill" style="width:${Math.round(frac*100)}%">★</span></span>`;
   }
   return out + `</span>`;
+}
+function applyStarFills(wrap, value){
+  value = Math.max(0, Math.min(5, Number(value)||0));
+  [...wrap.children].forEach((slot,i)=>{
+    const n = i+1;
+    const frac = Math.max(0, Math.min(1, value-(n-1)));
+    const fill = slot.querySelector(".star-fill");
+    if(fill) fill.style.width = Math.round(frac*100)+"%";
+  });
 }
 function pillHTML(text, tone){ return `<span class="pill ${tone?esc(tone):''}">${esc(text)}</span>`; }
 function coverHTML(book, h){
@@ -373,12 +402,6 @@ function computeFunFacts(books){
 
   const rated = completed.filter(b=>b.rating>0).sort((a,b)=>b.rating-a.rating || (b.dateFinished||"").localeCompare(a.dateFinished||""))[0];
   if(rated) facts.push({icon:"⭐", text:`Your top-rated read is <strong>${esc(rated.title)}</strong> at ${rated.rating}★.`});
-
-  const withDur = completed.filter(b=>b.dateStarted && b.dateFinished).map(b=>({b,days:Math.max(0,Math.round((new Date(b.dateFinished)-new Date(b.dateStarted))/86400000))})).filter(x=>!isNaN(x.days));
-  if(withDur.length){
-    const fastest = withDur.sort((a,b)=>a.days-b.days)[0];
-    facts.push({icon:"⚡", text:`You blazed through <strong>${esc(fastest.b.title)}</strong> in ${fastest.days} day${fastest.days===1?"":"s"}.`});
-  }
 
   const withPages = completed.filter(b=>b.pagesHours && !isNaN(Number(b.pagesHours))).sort((a,b)=>Number(b.pagesHours)-Number(a.pagesHours))[0];
   if(withPages) facts.push({icon:"📖", text:`Your longest read was <strong>${esc(withPages.title)}</strong> at ${withPages.pagesHours} pages/hours.`});
@@ -438,16 +461,14 @@ function renderDashboard(){
   }
 
   const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const started = new Array(12).fill(0), finished = new Array(12).fill(0);
+  const finished = new Array(12).fill(0);
   books.forEach(b=>{
-    if(b.dateStarted && yearOf(b.dateStarted)===year) started[new Date(b.dateStarted).getMonth()]++;
     if(b.dateFinished && yearOf(b.dateFinished)===year) finished[new Date(b.dateFinished).getMonth()]++;
   });
-  const maxVal = Math.max(1, ...started, ...finished);
+  const maxVal = Math.max(1, ...finished);
   const bars = monthNames.map((m,i)=>`
     <div class="bar-col">
       <div class="bar-pair">
-        <div class="bar" style="height:${started[i]/maxVal*100}%;background:${COLORS.rose}" title="${m} started: ${started[i]}"></div>
         <div class="bar" style="height:${finished[i]/maxVal*100}%;background:${COLORS.oxblood}" title="${m} finished: ${finished[i]}"></div>
       </div>
       <div class="bar-month">${m}</div>
@@ -492,7 +513,6 @@ function renderDashboard(){
       <div class="section-label">${year} in books</div>
       <div class="bars">${bars}</div>
       <div class="legend">
-        <div><span class="dot" style="background:${COLORS.rose}"></span>Started</div>
         <div><span class="dot" style="background:${COLORS.oxblood}"></span>Finished</div>
       </div>
     </div>
@@ -503,6 +523,7 @@ function renderDashboard(){
 function statusPillTone(status){ return status==="done" ? "oxblood" : status==="dnf" ? "dnf" : ""; }
 function renderTrackerGroupTable(books, cols){
   const head = cols.map(([k,label])=>`<th data-action="sort" data-key="${k}">${esc(label)} ${ui.sortKey===k?"▾":""}</th>`).join("");
+  const showPriority = cols.some(([k])=>k==="priority");
   const rows = books.map(b=>`
     <tr data-action="edit-book" data-id="${b.id}" class="${ui.selected.has(b.id)?"selected-row":""}">
       <td class="chk"><input type="checkbox" data-action="toggle-select" data-id="${b.id}" ${ui.selected.has(b.id)?"checked":""} /></td>
@@ -511,7 +532,7 @@ function renderTrackerGroupTable(books, cols){
       <td>${b.genre?pillHTML(b.genre):""}</td>
       <td style="color:var(--muted);">${esc(b.subGenre)}</td>
       <td>${esc(b.format)}</td>
-      <td style="color:var(--muted);">${esc(b.priority)}</td>
+      ${showPriority?`<td style="color:var(--muted);">${esc(b.priority)}</td>`:""}
       <td>${starsHTML(b.rating,false,null,12)}</td>
       <td>${esc(b.source)}</td>
       <td>${pillHTML(STATUS[b.status], statusPillTone(b.status))}</td>
@@ -528,6 +549,7 @@ function renderTracker(){
   const groups = TRACKER_GROUPS.map(([key,label])=>{
     const list = sorted.filter(b=>b.status===key);
     if(list.length===0) return "";
+    const groupCols = (key==="done"||key==="dnf") ? cols.filter(([k])=>k!=="priority") : cols;
     return `
       <div class="tracker-group">
         <div class="tracker-group-head">
@@ -535,7 +557,7 @@ function renderTracker(){
           <span class="pill">${list.length}</span>
         </div>
         <div class="card" style="overflow-x:auto;padding:0;">
-          ${renderTrackerGroupTable(list, cols)}
+          ${renderTrackerGroupTable(list, groupCols)}
         </div>
       </div>`;
   }).join("");
@@ -600,11 +622,25 @@ function renderGallery(){
 
 /* ---------------- shelf ---------------- */
 function shelfSpinesHTML(list){
-  return list.map(b=>`
-    <div class="spine" data-action="open-book" data-id="${b.id}" style="height:${spineHeight(b.title)}px;background:linear-gradient(160deg, ${genreColor(b.genre)}, ${genreColor(b.genre)}CC)">
-      <span>${esc(b.title)}</span>
-    </div>`).join("");
+  return list.map(b=>{
+    const h = spineHeight(b.title);
+    if(b.coverUrl){
+      return `
+        <div class="spine" data-action="open-book" data-id="${b.id}" style="height:${h}px;">
+          <div class="spine-bg" style="background-image:url('${esc(b.coverUrl)}');"></div>
+          <div class="spine-overlay"></div>
+          <span>${esc(b.title)}</span>
+        </div>`;
+    }
+    const c = genreColor(b.genre);
+    return `
+      <div class="spine" data-action="open-book" data-id="${b.id}" style="height:${h}px;background:linear-gradient(160deg, ${c}, ${c}CC)">
+        <div class="spine-overlay"></div>
+        <span>${esc(b.title)}</span>
+      </div>`;
+  }).join("");
 }
+
 function renderShelf(){
   const books = state.books;
   if(books.length===0) return emptyState("Your visual shelf fills in as you log books — sorted automatically by genre.");
@@ -651,8 +687,7 @@ function renderCalendar(){
   const books = state.books;
   const byDate = {};
   books.forEach(b=>{
-    if(b.dateStarted) (byDate[b.dateStarted]=byDate[b.dateStarted]||{started:[],finished:[]}).started.push(b);
-    if(b.dateFinished) (byDate[b.dateFinished]=byDate[b.dateFinished]||{started:[],finished:[]}).finished.push(b);
+    if(b.dateFinished) (byDate[b.dateFinished]=byDate[b.dateFinished]||{finished:[]}).finished.push(b);
   });
   const month = ui.calMonth;
   const year = month.getFullYear(), mo = month.getMonth();
@@ -664,13 +699,22 @@ function renderCalendar(){
   for(let d=1;d<=daysInMonth;d++){
     const ds = dateStr(d);
     const info = byDate[ds];
-    const dots = info ? [
-      ...info.started.map(b=>`<span class="dot" style="background:${COLORS.rose}" title="${esc(b.title)} — started"></span>`),
-      ...info.finished.map(b=>`<span class="dot" style="background:${COLORS.oxblood}" title="${esc(b.title)} — finished"></span>`)
-    ].join("") : "";
+    let dots = "";
+    let covers = "";
+    if(info){
+      dots = info.finished.map(b=>`<span class="dot" style="background:${COLORS.oxblood}" title="${esc(b.title)} — finished"></span>`).join("");
+
+      covers = info.finished.filter(b=>b.coverUrl).map(b=>`
+        <img class="cal-cover-thumb" src="${esc(b.coverUrl)}" title="${esc(b.title)} — finished" />
+      `).join("");
+    }
+
     cells += `<div class="cal-cell ${info?"has-events":""} ${ui.calPicked===ds?"picked":""}" ${info?`data-action="cal-day" data-day="${ds}"`:""}>
       <div class="cal-daynum">${d}</div>
-      <div class="cal-dots">${dots}</div>
+      <div>
+        ${covers ? `<div class="cal-covers">${covers}</div>` : ""}
+        <div class="cal-dots">${dots}</div>
+      </div>
     </div>`;
   }
   const dow = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=>`<div class="cal-dow">${d}</div>`).join("");
@@ -679,7 +723,6 @@ function renderCalendar(){
     const info = byDate[ui.calPicked];
     dayPanel = `<div class="card" style="margin-top:16px;">
       <div style="font-weight:700;margin-bottom:6px;">${fmtDate(ui.calPicked)}</div>
-      ${info.started.map(b=>`<div style="font-size:12.5px;margin-bottom:3px;">▸ Started <b>${esc(b.title)}</b></div>`).join("")}
       ${info.finished.map(b=>`<div style="font-size:12.5px;margin-bottom:3px;">▸ Finished <b>${esc(b.title)}</b></div>`).join("")}
     </div>`;
   }
@@ -692,7 +735,6 @@ function renderCalendar(){
     <div class="cal-grid" style="margin-bottom:6px;">${dow}</div>
     <div class="cal-grid">${cells}</div>
     <div class="legend">
-      <div><span class="dot" style="background:${COLORS.rose}"></span>Started</div>
       <div><span class="dot" style="background:${COLORS.oxblood}"></span>Finished</div>
     </div>
     ${dayPanel}
@@ -788,16 +830,17 @@ function rowsToBooks(rows){
     if(!title) continue;
     const shelvesRaw = iShelves>=0 ? row[iShelves] : "";
     const genreGuess = shelvesRaw ? (shelvesRaw.split(",").map(s=>s.trim()).filter(Boolean)[0]||"") : "";
+    const status = mapGoodreadsStatus(iShelf>=0?row[iShelf]:"");
     out.push({
       id: uid(), isExample:false, title,
       author: iAuthor>=0 ? row[iAuthor].trim() : "",
       genre: genreGuess, subGenre: "",
       format: mapGoodreadsFormat(iBinding>=0?row[iBinding]:""),
-      source: "", status: mapGoodreadsStatus(iShelf>=0?row[iShelf]:""),
-      priority: "Interested",
+      source: "", status: status,
+      priority: (status === "done" || status === "dnf") ? "" : "Interested",
       rating: Number(iRating>=0?row[iRating]:0)||0,
-      dateStarted: "", dateFinished: normalizeGoodreadsDate(iDateRead>=0?row[iDateRead]:""),
-      cost: "", pagesHours: iPages>=0 ? row[iPages].trim() : "",
+      dateFinished: normalizeGoodreadsDate(iDateRead>=0?row[iDateRead]:""),
+      language: "English", pagesHours: iPages>=0 ? row[iPages].trim() : "",
       review: iReview>=0 ? row[iReview].trim() : "", notes: iNotes>=0 ? row[iNotes].trim() : "",
       recommendedBy: "", coverUrl: "",
     });
@@ -848,7 +891,7 @@ function goodreadsImportHTML(){
     ${preview ? `
       <div class="card" style="margin:14px 0;">
         <div style="font-weight:700;margin-bottom:4px;">${preview.length} book${preview.length===1?"":"s"} found</div>
-        <div style="font-size:12px;color:var(--muted);line-height:1.5;">Title, author, rating, shelf, date read, review, and notes will be imported. Goodreads exports don't include cover images or a start date — add covers manually and set start dates afterward if you'd like.</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.5;">Title, author, rating, shelf, date read, review, and notes will be imported. Goodreads exports don't include cover images — add them manually if you'd like.</div>
       </div>
       <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;margin-bottom:14px;">
         <input type="checkbox" id="gr-skip-dupes" checked /> Skip books that already match a title + author in your tracker
@@ -863,7 +906,12 @@ function goodreadsImportHTML(){
 
 /* ---------------- modals ---------------- */
 function bookFormHTML(book){
-  const b = book || { id:uid(), title:"", author:"", genre:"", subGenre:"", format:"Physical", source:"Purchased", status:"want", priority:"Interested", rating:0, dateStarted:"", dateFinished:"", cost:"", pagesHours:"", review:"", notes:"", recommendedBy:"", coverUrl:"" };
+  const b = book || { id:uid(), title:"", author:"", genre:"", subGenre:"", format:"Physical", source:"Purchased", status:"want", priority:"Interested", rating:0, dateFinished:"", language:"English", pagesHours:"", review:"", notes:"", recommendedBy:"", coverUrl:"" };
+  const priorityHidden = (b.status==="done" || b.status==="dnf");
+  
+  const allGenres = Array.from(new Set([...DEFAULT_GENRES, ...state.books.map(x=>x.genre).filter(Boolean)]));
+  const allSubGenres = Array.from(new Set(state.books.map(x=>x.subGenre).filter(Boolean)));
+
   return `
     <input type="hidden" id="f-id" value="${b.id}" />
     <input type="hidden" id="f-cover" value="${esc(b.coverUrl||"")}" />
@@ -886,19 +934,20 @@ function bookFormHTML(book){
       <label class="field">Title<input class="input" id="f-title" value="${esc(b.title)}" placeholder="Book title" /></label>
       <label class="field">Author<input class="input" id="f-author" value="${esc(b.author)}" placeholder="Author name" /></label>
       <label class="field">Genre<input class="input" id="f-genre" list="genre-list" value="${esc(b.genre)}" placeholder="e.g. Fantasy" />
-        <datalist id="genre-list">${GENRES.map(g=>`<option value="${g}">`).join("")}</datalist>
+        <datalist id="genre-list">${allGenres.map(g=>`<option value="${esc(g)}">`).join("")}</datalist>
       </label>
-      <label class="field">Sub-genre<input class="input" id="f-subgenre" value="${esc(b.subGenre)}" placeholder="e.g. Historical" /></label>
+      <label class="field">Sub-genre<input class="input" id="f-subgenre" list="subgenre-list" value="${esc(b.subGenre)}" placeholder="e.g. Historical" />
+        <datalist id="subgenre-list">${allSubGenres.map(sg=>`<option value="${esc(sg)}">`).join("")}</datalist>
+      </label>
       <label class="field">Format<select class="input" id="f-format">${selectOptions(FORMATS,b.format)}</select></label>
       <label class="field">Source<select class="input" id="f-source">${selectOptions(SOURCES,b.source)}</select></label>
-      <label class="field">Status<select class="input" id="f-status">${Object.entries(STATUS).map(([k,v])=>`<option value="${k}" ${b.status===k?"selected":""}>${v}</option>`).join("")}</select></label>
-      <label class="field">Priority<select class="input" id="f-priority">${selectOptions(PRIORITIES,b.priority)}</select></label>
-      <label class="field">Date started<input type="date" class="input" id="f-started" value="${b.dateStarted}" /></label>
+      <label class="field">Status<select class="input" id="f-status" data-action="form-status-change">${Object.entries(STATUS).map(([k,v])=>`<option value="${k}" ${b.status===k?"selected":""}>${v}</option>`).join("")}</select></label>
+      <label class="field" id="priority-field-wrap" style="${priorityHidden?"display:none;":""}">Priority<select class="input" id="f-priority">${selectOptions(PRIORITIES,b.priority)}</select></label>
       <label class="field">Date finished<input type="date" class="input" id="f-finished" value="${b.dateFinished}" /></label>
       <label class="field">Pages / hours<input class="input" id="f-pages" value="${esc(b.pagesHours)}" placeholder="e.g. 320" /></label>
-      <label class="field">Cost ($)<input class="input" id="f-cost" value="${esc(b.cost)}" placeholder="0.00" /></label>
+      <label class="field">Language<select class="input" id="f-language">${selectOptions(LANGUAGES,b.language)}</select></label>
     </div>
-    <label class="field">Rating ${starsHTML(b.rating, true, "f-rating", 22)}<input type="hidden" id="f-rating" value="${b.rating}" /></label>
+    <label class="field">Rating<span style="display:flex;align-items:center;gap:10px;">${starsHTML(b.rating, true, "f-rating", 22)}<input type="number" class="input" id="f-rating-num" min="0" max="5" step="0.25" value="${b.rating||""}" placeholder="0-5" style="width:80px;" /></span><input type="hidden" id="f-rating" value="${b.rating}" /></label>
     <label class="field">Brief review<textarea class="input" id="f-review" placeholder="What did you think?">${esc(b.review)}</textarea></label>
     <label class="field">Notes / thoughts<textarea class="input" id="f-notes" placeholder="Quotes, annotations, anything to remember">${esc(b.notes)}</textarea></label>
     <label class="field">Recommended by<input class="input" id="f-recby" value="${esc(b.recommendedBy)}" placeholder="Optional" /></label>
@@ -925,7 +974,7 @@ function bookDetailHTML(book){
           ${pillHTML(book.format)}
           ${pillHTML(STATUS[book.status], statusPillTone(book.status))}
         </div>
-        <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">Started ${fmtDate(book.dateStarted)} · Finished ${fmtDate(book.dateFinished)}</div>
+        <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">Finished ${fmtDate(book.dateFinished)}${book.language?` · ${esc(book.language)}`:""}</div>
         ${book.review?`<div style="margin-bottom:10px;"><div class="section-label" style="margin-bottom:2px;">Brief review</div><div style="font-size:13px;line-height:1.5;">${esc(book.review)}</div></div>`:""}
         ${book.notes?`<div style="margin-bottom:14px;"><div class="section-label" style="margin-bottom:2px;">Notes / thoughts</div><div style="font-size:13px;line-height:1.5;">${esc(book.notes)}</div></div>`:""}
         <button class="btn btn-primary" data-action="edit-from-detail" data-id="${book.id}">Edit book</button>
@@ -935,11 +984,12 @@ function bookDetailHTML(book){
 }
 function bulkEditFormHTML(count){
   const noChange = `<option value="">— No change —</option>`;
+  const allGenres = Array.from(new Set([...DEFAULT_GENRES, ...state.books.map(x=>x.genre).filter(Boolean)]));
   return `
     <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px;">Editing ${count} book${count===1?"":"s"}. Only fields you change will be applied — leave a field as "No change" to keep each book's existing value.</div>
     <div class="grid2">
       <label class="field">Status<select class="input" id="bf-status">${noChange}${Object.entries(STATUS).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select></label>
-      <label class="field">Genre<select class="input" id="bf-genre">${noChange}${GENRES.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join("")}</select></label>
+      <label class="field">Genre<select class="input" id="bf-genre">${noChange}${allGenres.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join("")}</select></label>
       <label class="field">Format<select class="input" id="bf-format">${noChange}${FORMATS.map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join("")}</select></label>
       <label class="field">Source<select class="input" id="bf-source">${noChange}${SOURCES.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join("")}</select></label>
       <label class="field">Priority<select class="input" id="bf-priority">${noChange}${PRIORITIES.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join("")}</select></label>
@@ -1055,6 +1105,11 @@ function findBook(id){ return state.books.find(b=>b.id===id); }
 function saveBookFromForm(){
   const id = document.getElementById("f-id").value;
   const existing = findBook(id);
+  const statusVal = document.getElementById("f-status").value;
+  let priorityVal = document.getElementById("f-priority").value;
+  if(statusVal === "done" || statusVal === "dnf"){
+    priorityVal = "";
+  }
   const b = {
     id, isExample:false,
     title: document.getElementById("f-title").value.trim(),
@@ -1063,13 +1118,12 @@ function saveBookFromForm(){
     subGenre: document.getElementById("f-subgenre").value.trim(),
     format: document.getElementById("f-format").value,
     source: document.getElementById("f-source").value,
-    status: document.getElementById("f-status").value,
-    priority: document.getElementById("f-priority").value,
+    status: statusVal,
+    priority: priorityVal,
     rating: Number(document.getElementById("f-rating").value)||0,
-    dateStarted: document.getElementById("f-started").value,
     dateFinished: document.getElementById("f-finished").value,
     pagesHours: document.getElementById("f-pages").value.trim(),
-    cost: document.getElementById("f-cost").value.trim(),
+    language: document.getElementById("f-language").value,
     review: document.getElementById("f-review").value.trim(),
     notes: document.getElementById("f-notes").value.trim(),
     recommendedBy: document.getElementById("f-recby").value.trim(),
@@ -1110,7 +1164,7 @@ function deleteWish(id){ state.wishlist = state.wishlist.filter(w=>w.id!==id); p
 function moveWishToTracker(id){
   const w = state.wishlist.find(x=>x.id===id);
   if(!w) return;
-  state.books.push({ id:uid(), title:w.title, author:w.author, genre:"", subGenre:"", format:"Physical", source:"Purchased", status:"want", priority:w.priority, rating:0, dateStarted:"", dateFinished:"", cost:w.price, pagesHours:"", review:"", notes:"", recommendedBy:"", isExample:false });
+  state.books.push({ id:uid(), title:w.title, author:w.author, genre:"", subGenre:"", format:"Physical", source:"Purchased", status:"want", priority:w.priority, rating:0, dateFinished:"", language:"English", pagesHours:"", review:"", notes:"", recommendedBy:"", isExample:false });
   state.wishlist = state.wishlist.filter(x=>x.id!==id);
   persistBooks(); persistWishlist();
   state.tab = "tracker";
@@ -1134,7 +1188,14 @@ function saveBulkEditFromForm(){
     if(el && el.value) changes[key] = el.value;
   });
   if(Object.keys(changes).length>0){
-    state.books = state.books.map(b=> ui.selected.has(b.id) ? {...b, ...changes} : b);
+    state.books = state.books.map(b=> {
+      if(!ui.selected.has(b.id)) return b;
+      const updated = {...b, ...changes};
+      if(updated.status === "done" || updated.status === "dnf"){
+        updated.priority = "";
+      }
+      return updated;
+    });
     persistBooks();
   }
   ui.selected.clear();
@@ -1156,13 +1217,21 @@ document.addEventListener("click", (e)=>{
   const star = e.target.closest("[data-star]");
   if(star){
     const wrap = star.closest(".stars");
+    if(!wrap.classList.contains("editable")) return;
     const target = wrap.getAttribute("data-star-target");
     const hidden = document.getElementById(target);
     const n = Number(star.getAttribute("data-star"));
+    const rect = star.getBoundingClientRect();
+    const clickFrac = rect.width>0 ? Math.min(1, Math.max(0, (e.clientX-rect.left)/rect.width)) : 1;
+    const quarter = Math.min(4, Math.max(1, Math.ceil(clickFrac*4))) / 4;
     const current = Number(hidden.value)||0;
-    const val = n===current ? 0 : n;
+    let val = (n-1) + quarter;
+    val = Math.round(val*4)/4;
+    val = (val===current) ? 0 : val;
     hidden.value = val;
-    [...wrap.children].forEach((s,i)=> s.classList.toggle("filled", i < val));
+    applyStarFills(wrap, val);
+    const numInput = document.getElementById(target+"-num");
+    if(numInput) numInput.value = val || "";
     return;
   }
 
@@ -1228,6 +1297,16 @@ document.addEventListener("change", (e)=>{
       if(prev){ prev.classList.remove("empty"); prev.innerHTML = `<img src="${dataUrl}" alt="cover preview"/>`; }
     });
   }
+  else if(e.target.id==="f-status"){
+    const val = e.target.value;
+    const priEl = document.getElementById("f-priority");
+    const priWrap = document.getElementById("priority-field-wrap");
+    const hide = (val === "done" || val === "dnf");
+    if(priEl && hide){
+      priEl.value = "";
+    }
+    if(priWrap) priWrap.style.display = hide ? "none" : "";
+  }
   else if(e.target.id==="goodreads-file"){ handleGoodreadsFile(e.target.files[0]); }
   else if(e.target.id==="gallery-q") { ui.galleryQuery = e.target.value; render(); }
   else if(e.target.id==="gallery-status"){ ui.galleryStatus = e.target.value; render(); }
@@ -1251,6 +1330,15 @@ document.addEventListener("input", (e)=>{
       if(val){ prev.classList.remove("empty"); prev.innerHTML = `<img src="${esc(val)}" alt="cover preview" onerror="this.parentElement.classList.add('empty'); this.remove();"/>`; }
       else { prev.classList.add("empty"); prev.innerHTML = "📖"; }
     }
+  }
+  else if(e.target.id==="f-rating-num"){
+    let val = Number(e.target.value);
+    if(isNaN(val)) val = 0;
+    val = Math.max(0, Math.min(5, Math.round(val*4)/4));
+    const hidden = document.getElementById("f-rating");
+    if(hidden) hidden.value = val;
+    const wrap = document.querySelector('.stars[data-star-target="f-rating"]');
+    if(wrap) applyStarFills(wrap, val);
   }
 });
 
