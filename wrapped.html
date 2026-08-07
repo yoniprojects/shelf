@@ -362,6 +362,15 @@ input[type=range]{ width:100%; accent-color: var(--pop); }
               <button data-v="monthly">Monthly</button>
               <button data-v="yearly">Yearly</button>
             </div>
+            <label style="display:flex; align-items:center; gap:8px; margin-top:9px; font-size:11.5px; opacity:.85; text-transform:none; letter-spacing:0; font-weight:600; cursor:pointer;">
+              <input type="checkbox" id="periodAutoFillToggle" style="width:auto; accent-color:var(--pop);" checked>
+              Auto-add books finished in this period
+            </label>
+            <div id="periodDateField" style="margin-top:9px;">
+              <label style="font-size:11px;">For the <span id="periodDateWordHint">week</span> containing</label>
+              <input type="date" id="periodDateInput">
+              <div id="periodAutoFillStatus" style="font-size:11px; opacity:.6; margin-top:5px;"></div>
+            </div>
           </div>
           <div class="field">
             <label>Title text (on canvas)</label>
@@ -590,6 +599,14 @@ SHELF_DOC.onSnapshot((snap) => {
   const data = snap.exists ? snap.data() : {};
   shelfBooks = Array.isArray(data.books) ? data.books : [];
   if (typeof renderShelfResults === "function") renderShelfResults();
+  // If the editor's already open on a period-based wrap, re-run the
+  // auto-add so newly-logged/finished Shelf books show up without the
+  // user having to re-click the period toggle.
+  if (typeof wrap !== "undefined" && wrap && typeof editorView !== "undefined" &&
+      editorView && !editorView.classList.contains("hidden") &&
+      typeof autoFillBooksForPeriod === "function") {
+    autoFillBooksForPeriod();
+  }
 }, (err) => console.error("Shelf sync error:", err));
 </script>
 
@@ -654,12 +671,19 @@ const TEMPLATES = [
       {type:'emoji', content:'📚', x:36, y:40, w:44, rot:-10}] },
 ];
 
+function todayISO(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
 function blankWrap(){
   return {
     id: uid(), name:'Untitled wrap', period:'monthly', layout:'grid', coverStyle:'glass', font:'serif',
     textColor:'#F7F3ED', accentColor:'#FF3D7F',
     background:{type:'gradient', colors:['#7C5CFC','#22D3EE'], angle:135},
-    title:'TITLE', sub:'subtitle here', subAuto:false, books:[], stickers:[], updatedAt: Date.now()
+    title:'TITLE', sub:'subtitle here', subAuto:false, books:[], stickers:[], updatedAt: Date.now(),
+    // Which real-calendar period this wrap represents, and whether books
+    // finished on the Shelf during that period should be auto-added.
+    periodDate: todayISO(), periodAutoFill: true
   };
 }
 function fromTemplate(t){
@@ -764,10 +788,18 @@ function showGallery(){
   renderGallery();
 }
 function showEditor(){
+  // Wraps saved before the "auto-add from Shelf" feature existed won't have
+  // these fields — default them so old wraps don't break the new UI.
+  if(wrap.periodDate === undefined) wrap.periodDate = todayISO();
+  if(wrap.periodAutoFill === undefined) wrap.periodAutoFill = true;
   galleryView.classList.add('hidden');
   editorView.classList.remove('hidden');
   renderEditorAll();
   fitCanvasToViewport();
+  // Safe to run every time the editor opens: it only ever adds Shelf books
+  // newly finished in the wrap's period that aren't already on the canvas,
+  // never removes or duplicates anything already there.
+  autoFillBooksForPeriod();
 }
 
 document.getElementById('navGallery').onclick = showGallery;
@@ -853,6 +885,119 @@ function computeAutoSub(w){
   return parts.length ? parts.join(', ') : '0 books';
 }
 
+/* ---- Period date-range math + auto-add finished books from the Shelf ---- */
+
+// Returns [startDate, endDate] (inclusive, local calendar dates at midnight)
+// covering the period type that contains `dateStr`.
+// weekly  -> the Mon–Sun week containing dateStr
+// monthly -> the calendar month containing dateStr
+// yearly  -> the calendar year containing dateStr
+function getPeriodRange(period, dateStr){
+  const d = new Date((dateStr || todayISO()) + 'T00:00:00');
+  if(isNaN(d)) return null;
+  if(period === 'weekly'){
+    const day = d.getDay(); // 0=Sun..6=Sat
+    const mondayOffset = (day === 0) ? -6 : 1 - day; // shift back to Monday
+    const start = new Date(d); start.setDate(d.getDate() + mondayOffset);
+    const end = new Date(start); end.setDate(start.getDate() + 6);
+    return [start, end];
+  }
+  if(period === 'yearly'){
+    return [new Date(d.getFullYear(), 0, 1), new Date(d.getFullYear(), 11, 31)];
+  }
+  // monthly (default)
+  return [new Date(d.getFullYear(), d.getMonth(), 1), new Date(d.getFullYear(), d.getMonth()+1, 0)];
+}
+
+function dateInRange(dateStr, range){
+  if(!dateStr || !range) return false;
+  const d = new Date(dateStr + 'T00:00:00');
+  if(isNaN(d)) return false;
+  return d >= range[0] && d <= range[1];
+}
+
+function fmtRangeLabel(range, period){
+  const opts = period === 'yearly' ? {year:'numeric'} : {month:'short', day:'numeric'};
+  const startStr = range[0].toLocaleDateString('en-US', opts);
+  const endStr = range[1].toLocaleDateString('en-US', period==='yearly' ? {year:'numeric'} : {month:'short', day:'numeric', year: range[0].getFullYear()!==range[1].getFullYear() ? 'numeric' : undefined});
+  return period === 'yearly' ? startStr : `${startStr} – ${endStr}`;
+}
+
+// Adds any Shelf books with status "done" and a dateFinished inside the
+// wrap's current period range that aren't already on the canvas, AND
+// removes any previously auto-added Shelf books that no longer fall in the
+// current range (e.g. switching Yearly -> Monthly drops the ones outside
+// that month). Books added by hand (no shelfId) or explicitly deleted by
+// the user are never touched.
+function autoFillBooksForPeriod(){
+  const statusEl = document.getElementById('periodAutoFillStatus');
+  if(!wrap.periodAutoFill){
+    if(statusEl) statusEl.textContent = '';
+    return;
+  }
+  const range = getPeriodRange(wrap.period, wrap.periodDate);
+  if(!range) return;
+
+  const excluded = new Set(wrap.autoFillExcluded || []);
+
+  // Drop auto-added books that no longer belong to this period. We look up
+  // their current dateFinished on the Shelf (not the wrap's copy) so a
+  // corrected/edited date on the Shelf is respected too.
+  const shelfById = new Map(shelfBooks.map(b => [b.id, b]));
+  let removedCount = 0;
+  wrap.books = wrap.books.filter(b => {
+    if(!b.shelfId) return true; // manually added — never auto-remove
+    const shelfBook = shelfById.get(b.shelfId);
+    const stillMatches = shelfBook && shelfBook.status === 'done' && dateInRange(shelfBook.dateFinished, range);
+    if(!stillMatches) removedCount++;
+    return stillMatches;
+  });
+
+  const already = new Set(
+    wrap.books.map(b => (b.shelfId ? 'id:'+b.shelfId : 'na:'+(b.title||'').trim().toLowerCase()+'|'+(b.author||'').trim().toLowerCase()))
+  );
+
+  const matches = shelfBooks.filter(b => b.status === 'done' && dateInRange(b.dateFinished, range) && !excluded.has(b.id));
+  let addedCount = 0;
+  matches.forEach(b => {
+    const key = b.id ? 'id:'+b.id : 'na:'+(b.title||'').trim().toLowerCase()+'|'+(b.author||'').trim().toLowerCase();
+    if(already.has(key)) return;
+    already.add(key);
+    wrap.books.push({
+      id: uid(),
+      shelfId: b.id || null,
+      title: b.title || 'Untitled',
+      author: b.author || 'Unknown',
+      cover: b.coverUrl || placeholderCover(b.title || 'Untitled'),
+      rating: Math.max(0, Math.min(5, Number(b.rating) || 0)),
+      format: b.format === 'Audio' ? 'audio' : 'text'
+    });
+    addedCount++;
+  });
+
+  if(addedCount > 0 || removedCount > 0){
+    wrap.updatedAt = Date.now();
+    if(wrap.subAuto) wrap.sub = computeAutoSub(wrap);
+    renderBooksTab(); renderCanvas();
+  }
+
+  if(statusEl){
+    const rangeLabel = fmtRangeLabel(range, wrap.period);
+    const bits = [];
+    if(addedCount > 0) bits.push(`added ${addedCount}`);
+    if(removedCount > 0) bits.push(`removed ${removedCount}`);
+    if(!shelfBooks.length){
+      statusEl.textContent = `No books on your Shelf yet.`;
+    } else if(bits.length){
+      statusEl.textContent = `${bits.join(', ')} for ${rangeLabel}.`;
+    } else if(matches.length > 0){
+      statusEl.textContent = `Already up to date for ${rangeLabel}.`;
+    } else {
+      statusEl.textContent = `No books finished ${rangeLabel} yet.`;
+    }
+  }
+}
+
 function bindSetupTab(){
   document.getElementById('wrapName').oninput = e => wrap.name = e.target.value;
   document.getElementById('titleInput').oninput = e => { wrap.title = e.target.value; syncCanvasText(); };
@@ -862,7 +1007,17 @@ function bindSetupTab(){
     if(wrap.subAuto) wrap.sub = computeAutoSub(wrap);
     renderEditorAll();
   };
-  setupSeg('periodSeg','period', renderCanvas);
+  document.getElementById('periodDateInput').onchange = e => {
+    wrap.periodDate = e.target.value || todayISO();
+    wrap.updatedAt = Date.now();
+    autoFillBooksForPeriod();
+  };
+  document.getElementById('periodAutoFillToggle').onchange = e => {
+    wrap.periodAutoFill = e.target.checked;
+    wrap.updatedAt = Date.now();
+    autoFillBooksForPeriod();
+  };
+  setupSeg('periodSeg','period', autoFillBooksForPeriod);
   setupSeg('layoutSeg','layout', renderCanvas);
 }
 
@@ -1035,7 +1190,15 @@ function renderBooksTab(){
     el.querySelectorAll('.fmt-btns button').forEach(fb => fb.onclick = () => { b.format = fb.dataset.f; renderBooksTab(); renderCanvas(); });
     el.querySelector('[data-act="up"]').onclick = () => { if(idx>0){ [wrap.books[idx-1],wrap.books[idx]]=[wrap.books[idx],wrap.books[idx-1]]; renderBooksTab(); renderCanvas(); } };
     el.querySelector('[data-act="down"]').onclick = () => { if(idx<wrap.books.length-1){ [wrap.books[idx+1],wrap.books[idx]]=[wrap.books[idx],wrap.books[idx+1]]; renderBooksTab(); renderCanvas(); } };
-    el.querySelector('[data-act="del"]').onclick = () => { wrap.books.splice(idx,1); renderBooksTab(); renderCanvas(); };
+    el.querySelector('[data-act="del"]').onclick = () => {
+      // If this came from the Shelf auto-add, remember not to re-add it on
+      // the next period/date change — an explicit delete should stick.
+      if(b.shelfId){
+        wrap.autoFillExcluded = wrap.autoFillExcluded || [];
+        if(!wrap.autoFillExcluded.includes(b.shelfId)) wrap.autoFillExcluded.push(b.shelfId);
+      }
+      wrap.books.splice(idx,1); renderBooksTab(); renderCanvas();
+    };
     list.appendChild(el);
   });
 }
@@ -1623,6 +1786,10 @@ function renderEditorAll(){
   document.getElementById('wrapName').value = wrap.name || '';
   document.getElementById('titleInput').value = wrap.title;
   document.getElementById('subInput').value = wrap.sub;
+  document.getElementById('periodDateInput').value = wrap.periodDate || todayISO();
+  document.getElementById('periodAutoFillToggle').checked = wrap.periodAutoFill !== false;
+  document.getElementById('periodDateWordHint').textContent =
+    wrap.period === 'weekly' ? 'week' : wrap.period === 'yearly' ? 'year' : 'month';
   syncStyleTab();
   syncBgTab();
   document.getElementById('gradC1').value = wrap.background.type==='gradient' ? wrap.background.colors[0] : '#ff3d7f';
