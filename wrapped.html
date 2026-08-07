@@ -1195,28 +1195,36 @@ function fitCanvasToViewport(){
   const outer = document.getElementById('canvasScaleOuter');
   const shell = document.getElementById('canvasShell');
   if(!outer || !shell) return;
-  // measure natural (unscaled) size — CSS transforms don't affect layout box
-  // size, so we can measure without a none/restore flicker.
+  // We need the shell's TRUE, un-shrunk natural size (540px canvas + its
+  // padding) to compute a correct scale.
   //
-  // BUT: canvasShell is itself a flex item (inside .canvas-scale-outer),
-  // and flex items are allowed to shrink below their content's true width
-  // by default. That means even with the transform removed, the shell can
-  // still be squeezed down to fit whatever space is available *before* we
-  // measure it — so offsetWidth reports the already-shrunk size, not the
-  // real 540px-canvas-plus-padding size. That bogus (too small) naturalW
-  // makes the scale math think barely any shrinking is needed, so the
-  // transform ends up doing almost nothing while the fixed-width #canvas
-  // inside still spills out past the shrunk shell — the exact "cut off on
-  // mobile" bug. Forcing flex-shrink:0 during the measurement makes the
-  // shell report its true, un-squeezed content width.
-  const prevTransform = shell.style.transform;
-  const prevFlexShrink = shell.style.flexShrink;
-  shell.style.transform = 'none';
-  shell.style.flexShrink = '0';
-  const naturalW = shell.offsetWidth;
-  const naturalH = shell.offsetHeight;
-  shell.style.transform = prevTransform;
-  shell.style.flexShrink = prevFlexShrink;
+  // We deliberately do NOT measure shell.offsetWidth/Height directly.
+  // canvasShell is a flex item (inside .canvas-scale-outer), and flex items
+  // are allowed to shrink below their content's true width by default —
+  // so shell.offsetWidth can report an already-squeezed size instead of its
+  // real content width, undershooting how much scale-down is actually
+  // needed (the "cut off on mobile" bug).
+  //
+  // A previous fix tried to work around this by temporarily forcing
+  // flex-shrink:0 on the shell before measuring. That's a mutation of the
+  // shell's own box size, and a ResizeObserver below watches the shell for
+  // exactly that kind of size change — so toggling flex-shrink re-triggers
+  // the observer mid-measurement, which can schedule another fit before
+  // this one finishes and land on an inconsistent outer width/height (the
+  // "panel overlapping the canvas" bug).
+  //
+  // Instead we derive the natural size from #canvas itself, which is never
+  // flex-shrunk (it has a hard px width and sits in normal flow inside the
+  // shell) plus the shell's own padding (fixed px values, unaffected by
+  // shrinking). This never touches any element's style, so it can't
+  // trigger the ResizeObserver or race with anything.
+  const canvasEl = document.getElementById('canvas');
+  if(!canvasEl) return;
+  const shellStyle = getComputedStyle(shell);
+  const padX = (parseFloat(shellStyle.paddingLeft)||0) + (parseFloat(shellStyle.paddingRight)||0);
+  const padY = (parseFloat(shellStyle.paddingTop)||0) + (parseFloat(shellStyle.paddingBottom)||0);
+  const naturalW = canvasEl.offsetWidth + padX;
+  const naturalH = canvasEl.offsetHeight + padY;
   if(!naturalW || !naturalH) return;
   const available = getAvailableCanvasWidth();
   // -1px safety margin: floating-point scale math can land a fraction of a
