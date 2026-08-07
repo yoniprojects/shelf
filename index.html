@@ -56,6 +56,7 @@
   .page-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:22px;flex-wrap:wrap;gap:10px;padding-bottom:14px;border-bottom:2px solid var(--blush);position:relative;}
   .page-head::after{content:'';position:absolute;left:0;bottom:-2px;width:56px;height:2px;background:var(--gold);}
   .page-subtitle{font-size:13px;color:var(--muted);margin-top:4px;font-weight:500;}
+  .user-chip{display:none;}
   .btn{border:none;border-radius:8px;padding:9px 16px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.2px;}
   .btn:active{transform:scale(.97);}
   .btn-primary{background:var(--oxblood);color:#fff;}
@@ -205,6 +206,8 @@
     #page-title{font-size:24px !important;}
     .page-head, #page-actions{width:100%;}
     #page-actions{justify-content:flex-start;}
+    .user-chip{display:block;position:absolute;top:0;right:0;border:none;background:transparent;padding:0;cursor:pointer;}
+    .user-chip img{width:39px;height:39px;display:block;}
     .modal-card{width:100%;}
     .modal-card.wide{width:100%;}
     .modal-body{padding:16px;}
@@ -302,6 +305,9 @@
           <div class="page-subtitle" id="page-subtitle"></div>
         </div>
         <div id="page-actions" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;"></div>
+        <button class="user-chip" data-action="open-switch-user" aria-label="Switch user">
+          <img id="user-chip-img" src="" alt="" />
+        </button>
       </div>
       <div id="content"></div>
     </div>
@@ -332,8 +338,8 @@ function getCurrentUserId(){
   return localStorage.getItem('shelf:currentUser') || 'shared';
 }
 const PROFILES = [
-  { id: "shared", name: "Yoni" },
-  { id: "tom", name: "Tom" }
+  { id: "shared", name: "Yoni", avatar: "https://i.imgur.com/Cj4RtGU.png" },
+  { id: "tom", name: "Tom", avatar: "https://i.imgur.com/w3NaZpO.png" }
 ];
 const SHARED_DOC = db.collection("shelf-spine").doc(getCurrentUserId());
 </script>
@@ -497,6 +503,10 @@ function loadProfiles(){
 function getCurrentUserName(){
   const p = state.profiles.find(p => p.id === getCurrentUserId());
   return p ? p.name : "Yoni";
+}
+function getCurrentUserAvatar(){
+  const p = state.profiles.find(p => p.id === getCurrentUserId());
+  return p ? p.avatar : "";
 }
 function switchUser(userId){
   if (userId === getCurrentUserId()) { state.modal = null; renderModal(); return; }
@@ -1477,7 +1487,7 @@ function renderSidebar(){
     <a href="wheel.html" class="nav-btn" style="text-decoration:none;display:block;">Random wheel</a>
     <a href="goals.html" class="nav-btn" style="text-decoration:none;display:block;">Goals</a>
     <div style="margin-top:auto;"></div>
-    <button class="nav-btn" style="text-align:left;" data-action="open-switch-user">👤 ${esc(getCurrentUserName())}</button>
+    <button class="nav-btn" style="text-align:left;display:flex;align-items:center;gap:8px;" data-action="open-switch-user"><img src="${esc(getCurrentUserAvatar())}" alt="" style="width:23px;height:23px;display:block;flex-shrink:0;" />${esc(getCurrentUserName())}</button>
   `;
 
   const primaryTabs = MOBILE_PRIMARY_KEYS.map(k=>TABS.find(t=>t.key===k));
@@ -1495,7 +1505,6 @@ function renderSidebar(){
         <a href="wrapped.html" class="nav-btn" style="text-decoration:none;display:block;">Monthly wrap</a>
         <a href="wheel.html" class="nav-btn" style="text-decoration:none;display:block;">Random wheel</a>
         <a href="goals.html" class="nav-btn" style="text-decoration:none;display:block;">Goals</a>
-        <button class="nav-btn" style="text-align:left;" data-action="open-switch-user">👤 ${esc(getCurrentUserName())}</button>
       </div>
     ` : ""}
   `;
@@ -1509,6 +1518,10 @@ function render(){
   renderSidebar();
   document.getElementById("page-title").textContent = TABS.find(t=>t.key===state.tab).label;
   document.getElementById("page-subtitle").textContent = TAB_SUBTITLES[state.tab] || "";
+  const chipImg = document.getElementById("user-chip-img");
+  if(chipImg){ chipImg.src = getCurrentUserAvatar(); chipImg.alt = getCurrentUserName(); }
+  const chipBtn = document.querySelector(".user-chip");
+  if(chipBtn){ chipBtn.style.display = (state.tab === "dashboard") ? "" : "none"; }
   
   const backupBtns = state.tab==="tracker" ? `
     <button class="btn btn-subtle" data-action="open-export">Export Backup</button>
