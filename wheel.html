@@ -541,7 +541,11 @@
         };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
-        const SHARED_DOC = db.collection("shelf-spine").doc("shared");
+        // Same per-user document scheme as the main Shelf & Spine app.
+        function getCurrentUserId(){
+          return localStorage.getItem('shelf:currentUser') || 'shared';
+        }
+        const SHARED_DOC = db.collection("shelf-spine").doc(getCurrentUserId());
 
         let currentRotation = 0;
         let smallWheelRotation = 0;
