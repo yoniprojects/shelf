@@ -154,13 +154,22 @@
   .bar-pair{display:flex;gap:2px;align-items:flex-end;height:150px;}
   .bar{width:12px;border-radius:3px 3px 0 0;}
   .bar-month{font-size:9.5px;color:var(--muted);margin-top:4px;}
-  .wish-card{width:210px;background:#fff;border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(47,63,42,.10);}
+  .wish-card{width:240px;background:#fff;border-radius:14px;padding:16px;box-shadow:0 2px 8px rgba(47,63,42,.10);display:flex;flex-direction:column;}
+  .wish-card .cover{width:100%;height:auto!important;aspect-ratio:2/3;}
+  .wish-card .cover.has-img img{object-fit:contain;}
+  .wish-body{display:flex;flex-direction:column;flex:1;}
   .wish-top{display:flex;justify-content:space-between;align-items:flex-start;}
-  .wish-title{font-weight:700;font-size:13.5px;}
-  .wish-author{font-size:11.5px;color:var(--muted);}
+  .wish-title{font-weight:700;font-size:14.5px;line-height:1.3;}
+  .wish-author{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.3;}
   .wish-bottom{display:flex;justify-content:space-between;align-items:center;margin-top:10px;}
   .wish-price{font-weight:700;color:var(--oxblood);font-size:13px;}
-  .wish-actions{display:flex;gap:8px;margin-top:10px;}
+  .wish-actions{display:flex;margin-top:auto;padding-top:12px;border-top:1px solid var(--line);}
+  .wish-action-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:8px 4px 2px;border:none;background:transparent;border-radius:8px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;letter-spacing:.1px;color:var(--muted);}
+  .wish-action-btn:hover{background:var(--blush);}
+  .wish-action-btn svg{width:16px;height:16px;}
+  .wish-action-btn.edit{color:var(--oxblood);}
+  .wish-action-btn.read{color:var(--sage);}
+  .wish-action-btn.remove{color:#A2572B;}
   .flexwrap{display:flex;flex-wrap:wrap;gap:16px;}
   
   .btn-complete {
@@ -246,6 +255,37 @@
     }
     .filters-row #gallery-q{
       grid-column:1 / -1;
+    }
+    .flexwrap:not(.gallery-grid){
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+      width:100%;
+    }
+    .wish-card{
+      width:100% !important;
+      display:flex;
+      flex-direction:row;
+      gap:14px;
+      align-items:flex-start;
+    }
+    .wish-card .cover{
+      width:96px !important;
+      flex-shrink:0;
+    }
+    .wish-card .wish-body{
+      flex:1;
+      min-width:0;
+    }
+    .wish-card .wish-top{
+      margin-top:0 !important;
+    }
+    .wish-card .wish-actions{
+      gap:2px;
+    }
+    .wish-action-btn{
+      font-size:10px;
+      padding:6px 2px 2px;
     }
   }
 </style>
@@ -381,8 +421,8 @@ const SEED_BOOKS = [
   { id:uid(), title:"Metamorphosis", author:"Franz Kafka", genre:"Fiction", subGenre:"Classic", format:"Physical", source:"Purchased", status:"reading", priority:"Interested", rating:0, dateFinished:"", language:"Hebrew", pagesHours:"96", review:"", notes:"Short enough for a rainy weekend.", recommendedBy:"", isExample:true },
 ];
 const SEED_WISHLIST = [
-  { id:uid(), title:"The Song of Achilles", author:"Madeline Miller", price:"14.99", priority:"Must-read", bought:false, isExample:true },
-  { id:uid(), title:"Piranesi", author:"Susanna Clarke", price:"12.50", priority:"Interested", bought:false, isExample:true },
+  { id:uid(), title:"The Song of Achilles", author:"Madeline Miller", priority:"Must-read", coverUrl:"", pagesHours:"416", genre:"Fantasy", subGenre:"Mythology", isExample:true },
+  { id:uid(), title:"Piranesi", author:"Susanna Clarke", priority:"Interested", coverUrl:"", pagesHours:"245", genre:"Fantasy", subGenre:"Literary Fiction", isExample:true },
 ];
 
 /* ---------------- state ---------------- */
@@ -992,32 +1032,44 @@ function renderCalendar(){
 /* ---------------- wishlist ---------------- */
 function renderWishlist(){
   const items = state.wishlist;
-  const total = items.reduce((s,i)=>s+(Number(i.price)||0),0);
   if(items.length===0){
     return emptyState("Nothing on your wishlist yet. Add books you're eyeing so they never slip your mind.", "+ Add a book", "add-wish");
   }
   const cards = items.map(w=>`
-    <div class="wish-card" style="opacity:${w.bought?0.55:1}">
-      <div class="wish-top">
-        <div>
-          <div class="wish-title" style="text-decoration:${w.bought?"line-through":"none"}">${esc(w.title)}</div>
-          <div class="wish-author">${esc(w.author)}</div>
+    <div class="wish-card">
+      ${coverHTML(w, 150)}
+      <div class="wish-body">
+        <div class="wish-top" style="margin-top:14px;">
+          <div>
+            <div class="wish-title">${esc(w.title)}</div>
+            <div class="wish-author">${esc(w.author)}</div>
+          </div>
         </div>
-        <input type="checkbox" ${w.bought?"checked":""} data-action="toggle-bought" data-id="${w.id}" title="Bought" />
-      </div>
-      <div class="wish-bottom">
-        ${pillHTML(w.priority)}
-        <span class="wish-price">$${Number(w.price||0).toFixed(2)}</span>
-      </div>
-      <div class="wish-actions">
-        <button class="btn-text" style="color:var(--oxblood)" data-action="edit-wish" data-id="${w.id}">Edit</button>
-        <button class="btn-text" style="color:var(--sage)" data-action="move-wish" data-id="${w.id}">Move to tracker</button>
-        <button class="btn-text" style="color:#A2572B" data-action="delete-wish" data-id="${w.id}">Remove</button>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;">
+          ${w.priority?pillHTML(w.priority):""}
+          ${w.genre?pillHTML(w.genre):""}
+          ${w.subGenre?pillHTML(w.subGenre):""}
+        </div>
+        ${w.pagesHours?`<div style="font-size:12px;color:var(--muted);margin-bottom:4px;">${esc(w.pagesHours)} pages</div>`:""}
+        <div class="wish-actions">
+          <button class="wish-action-btn edit" data-action="edit-wish" data-id="${w.id}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            Edit
+          </button>
+          <button class="wish-action-btn read" data-action="move-wish" data-id="${w.id}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5A2.5 2.5 0 0 1 4.5 2H12v20H4.5A2.5 2.5 0 0 1 2 19.5Z"/><path d="M22 4.5A2.5 2.5 0 0 0 19.5 2H12v20h7.5a2.5 2.5 0 0 0 2.5-2.5Z"/></svg>
+            Read
+          </button>
+          <button class="wish-action-btn remove" data-action="delete-wish" data-id="${w.id}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            Remove
+          </button>
+        </div>
       </div>
     </div>`).join("");
   return `
     <div style="display:flex;justify-content:space-between;margin-bottom:14px;">
-      <div style="font-size:12.5px;color:var(--muted);">${items.length} book${items.length===1?"":"s"} · $${total.toFixed(2)} total</div>
+      <div style="font-size:12.5px;color:var(--muted);">${items.length} book${items.length===1?"":"s"}</div>
       <button class="btn btn-primary" data-action="add-wish">+ Add to wishlist</button>
     </div>
     <div class="flexwrap">${cards}</div>
@@ -1282,18 +1334,58 @@ function bulkEditFormHTML(count){
   `;
 }
 function wishFormHTML(w){
-  const item = w || { id:uid(), title:"", author:"", price:"", priority:"Interested", bought:false };
+  const item = w || { id:uid(), title:"", author:"", priority:"Interested", coverUrl:"", pagesHours:"", genre:"", subGenre:"" };
+  const allGenres = sortSuggestionsByInput(Array.from(new Set([...DEFAULT_GENRES, ...state.books.map(x=>x.genre).filter(Boolean)])), item.genre);
+  const allSubGenres = sortSuggestionsByInput(Array.from(new Set(state.books.map(x=>x.subGenre).filter(Boolean))), item.subGenre);
   return `
     <input type="hidden" id="wf-id" value="${item.id}" />
-    <label class="field">Title<input class="input" id="wf-title" value="${esc(item.title)}" /></label>
-    <label class="field">Author<input class="input" id="wf-author" value="${esc(item.author)}" /></label>
+    <input type="hidden" id="f-cover" value="${esc(item.coverUrl||"")}" />
+    <div class="field">Cover image
+      <div class="cover-upload-box">
+        <div class="cover-preview ${item.coverUrl?"":"empty"}" id="cover-preview">${item.coverUrl?`<img src="${esc(item.coverUrl)}" alt="cover preview"/>`:"📖"}</div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+          <input class="input" id="f-cover-url" placeholder="Paste a Goodreads cover image URL…" value="${esc(item.coverUrl && item.coverUrl.startsWith('data:')?'':item.coverUrl||'')}" />
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label class="btn btn-ghost" style="padding:6px 12px;font-size:12px;cursor:pointer;">Upload image<input type="file" accept="image/*" id="f-cover-file" style="display:none;" /></label>
+            ${item.coverUrl?`<button type="button" class="btn-text" style="color:#A2572B;" data-action="clear-cover">Remove cover</button>`:""}
+          </div>
+        </div>
+      </div>
+    </div>
     <div class="grid2">
-      <label class="field">Price ($)<input class="input" id="wf-price" value="${esc(item.price)}" /></label>
+      <label class="field">Title<input class="input" id="wf-title" value="${esc(item.title)}" /></label>
+      <label class="field">Author<input class="input" id="wf-author" value="${esc(item.author)}" /></label>
+    </div>
+    <div class="grid2">
+      <label class="field">Genre<input class="input" id="f-genre" list="genre-list" value="${esc(item.genre)}" placeholder="e.g. Fantasy" />
+        <datalist id="genre-list">${allGenres.map(g=>`<option value="${esc(g)}">`).join("")}</datalist>
+      </label>
+      <label class="field">Sub-genre<input class="input" id="f-subgenre" list="subgenre-list" value="${esc(item.subGenre)}" placeholder="e.g. Historical" />
+        <datalist id="subgenre-list">${allSubGenres.map(sg=>`<option value="${esc(sg)}">`).join("")}</datalist>
+      </label>
+      <label class="field">Pages<input class="input" id="wf-pages" value="${esc(item.pagesHours)}" placeholder="e.g. 320" /></label>
       <label class="field">Priority<select class="input" id="wf-priority">${selectOptions(PRIORITIES,item.priority)}</select></label>
     </div>
     <div style="display:flex;justify-content:flex-end;gap:10px;">
       <button class="btn btn-ghost" data-action="close-modal">Cancel</button>
       <button class="btn btn-primary" data-action="save-wish">Save</button>
+    </div>
+  `;
+}
+function moveWishFormHTML(w){
+  return `
+    <input type="hidden" id="mw-id" value="${w.id}" />
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px;">Moving <strong>${esc(w.title)}</strong> to Currently Reading. A few more details:</div>
+    <div class="grid2">
+      <label class="field">Source<select class="input" id="mw-source">${selectOptions(SOURCES,"Purchased")}</select></label>
+      <label class="field">Format<select class="input" id="mw-format">${selectOptions(FORMATS,"Physical")}</select></label>
+      <label class="field">Language<select class="input" id="mw-language">${selectOptions(LANGUAGES,"English")}</select></label>
+      <label class="field">Recommended by<input class="input" id="mw-recby" placeholder="Optional" /></label>
+    </div>
+    <label class="field">Notes / thoughts<textarea class="input" id="mw-notes" placeholder="Quotes, annotations, anything to remember"></textarea></label>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:6px;">
+      <button class="btn btn-ghost" data-action="close-modal">Cancel</button>
+      <button class="btn btn-primary" data-action="confirm-move-wish">Add to Currently Reading</button>
     </div>
   `;
 }
@@ -1359,6 +1451,7 @@ function renderModal(){
   else if(m.type==="complete-book"){ title = "Complete book"; body = completeBookModalHTML(m.payload); }
   else if(m.type==="book-detail"){ title="Book details"; body = bookDetailHTML(m.payload); wide=true; }
   else if(m.type==="wish-form"){ title = m.payload ? "Edit wishlist item" : "Add to wishlist"; body = wishFormHTML(m.payload); }
+  else if(m.type==="move-wish-form"){ title = "Move to Currently Reading"; body = moveWishFormHTML(m.payload); }
   else if(m.type==="bulk-edit-form"){ title = "Bulk edit books"; body = bulkEditFormHTML(ui.selected.size); }
   else if(m.type==="goodreads-import"){ title = "Import from Goodreads"; body = goodreadsImportHTML(); }
   else if(m.type==="backup-export"){ title = "Export Backup"; body = backupExportModalHTML(); }
@@ -1527,9 +1620,11 @@ function saveWishFromForm(){
     id, isExample:false,
     title: document.getElementById("wf-title").value.trim(),
     author: document.getElementById("wf-author").value.trim(),
-    price: document.getElementById("wf-price").value.trim(),
     priority: document.getElementById("wf-priority").value,
-    bought: existing ? existing.bought : false,
+    coverUrl: document.getElementById("f-cover").value.trim(),
+    pagesHours: document.getElementById("wf-pages").value.trim(),
+    genre: document.getElementById("f-genre").value.trim(),
+    subGenre: document.getElementById("f-subgenre").value.trim(),
   };
   if(!w.title) return;
   if(existing) state.wishlist = state.wishlist.map(x=>x.id===id?w:x);
@@ -1547,12 +1642,24 @@ function saveGoalFromForm(){
   state.modal = null;
   render();
 }
-function moveWishToTracker(id){
+function completeMoveWish(){
+  const id = document.getElementById("mw-id").value;
   const w = state.wishlist.find(x=>x.id===id);
   if(!w) return;
-  state.books.push({ id:uid(), title:w.title, author:w.author, genre:"", subGenre:"", format:"Physical", source:"Purchased", status:"reading", priority:w.priority, rating:0, dateFinished:"", language:"English", pagesHours:"", review:"", notes:"", recommendedBy:"", isExample:false });
+  const source = document.getElementById("mw-source").value;
+  const format = document.getElementById("mw-format").value;
+  const language = document.getElementById("mw-language").value;
+  const recommendedBy = document.getElementById("mw-recby").value.trim();
+  const notes = document.getElementById("mw-notes").value.trim();
+  state.books.push({
+    id:uid(), title:w.title, author:w.author, genre:w.genre||"", subGenre:w.subGenre||"",
+    format, source, status:"reading", priority:"Interested", rating:0, dateFinished:"",
+    language, pagesHours:w.pagesHours||"", review:"", notes, recommendedBy, coverUrl:w.coverUrl||"",
+    isExample:false
+  });
   state.wishlist = state.wishlist.filter(x=>x.id!==id);
   persistBooks(); persistWishlist();
+  state.modal = null;
   state.tab = "tracker";
   localStorage.setItem('shelf:lastTab', state.tab);
   render();
@@ -1646,126 +1753,4 @@ document.addEventListener("click", (e)=>{
   else if(action==="cal-next"){ ui.calMonth = new Date(ui.calMonth.getFullYear(), ui.calMonth.getMonth()+1, 1); ui.calPicked=null; render(); }
   else if(action==="cal-day"){ ui.calPicked = el.getAttribute("data-day"); render(); }
   else if(action==="add-wish"){ state.modal = {type:"wish-form", payload:null}; renderModal(); }
-  else if(action==="edit-wish"){ state.modal = {type:"wish-form", payload: state.wishlist.find(w=>w.id===id)}; renderModal(); }
-  else if(action==="save-wish"){ saveWishFromForm(); }
-  else if(action==="delete-wish"){ deleteWish(id); }
-  else if(action==="move-wish"){ moveWishToTracker(id); }
-  else if(action==="open-goal-form"){
-    const year = new Date().getFullYear().toString();
-    state.modal = {type:"goal-form", payload: { year, goal: state.goals[year] || "" }};
-    renderModal();
-  }
-  else if(action==="save-goal"){ saveGoalFromForm(); }
-  else if(action==="clear-cover"){
-    document.getElementById("f-cover").value = "";
-    const urlInput = document.getElementById("f-cover-url"); if(urlInput) urlInput.value = "";
-    const prev = document.getElementById("cover-preview");
-    if(prev){ prev.classList.add("empty"); prev.innerHTML = "📖"; }
-  }
-  else if(action==="goodreads-search"){
-    const t = (document.getElementById("f-title")?.value || "").trim();
-    const a = (document.getElementById("f-author")?.value || "").trim();
-    const q = [t,a].filter(Boolean).join(" ");
-    if(q){ window.open("https://www.goodreads.com/search?q=" + encodeURIComponent(q), "_blank", "noopener"); }
-  }
-  else if(action==="import-goodreads"){ state.modal = {type:"goodreads-import", payload:null}; renderModal(); }
-  else if(action==="do-goodreads-import"){ runGoodreadsImport(); }
-  else if(action==="toggle-select"){ toggleSelect(id); render(); }
-  else if(action==="select-all-books"){ selectAllBooks(); render(); }
-  else if(action==="clear-selection"){ clearSelection(); render(); }
-  else if(action==="delete-selected-books"){ deleteSelectedBooks(); }
-  else if(action==="bulk-edit"){ state.modal = {type:"bulk-edit-form", payload:null}; renderModal(); }
-  else if(action==="save-bulk-edit"){ saveBulkEditFromForm(); }
-  else if(action==="open-export"){ state.modal = {type:"backup-export", payload:null}; renderModal(); }
-  else if(action==="open-import"){ state.modal = {type:"backup-import", payload:null}; renderModal(); }
-  else if(action==="do-export-json"){ exportBackupJSON(); }
-  else if(action==="do-import-json"){
-    const fileInput = document.getElementById("import-json-file");
-    if(fileInput && fileInput.files[0]){
-      importBackupJSON(fileInput.files[0]);
-    }
-  }
-  else if(action==="open-switch-user"){ ui.mobileMoreOpen = false; state.modal = {type:"switch-user", payload:null}; renderModal(); }
-  else if(action==="select-user"){ switchUser(el.getAttribute("data-user-id")); }
-});
-
-document.addEventListener("change", (e)=>{
-  if(e.target.id==="f-cover-file"){
-    const file = e.target.files[0];
-    if(!file) return;
-    resizeImageFile(file, 400, (dataUrl)=>{
-      if(!dataUrl) return;
-      const hidden = document.getElementById("f-cover");
-      const urlInput = document.getElementById("f-cover-url");
-      const prev = document.getElementById("cover-preview");
-      if(hidden) hidden.value = dataUrl;
-      if(urlInput) urlInput.value = "";
-      if(prev){ prev.classList.remove("empty"); prev.innerHTML = `<img src="${dataUrl}" alt="cover preview"/>`; }
-    });
-  }
-  else if(e.target.id==="f-status"){
-    const val = e.target.value;
-    const priEl = document.getElementById("f-priority");
-    const priWrap = document.getElementById("priority-field-wrap");
-    const hide = (val === "done" || val === "dnf");
-    if(priEl && hide){
-      priEl.value = "";
-    }
-    if(priWrap) priWrap.style.display = hide ? "none" : "";
-  }
-  else if(e.target.id==="goodreads-file"){ handleGoodreadsFile(e.target.files[0]); }
-  else if(e.target.id==="gallery-status"){ ui.galleryStatus = e.target.value; render(); }
-  else if(e.target.id==="gallery-genre"){ ui.galleryGenre = e.target.value; render(); }
-  else if(e.target.id==="gallery-rating"){ ui.galleryRating = e.target.value; render(); }
-  else if(e.target.id==="shelf-genre"){ ui.shelfGenre = e.target.value; render(); }
-  else if(e.target.getAttribute && e.target.getAttribute("data-action")==="toggle-bought"){
-    const id = e.target.getAttribute("data-id");
-    state.wishlist = state.wishlist.map(w=> w.id===id ? {...w, bought:e.target.checked} : w);
-    persistWishlist(); render();
-  }
-});
-document.addEventListener("input", (e)=>{
-  if(e.target.id==="gallery-q"){ ui.galleryQuery = e.target.value; render(); document.getElementById("gallery-q") && document.getElementById("gallery-q").focus(); }
-  else if(e.target.id==="f-genre"){
-    const val = e.target.value;
-    const datalist = document.getElementById("genre-list");
-    if (datalist) {
-      const allGenres = Array.from(new Set([...DEFAULT_GENRES, ...state.books.map(x=>x.genre).filter(Boolean)]));
-      datalist.innerHTML = sortSuggestionsByInput(allGenres, val).map(g=>`<option value="${esc(g)}">`).join("");
-    }
-  }
-  else if(e.target.id==="f-subgenre"){
-    const val = e.target.value;
-    const datalist = document.getElementById("subgenre-list");
-    if (datalist) {
-      const allSubGenres = Array.from(new Set(state.books.map(x=>x.subGenre).filter(Boolean)));
-      datalist.innerHTML = sortSuggestionsByInput(allSubGenres, val).map(sg=>`<option value="${esc(sg)}">`).join("");
-    }
-  }
-  else if(e.target.id==="f-cover-url"){
-    const val = e.target.value.trim();
-    const hidden = document.getElementById("f-cover");
-    const prev = document.getElementById("cover-preview");
-    if(hidden) hidden.value = val;
-    if(prev){
-      if(val){ prev.classList.remove("empty"); prev.innerHTML = `<img src="${esc(val)}" alt="cover preview" onerror="this.parentElement.classList.add('empty'); this.remove();"/>`; }
-      else { prev.classList.add("empty"); prev.innerHTML = "📖"; }
-    }
-  }
-  else if(e.target.id==="f-rating-num" || e.target.id==="cf-rating-num"){
-    const targetId = e.target.id === "cf-rating-num" ? "cf-rating" : "f-rating";
-    const hidden = document.getElementById(targetId);
-    let val = Number(e.target.value)||0;
-    val = Math.max(0, Math.min(5, val));
-    if(hidden) hidden.value = val;
-    const wrap = e.target.closest("span")?.querySelector(".stars");
-    if(wrap) applyStarFills(wrap, val);
-  }
-});
-
-/* ---------------- init ---------------- */
-loadData();
-loadProfiles();
-</script>
-</body>
-</html>
+  else if(action==="
