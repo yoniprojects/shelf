@@ -500,7 +500,26 @@
         };
         firebase.initializeApp(firebaseConfig);
         const fbDb = firebase.database();
-        const goalsRef = fbDb.ref('appData/goals');
+        // Same per-user document scheme as the main Shelf & Spine app.
+        function getCurrentUserId(){
+          return localStorage.getItem('shelf:currentUser') || 'shared';
+        }
+        const CURRENT_USER_ID = getCurrentUserId();
+        // Each person's goals live under their own key now. 'appData/goals'
+        // (no sub-key) is the original single-user location; it's migrated
+        // into 'shared' below the first time this runs, so nothing is lost.
+        const goalsRef = fbDb.ref('appData/goalsByUser/' + CURRENT_USER_ID);
+        const legacyGoalsRef = fbDb.ref('appData/goals');
+
+        async function migrateLegacyGoalsIfNeeded(){
+            if (CURRENT_USER_ID !== 'shared') return;
+            try {
+                const [newSnap, legacySnap] = await Promise.all([goalsRef.once('value'), legacyGoalsRef.once('value')]);
+                if (!newSnap.exists() && legacySnap.exists()) {
+                    await goalsRef.set(legacySnap.val());
+                }
+            } catch (err) { console.error('Goals migration failed:', err); }
+        }
 
         let applyingRemoteGoals = false;
         let fbGoalsSyncTimer = null;
@@ -552,7 +571,7 @@
         };
         const lwApp = firebase.initializeApp(lwFirebaseConfig, "lwApp");
         const lwDb = lwApp.firestore();
-        const LW_SHARED_DOC = lwDb.collection("shelf-spine").doc("shared");
+        const LW_SHARED_DOC = lwDb.collection("shelf-spine").doc(CURRENT_USER_ID);
 
         let currentlyReadingBooks = [];
 
@@ -626,7 +645,7 @@
         // GOALS MODE
         // ============================================================
 
-        const GOALS_STORAGE_KEY = 'reading_goals_data';
+        const GOALS_STORAGE_KEY = 'reading_goals_data:' + CURRENT_USER_ID;
 
         let goalsData = [];
         let goalType = 'percentage';
@@ -1192,10 +1211,11 @@
         // END GOALS MODE
         // ============================================================
 
-        function init() {
+        async function init() {
             loadGoalsLocal();
             applyRandomGoalsBackground();
             renderGoals();
+            await migrateLegacyGoalsIfNeeded();
             initGoalsFirebaseSync();
             initCurrentlyReadingSync();
         }
