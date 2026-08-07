@@ -1172,25 +1172,60 @@ function bgCssFull(bg){
 /* Shrinks the fixed-size (PC/1080-wide) canvas visually to fit narrow phone
    screens using a CSS transform, so the design itself never changes — only
    how small it's shown. The underlying #canvas element always keeps its
-   true dimensions, which is what export captures. */
+   true dimensions, which is what export captures.
+   The "available width" is measured from <main> directly (viewport width
+   minus main's own horizontal padding) rather than from stage-wrap's
+   clientWidth. stage-wrap sits several flex/grid layers above the fixed-
+   540px canvas, and getting every one of those layers' intrinsic-sizing
+   behavior (min-width, stretch, shrink) to agree proved fragile in
+   practice. Measuring from <main> — a plain block with no fixed-width
+   descendants of its own — sidesteps that whole chain and can't be thrown
+   off by it. */
+function getAvailableCanvasWidth(){
+  const mainEl = document.querySelector('main');
+  if(mainEl){
+    const cs = getComputedStyle(mainEl);
+    const padL = parseFloat(cs.paddingLeft) || 0;
+    const padR = parseFloat(cs.paddingRight) || 0;
+    return Math.max(0, mainEl.clientWidth - padL - padR);
+  }
+  return document.documentElement.clientWidth;
+}
 function fitCanvasToViewport(){
   const outer = document.getElementById('canvasScaleOuter');
   const shell = document.getElementById('canvasShell');
   if(!outer || !shell) return;
   // measure natural (unscaled) size — CSS transforms don't affect layout box
   // size, so we can measure without a none/restore flicker.
+  //
+  // BUT: canvasShell is itself a flex item (inside .canvas-scale-outer),
+  // and flex items are allowed to shrink below their content's true width
+  // by default. That means even with the transform removed, the shell can
+  // still be squeezed down to fit whatever space is available *before* we
+  // measure it — so offsetWidth reports the already-shrunk size, not the
+  // real 540px-canvas-plus-padding size. That bogus (too small) naturalW
+  // makes the scale math think barely any shrinking is needed, so the
+  // transform ends up doing almost nothing while the fixed-width #canvas
+  // inside still spills out past the shrunk shell — the exact "cut off on
+  // mobile" bug. Forcing flex-shrink:0 during the measurement makes the
+  // shell report its true, un-squeezed content width.
   const prevTransform = shell.style.transform;
+  const prevFlexShrink = shell.style.flexShrink;
   shell.style.transform = 'none';
+  shell.style.flexShrink = '0';
   const naturalW = shell.offsetWidth;
   const naturalH = shell.offsetHeight;
   shell.style.transform = prevTransform;
+  shell.style.flexShrink = prevFlexShrink;
   if(!naturalW || !naturalH) return;
-  const available = outer.parentElement ? outer.parentElement.clientWidth : naturalW;
-  const scale = Math.min(1, available / naturalW);
+  const available = getAvailableCanvasWidth();
+  // -1px safety margin: floating-point scale math can land a fraction of a
+  // pixel over "available", which is enough to trip a horizontal scrollbar.
+  const scale = Math.min(1, (available - 1) / naturalW);
   if(scale < 1){
     shell.style.transform = `scale(${scale})`;
-    outer.style.width = (naturalW*scale) + 'px';
-    outer.style.height = (naturalH*scale) + 'px';
+    outer.style.width = Math.floor(naturalW*scale) + 'px';
+    outer.style.height = Math.ceil(naturalH*scale) + 'px';
   } else {
     shell.style.transform = 'none';
     outer.style.width = '';
@@ -1233,15 +1268,19 @@ if(document.fonts && document.fonts.ready){
 }
 (function watchCanvasSize(){
   const shell = document.getElementById('canvasShell');
-  if(!shell || typeof ResizeObserver === 'undefined') return;
+  const mainEl = document.querySelector('main');
+  if(typeof ResizeObserver === 'undefined') return;
   let raf = null;
-  const ro = new ResizeObserver(() => {
-    // rAF-debounce: ResizeObserver fires on our own transform-driven size
-    // changes too, so batch to one measurement per frame.
+  const scheduleFit = () => {
     if(raf) cancelAnimationFrame(raf);
     raf = requestAnimationFrame(() => fitCanvasToViewport());
-  });
-  ro.observe(shell);
+  };
+  // Watches two independent things that can each go stale on their own:
+  // shell's natural size (font swaps, longer titles, layout changes) and
+  // main's available width (viewport/orientation changes, browser chrome
+  // showing/hiding). Either one changing should trigger a re-fit.
+  if(shell){ new ResizeObserver(scheduleFit).observe(shell); }
+  if(mainEl){ new ResizeObserver(scheduleFit).observe(mainEl); }
 })();
 
 function renderCanvas(){
