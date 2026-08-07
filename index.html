@@ -1753,4 +1753,122 @@ document.addEventListener("click", (e)=>{
   else if(action==="cal-next"){ ui.calMonth = new Date(ui.calMonth.getFullYear(), ui.calMonth.getMonth()+1, 1); ui.calPicked=null; render(); }
   else if(action==="cal-day"){ ui.calPicked = el.getAttribute("data-day"); render(); }
   else if(action==="add-wish"){ state.modal = {type:"wish-form", payload:null}; renderModal(); }
-  else if(action==="
+  else if(action==="edit-wish"){ state.modal = {type:"wish-form", payload: state.wishlist.find(w=>w.id===id)}; renderModal(); }
+  else if(action==="save-wish"){ saveWishFromForm(); }
+  else if(action==="delete-wish"){ deleteWish(id); }
+  else if(action==="move-wish"){ state.modal = {type:"move-wish-form", payload: state.wishlist.find(w=>w.id===id)}; renderModal(); }
+  else if(action==="confirm-move-wish"){ completeMoveWish(); }
+  else if(action==="open-goal-form"){
+    const year = new Date().getFullYear().toString();
+    state.modal = {type:"goal-form", payload: { year, goal: state.goals[year] || "" }};
+    renderModal();
+  }
+  else if(action==="save-goal"){ saveGoalFromForm(); }
+  else if(action==="clear-cover"){
+    document.getElementById("f-cover").value = "";
+    const urlInput = document.getElementById("f-cover-url"); if(urlInput) urlInput.value = "";
+    const prev = document.getElementById("cover-preview");
+    if(prev){ prev.classList.add("empty"); prev.innerHTML = "📖"; }
+  }
+  else if(action==="goodreads-search"){
+    const t = (document.getElementById("f-title")?.value || "").trim();
+    const a = (document.getElementById("f-author")?.value || "").trim();
+    const q = [t,a].filter(Boolean).join(" ");
+    if(q){ window.open("https://www.goodreads.com/search?q=" + encodeURIComponent(q), "_blank", "noopener"); }
+  }
+  else if(action==="import-goodreads"){ state.modal = {type:"goodreads-import", payload:null}; renderModal(); }
+  else if(action==="do-goodreads-import"){ runGoodreadsImport(); }
+  else if(action==="toggle-select"){ toggleSelect(id); render(); }
+  else if(action==="select-all-books"){ selectAllBooks(); render(); }
+  else if(action==="clear-selection"){ clearSelection(); render(); }
+  else if(action==="delete-selected-books"){ deleteSelectedBooks(); }
+  else if(action==="bulk-edit"){ state.modal = {type:"bulk-edit-form", payload:null}; renderModal(); }
+  else if(action==="save-bulk-edit"){ saveBulkEditFromForm(); }
+  else if(action==="open-export"){ state.modal = {type:"backup-export", payload:null}; renderModal(); }
+  else if(action==="open-import"){ state.modal = {type:"backup-import", payload:null}; renderModal(); }
+  else if(action==="do-export-json"){ exportBackupJSON(); }
+  else if(action==="do-import-json"){
+    const fileInput = document.getElementById("import-json-file");
+    if(fileInput && fileInput.files[0]){
+      importBackupJSON(fileInput.files[0]);
+    }
+  }
+  else if(action==="open-switch-user"){ ui.mobileMoreOpen = false; state.modal = {type:"switch-user", payload:null}; renderModal(); }
+  else if(action==="select-user"){ switchUser(el.getAttribute("data-user-id")); }
+});
+
+document.addEventListener("change", (e)=>{
+  if(e.target.id==="f-cover-file"){
+    const file = e.target.files[0];
+    if(!file) return;
+    resizeImageFile(file, 400, (dataUrl)=>{
+      if(!dataUrl) return;
+      const hidden = document.getElementById("f-cover");
+      const urlInput = document.getElementById("f-cover-url");
+      const prev = document.getElementById("cover-preview");
+      if(hidden) hidden.value = dataUrl;
+      if(urlInput) urlInput.value = "";
+      if(prev){ prev.classList.remove("empty"); prev.innerHTML = `<img src="${dataUrl}" alt="cover preview"/>`; }
+    });
+  }
+  else if(e.target.id==="f-status"){
+    const val = e.target.value;
+    const priEl = document.getElementById("f-priority");
+    const priWrap = document.getElementById("priority-field-wrap");
+    const hide = (val === "done" || val === "dnf");
+    if(priEl && hide){
+      priEl.value = "";
+    }
+    if(priWrap) priWrap.style.display = hide ? "none" : "";
+  }
+  else if(e.target.id==="goodreads-file"){ handleGoodreadsFile(e.target.files[0]); }
+  else if(e.target.id==="gallery-status"){ ui.galleryStatus = e.target.value; render(); }
+  else if(e.target.id==="gallery-genre"){ ui.galleryGenre = e.target.value; render(); }
+  else if(e.target.id==="gallery-rating"){ ui.galleryRating = e.target.value; render(); }
+  else if(e.target.id==="shelf-genre"){ ui.shelfGenre = e.target.value; render(); }
+});
+document.addEventListener("input", (e)=>{
+  if(e.target.id==="gallery-q"){ ui.galleryQuery = e.target.value; render(); document.getElementById("gallery-q") && document.getElementById("gallery-q").focus(); }
+  else if(e.target.id==="f-genre"){
+    const val = e.target.value;
+    const datalist = document.getElementById("genre-list");
+    if (datalist) {
+      const allGenres = Array.from(new Set([...DEFAULT_GENRES, ...state.books.map(x=>x.genre).filter(Boolean)]));
+      datalist.innerHTML = sortSuggestionsByInput(allGenres, val).map(g=>`<option value="${esc(g)}">`).join("");
+    }
+  }
+  else if(e.target.id==="f-subgenre"){
+    const val = e.target.value;
+    const datalist = document.getElementById("subgenre-list");
+    if (datalist) {
+      const allSubGenres = Array.from(new Set(state.books.map(x=>x.subGenre).filter(Boolean)));
+      datalist.innerHTML = sortSuggestionsByInput(allSubGenres, val).map(sg=>`<option value="${esc(sg)}">`).join("");
+    }
+  }
+  else if(e.target.id==="f-cover-url"){
+    const val = e.target.value.trim();
+    const hidden = document.getElementById("f-cover");
+    const prev = document.getElementById("cover-preview");
+    if(hidden) hidden.value = val;
+    if(prev){
+      if(val){ prev.classList.remove("empty"); prev.innerHTML = `<img src="${esc(val)}" alt="cover preview" onerror="this.parentElement.classList.add('empty'); this.remove();"/>`; }
+      else { prev.classList.add("empty"); prev.innerHTML = "📖"; }
+    }
+  }
+  else if(e.target.id==="f-rating-num" || e.target.id==="cf-rating-num"){
+    const targetId = e.target.id === "cf-rating-num" ? "cf-rating" : "f-rating";
+    const hidden = document.getElementById(targetId);
+    let val = Number(e.target.value)||0;
+    val = Math.max(0, Math.min(5, val));
+    if(hidden) hidden.value = val;
+    const wrap = e.target.closest("span")?.querySelector(".stars");
+    if(wrap) applyStarFills(wrap, val);
+  }
+});
+
+/* ---------------- init ---------------- */
+loadData();
+loadProfiles();
+</script>
+</body>
+</html>
