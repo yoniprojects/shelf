@@ -11,7 +11,10 @@
 <script>
   // Resume where I left off: if the last page visited wasn't the dashboard,
   // jump straight there before anything renders.
+  // Exception: if we got here via an explicit "back to shelf" link (?home=1),
+  // the user is deliberately choosing the dashboard, so skip the auto-resume.
   (function(){
+    if (new URLSearchParams(location.search).has('home')) return;
     var last = localStorage.getItem('shelf:lastPage');
     if (last && last !== 'index.html') {
       location.replace(last);
