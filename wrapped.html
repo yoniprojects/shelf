@@ -22,7 +22,7 @@
   --line: rgba(255,255,255,0.12);
 }
 *{box-sizing:border-box;}
-html,body{margin:0;padding:0;}
+html,body{margin:0;padding:0; overflow-x:hidden; width:100%;}
 body{
   background:
     radial-gradient(circle at 12% 8%, rgba(255,61,127,0.28), transparent 40%),
@@ -241,20 +241,49 @@ input[type=range]{ width:100%; accent-color: var(--pop); }
   .grid-cards{ grid-template-columns:repeat(auto-fill, minmax(140px,1fr)); gap:12px; }
   .saved-row{ grid-template-columns:repeat(auto-fill, minmax(120px,1fr)); gap:10px; }
 
-  .editor{ gap:14px; }
-  .panel{ position:static; max-height:none; overflow:visible; padding:14px; }
-  .tabs{ position:sticky; top:0; z-index:10; background:rgba(20,18,26,0.92); backdrop-filter:blur(10px); margin:-14px -14px 14px; padding:10px 14px; border-radius:20px 20px 0 0; }
-  .tab-btn{ min-width:0; padding:9px 4px; font-size:11px; }
+  /* Prevent iOS Safari's auto-zoom-on-focus: any focusable control under
+     16px triggers a forced page zoom that never un-zooms cleanly. */
+  .field input[type=text], .field input[type=search], .field textarea, .field select,
+  input[type=text], input[type=search], textarea, select{
+    font-size:16px;
+  }
 
-  .stage-toolbar{ gap:6px; }
-  .stage-toolbar .btn{ font-size:12px; padding:8px 10px; }
+  /* Canvas-first layout: on phones, show the actual design before the
+     controls that edit it — editing a wrap you can't see is the "unintuitive"
+     part users hit first. */
+  .editor{ display:flex; flex-direction:column; gap:14px; }
+  .editor .stage-wrap{ order:1; }
+  .editor .panel{ order:2; }
+
+  .panel{ position:static; max-height:none; overflow:visible; padding:14px; }
+
+  /* Horizontally scrollable tab strip instead of 5 tabs squeezed into
+     unreadable 10-11px text. */
+  .tabs{
+    position:sticky; top:var(--header-h, 58px); z-index:10; background:rgba(20,18,26,0.92); backdrop-filter:blur(10px);
+    margin:-14px -14px 14px; padding:10px 14px; border-radius:20px 20px 0 0;
+    flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none;
+  }
+  .tabs::-webkit-scrollbar{ display:none; }
+  .tab-btn{ flex:0 0 auto; min-width:74px; padding:11px 14px; font-size:12.5px; min-height:40px; }
+
+  /* Sticky bottom action bar: Save / Export stay reachable while scrolling
+     through the settings panel, instead of requiring a full scroll down. */
+  .stage-toolbar{
+    gap:6px; flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none;
+    justify-content:flex-start; width:100%; max-width:none;
+    position:sticky; top:var(--header-h, 58px); z-index:11; background:rgba(20,18,26,0.92); backdrop-filter:blur(10px);
+    margin:0 -16px; padding:10px 16px; border-bottom:1px solid var(--line);
+  }
+  .stage-toolbar::-webkit-scrollbar{ display:none; }
+  .stage-toolbar .btn{ font-size:12px; padding:9px 12px; flex:0 0 auto; min-height:40px; }
   #exportHint{ font-size:11px; padding:0 6px; }
+
+  #canvasScaleOuter{ max-width:100%; }
 }
 
 @media (max-width:400px){
   .hero-strip h1{ font-size:27px; }
-  .tabs{ gap:4px; }
-  .tab-btn{ font-size:10.2px; padding:8px 3px; }
 }
 </style>
 </head>
@@ -1142,12 +1171,13 @@ function fitCanvasToViewport(){
   const outer = document.getElementById('canvasScaleOuter');
   const shell = document.getElementById('canvasShell');
   if(!outer || !shell) return;
-  // measure natural (unscaled) size
+  // measure natural (unscaled) size — CSS transforms don't affect layout box
+  // size, so we can measure without a none/restore flicker.
+  const prevTransform = shell.style.transform;
   shell.style.transform = 'none';
-  outer.style.width = '';
-  outer.style.height = '';
   const naturalW = shell.offsetWidth;
   const naturalH = shell.offsetHeight;
+  shell.style.transform = prevTransform;
   if(!naturalW || !naturalH) return;
   const available = outer.parentElement ? outer.parentElement.clientWidth : naturalW;
   const scale = Math.min(1, available / naturalW);
@@ -1155,10 +1185,58 @@ function fitCanvasToViewport(){
     shell.style.transform = `scale(${scale})`;
     outer.style.width = (naturalW*scale) + 'px';
     outer.style.height = (naturalH*scale) + 'px';
+  } else {
+    shell.style.transform = 'none';
+    outer.style.width = '';
+    outer.style.height = '';
   }
 }
 window.addEventListener('resize', () => fitCanvasToViewport());
 window.addEventListener('orientationchange', () => fitCanvasToViewport());
+
+// Keep the sticky mobile toolbar pinned exactly below the header (not
+// hidden underneath it) regardless of how tall the header renders at a
+// given font size / screen width.
+function syncHeaderHeightVar(){
+  const header = document.querySelector('header.topbar');
+  if(!header) return;
+  document.documentElement.style.setProperty('--header-h', header.offsetHeight + 'px');
+}
+window.addEventListener('resize', syncHeaderHeightVar);
+window.addEventListener('orientationchange', syncHeaderHeightVar);
+document.addEventListener('DOMContentLoaded', syncHeaderHeightVar);
+syncHeaderHeightVar();
+if(document.fonts && document.fonts.ready){
+  document.fonts.ready.then(syncHeaderHeightVar).catch(() => {});
+}
+
+// The old bug: web fonts (Fraunces / Space Grotesk) load asynchronously.
+// fitCanvasToViewport() used to run once, right after render, based on
+// whatever font was showing at that instant. When the real font swapped in
+// a beat later the title/subtitle reflowed to a different height, but
+// nothing ever re-measured — so the shrink-to-fit box stayed sized for the
+// old (wrong) height and the canvas visually spilled out of it. That's the
+// "cut off when loading a new wrap" bug.
+//
+// Fix: (1) re-fit once fonts finish loading, and (2) keep a ResizeObserver
+// on the canvas shell so ANY future natural-size change (font swap, new
+// book covers, longer title, layout switch, sticker added) automatically
+// triggers a re-fit — no more relying on remembering to call this manually.
+if(document.fonts && document.fonts.ready){
+  document.fonts.ready.then(() => fitCanvasToViewport()).catch(() => {});
+}
+(function watchCanvasSize(){
+  const shell = document.getElementById('canvasShell');
+  if(!shell || typeof ResizeObserver === 'undefined') return;
+  let raf = null;
+  const ro = new ResizeObserver(() => {
+    // rAF-debounce: ResizeObserver fires on our own transform-driven size
+    // changes too, so batch to one measurement per frame.
+    if(raf) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => fitCanvasToViewport());
+  });
+  ro.observe(shell);
+})();
 
 function renderCanvas(){
   document.getElementById('bgLayer').style.background = bgCssFull(wrap.background);
