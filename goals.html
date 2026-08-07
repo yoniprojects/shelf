@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reading Goals</title>
+    <link rel="icon" type="image/png" href="https://i.imgur.com/n3Skh7r.png">
+    <link rel="apple-touch-icon" href="https://i.imgur.com/n3Skh7r.png">
+<style>
+    :root {
+        --surface-color: rgba(255, 255, 255, 0.85);
+        --primary-color: #cbdba8;
+        --accent-yellow: #fff9a6;
+        --text-color: #333333;
+        --text-muted: #666666;
+        --border-color: #e0dcd3;
+        --danger-color: #ffb3ba;
+        --edit-color: #c7ceea;
+    }
+
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+        background-repeat: no-repeat;
+        color: var(--text-color);
+        margin: 0;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-height: 100vh;
+        transition: background-image 0.3s ease;
+    }
+
+    button {
+        background-color: var(--primary-color);
+        color: #444e37;
+        border: none;
+        padding: 12px 24px;
+        font-size: 16px;
+        font-weight: bold;
+        border-radius: 8px;
+        cursor: pointer;
+        margin-top: 20px;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    }
+
+    button:hover { opacity: 0.9; transform: scale(1.02); }
+
+    .view-toggle {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        z-index: 2000;
+        display: flex;
+        background-color: var(--surface-color);
+        border-radius: 8px;
+        padding: 3px;
+        border: 1px solid var(--border-color);
+        gap: 2px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+    .view-toggle button { margin: 0; padding: 6px 10px; font-size: 14px; line-height: 1; background-color: transparent; color: var(--text-muted); box-shadow: none; border-radius: 6px; }
+    .view-toggle button.active { background-color: var(--primary-color); color: #444e37; }
+
+    .btn-save { background-color: var(--primary-color); color: #444e37; }
+    .btn-cancel { background-color: #eae5db; color: var(--text-color); }
+
+    /* Confetti Styles */
+    .confetti-piece {
+        position: fixed;
+        width: 10px;
+        height: 10px;
+        z-index: 9999;
+        pointer-events: none;
+        border-radius: 2px;
+    }
+
+    body.view-mobile { padding: 12px; padding-top: 56px; }
+    body.view-mobile .goals-modal-buttons { flex-direction: column; }
+    body.view-mobile .goals-modal-buttons button { width: 100%; }
+
+    /* ============ GOALS MODE STYLES ============ */
+    #goals-mode-panel {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+        max-width: 1140px;
+    }
+
+    .goals-top-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .goals-top-bar h2 {
+        color: #ffffff;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        margin: 0;
+        font-size: 1.6em;
+    }
+
+    .goals-top-bar-title-group {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .goals-add-btn {
+        background-color: var(--primary-color);
+        color: #444e37;
+        border: none;
+        padding: 10px 20px;
+        font-size: 14px;
+        font-weight: bold;
+        border-radius: 8px;
+        cursor: pointer;
+        margin: 0;
+        transition: all 0.2s ease;
+    }
+
+    .goals-add-btn:hover { opacity: 0.9; transform: scale(1.02); }
+
+    .goals-top-bar-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .goals-undo-btn, .goals-return-btn {
+        background-color: rgba(255,255,255,0.15);
+        color: #ffffff;
+        border: 1px solid rgba(255,255,255,0.4);
+        padding: 10px 18px;
+        font-size: 14px;
+        font-weight: bold;
+        border-radius: 8px;
+        cursor: pointer;
+        margin: 0;
+        transition: all 0.2s ease;
+    }
+
+    .goals-undo-btn:hover:not(:disabled), .goals-return-btn:hover { opacity: 0.85; transform: scale(1.02); }
+
+    .goals-undo-btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .goals-date-group {
+        background-color: var(--surface-color);
+        border-radius: 16px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        border: 1px solid var(--border-color);
+        padding: 24px 28px;
+        width: 100%;
+        box-sizing: border-box;
+        margin-bottom: 20px;
+    }
+
+    .goals-date-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+        border-bottom: 2px solid var(--primary-color);
+        padding-bottom: 10px;
+    }
+
+    .goals-date-title {
+        font-size: 1.1em;
+        font-weight: bold;
+        color: #444e37;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .goals-date-title .date-badge {
+        background: var(--primary-color);
+        color: #444e37;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 0.85em;
+    }
+
+    .goals-date-progress {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-weight: bold;
+    }
+
+    .goal-item {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 12px 14px;
+        border-radius: 10px;
+        margin-bottom: 8px;
+        background: #fdfdfb;
+        border: 1px solid var(--border-color);
+        transition: all 0.2s ease;
+        position: relative;
+    }
+
+    .goal-item.goal-done {
+        background: #f0f7e6;
+        border-color: #c4dba0;
+        opacity: 0.85;
+    }
+
+    .goal-item.goal-done .goal-text {
+        text-decoration: line-through;
+        color: var(--text-muted);
+    }
+
+    .goal-checkbox {
+        width: 22px;
+        height: 22px;
+        accent-color: var(--primary-color);
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+
+    .goal-text {
+        color: var(--text-muted);
+        font-size: 13px;
+        flex: 1;
+    }
+
+    .goal-delete-btn {
+        background: none;
+        border: none;
+        color: #ccc;
+        font-size: 16px;
+        cursor: pointer;
+        padding: 4px 6px;
+        margin: 0;
+        line-height: 1;
+        border-radius: 4px;
+        transition: color 0.15s ease;
+        flex-shrink: 0;
+        box-shadow: none;
+    }
+
+    .goal-delete-btn:hover { color: var(--danger-color); transform: none; opacity: 1; }
+
+    .goals-empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: rgba(255,255,255,0.85);
+    }
+
+    .goals-empty-state .empty-icon { font-size: 3em; margin-bottom: 12px; }
+    .goals-empty-state p { font-size: 1.1em; text-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+
+    /* Goals Add Modal */
+    .goals-modal-overlay {
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: rgba(40, 38, 34, 0.6);
+        backdrop-filter: blur(4px);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1002;
+    }
+
+    .goals-modal-overlay.active { display: flex; }
+
+    .goals-modal-content {
+        background: #ffffff;
+        border: 2px solid var(--primary-color);
+        padding: 32px;
+        border-radius: 16px;
+        max-width: 520px;
+        width: 92%;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        max-height: 90vh;
+        overflow-y: auto;
+        box-sizing: border-box;
+    }
+
+    .goals-modal-content h2 {
+        color: #444e37;
+        margin: 0 0 22px 0;
+        font-size: 1.4em;
+    }
+
+    .goals-modal-content .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 16px;
+    }
+
+    .goals-modal-content .form-group label {
+        font-size: 12px;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-weight: bold;
+    }
+
+    .goals-modal-content select,
+    .goals-modal-content input[type="date"],
+    .goals-modal-content input[type="number"] {
+        background: #fcfcf9;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 10px;
+        font-size: 14px;
+        color: var(--text-color);
+        width: 100%;
+        box-sizing: border-box;
+        height: 42px;
+    }
+
+    .goal-type-toggle {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 16px;
+    }
+
+    .goal-type-toggle button {
+        flex: 1;
+        margin: 0;
+        padding: 10px;
+        font-size: 13px;
+        background: #f0ede4;
+        color: var(--text-muted);
+        box-shadow: none;
+        border-radius: 6px;
+        transition: all 0.2s;
+    }
+
+    .goal-type-toggle button.active {
+        background: var(--primary-color);
+        color: #444e37;
+    }
+
+    .goals-modal-buttons {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        margin-top: 24px;
+    }
+
+    .goals-modal-buttons button { margin: 0; padding: 10px 20px; font-size: 14px; }
+
+    .goals-progress-bar-wrap {
+        background: #e8e4dc;
+        border-radius: 6px;
+        height: 8px;
+        overflow: hidden;
+        margin-top: 6px;
+        width: 120px;
+    }
+
+    .goals-progress-bar-fill {
+        height: 100%;
+        background: var(--primary-color);
+        border-radius: 6px;
+        transition: width 0.4s ease;
+    }
+
+    .goals-date-progress-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
+    }
+
+    body.view-mobile .goals-date-group { padding: 16px; }
+    body.view-mobile .goal-item { flex-wrap: wrap; gap: 8px; }
+    body.view-mobile .goals-modal-content { padding: 22px 16px; }
+    body.view-mobile .goals-top-bar { justify-content: center; text-align: center; }
+    body.view-mobile .goals-top-bar-actions { width: 100%; justify-content: center; }
+    /* ============ END GOALS MODE STYLES ============ */
+</style>
+</head>
+<body>
+
+    <div class="view-toggle" id="view-toggle">
+        <button type="button" id="view-btn-desktop" onclick="setViewMode('desktop')" title="Desktop view">🖥️</button>
+        <button type="button" id="view-btn-mobile" onclick="setViewMode('mobile')" title="Mobile view">📱</button>
+    </div>
+
+    <!-- ============ GOALS MODE PANEL ============ -->
+    <div id="goals-mode-panel">
+        <div class="goals-top-bar">
+            <div class="goals-top-bar-title-group">
+                <h2>🎯 Reading Goals</h2>
+            </div>
+            <div class="goals-top-bar-actions">
+                <button class="goals-return-btn" onclick="location.href='LW.html'">← Return to shelf</button>
+                <button class="goals-undo-btn" id="goals-undo-btn" onclick="undoGoalsAction()" disabled title="Undo the last add, edit, or remove">↩ Undo</button>
+                <button class="goals-add-btn" onclick="openGoalModal()">+ Add Goal</button>
+            </div>
+        </div>
+        <div id="goals-content" style="width:100%;"></div>
+    </div>
+
+    <!-- Goals Add Modal -->
+    <div class="goals-modal-overlay" id="goals-modal-overlay">
+        <div class="goals-modal-content">
+            <h2 id="goals-modal-title">Add Reading Goal</h2>
+
+            <div class="form-group">
+                <label>Book</label>
+                <select id="goal-book-select"></select>
+            </div>
+
+            <div class="form-group">
+                <label>Date Range</label>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <input type="date" id="goal-date-from-input" style="flex:1;">
+                    <span style="font-size:13px; color:var(--text-muted); white-space:nowrap;">to</span>
+                    <input type="date" id="goal-date-to-input" style="flex:1;">
+                </div>
+                <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Milestones will be split evenly across the days in this range. Use the same date for both fields for a single day.</div>
+            </div>
+
+            <div class="form-group">
+                <label>Goal Type</label>
+                <div class="goal-type-toggle">
+                    <button id="goal-type-pct-btn" class="active" onclick="setGoalType('percentage')">📊 By Percentage</button>
+                    <button id="goal-type-ch-btn" onclick="setGoalType('chapter')">📖 By Chapter</button>
+                    <button id="goal-type-pg-btn" onclick="setGoalType('page')">📄 By Page</button>
+                </div>
+            </div>
+
+            <!-- Percentage fields: manual entry -->
+            <div id="goal-percentage-fields">
+                <div class="form-group">
+                    <label>Percentage range</label>
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <label style="font-size:13px; color:var(--text-color); text-transform:none; letter-spacing:0; font-weight:normal; white-space:nowrap;">From %</label>
+                        <input type="number" id="goal-pct-from" placeholder="e.g. 0" min="0" max="99" style="flex:1; height:38px; font-size:13px; padding:6px; box-sizing:border-box; background:#fcfcf9; border:1px solid var(--border-color); border-radius:6px; color:var(--text-color);" oninput="enforceMin(event)">
+                        <label style="font-size:13px; color:var(--text-color); text-transform:none; letter-spacing:0; font-weight:normal; white-space:nowrap;">To %</label>
+                        <input type="number" id="goal-pct-to" placeholder="e.g. 100" min="1" max="100" style="flex:1; height:38px; font-size:13px; padding:6px; box-sizing:border-box; background:#fcfcf9; border:1px solid var(--border-color); border-radius:6px; color:var(--text-color);" oninput="enforceMin(event)">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chapter fields: text entries, one per line -->
+            <div id="goal-chapter-fields" style="display:none;">
+                <div class="form-group">
+                    <label>Chapter Mode</label>
+                    <div class="goal-type-toggle" style="margin-bottom:10px;">
+                        <button id="goal-ch-mode-num-btn" class="active" onclick="setChapterMode('numeric')">Numeric range</button>
+                        <button id="goal-ch-mode-txt-btn" onclick="setChapterMode('text')">Named chapters</button>
+                    </div>
+                </div>
+                <!-- numeric sub-mode -->
+                <div id="goal-ch-numeric" class="form-group" style="display:flex; flex-direction:column; gap:6px;">
+                    <label>Chapter range</label>
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <label style="font-size:13px; color:var(--text-color); text-transform:none; letter-spacing:0; font-weight:normal; white-space:nowrap;">Ch.</label>
+                        <input type="number" id="goal-ch-from" placeholder="From" min="1" style="flex:1; height:38px; font-size:13px; padding:6px; box-sizing:border-box; background:#fcfcf9; border:1px solid var(--border-color); border-radius:6px; color:var(--text-color);">
+                        <label style="font-size:13px; color:var(--text-color); text-transform:none; letter-spacing:0; font-weight:normal; white-space:nowrap;">to Ch.</label>
+                        <input type="number" id="goal-ch-to" placeholder="To" min="1" style="flex:1; height:38px; font-size:13px; padding:6px; box-sizing:border-box; background:#fcfcf9; border:1px solid var(--border-color); border-radius:6px; color:var(--text-color);">
+                    </div>
+                </div>
+                <!-- text sub-mode -->
+                <div id="goal-ch-text" class="form-group" style="display:none;">
+                    <label>Chapter names (one per line)</label>
+                    <textarea id="goal-ch-names" placeholder="e.g.&#10;Prologue&#10;The Beginning&#10;Into the Dark&#10;Epilogue" rows="5" style="width:100%; box-sizing:border-box; background:#fcfcf9; border:1px solid var(--border-color); border-radius:6px; padding:10px; font-size:13px; color:var(--text-color); resize:vertical; font-family:inherit;"></textarea>
+                </div>
+            </div>
+
+            <!-- Page fields -->
+            <div id="goal-page-fields" style="display:none;">
+                <div class="form-group">
+                    <label>Jump size</label>
+                    <div class="goal-type-toggle" style="margin-bottom:10px;">
+                        <button id="goal-pg-jump-5-btn" class="active" onclick="setPageMode(5)">Every 5 pages</button>
+                        <button id="goal-pg-jump-10-btn" onclick="setPageMode(10)">Every 10 pages</button>
+                    </div>
+                </div>
+                <div class="form-group" style="display:flex; flex-direction:column; gap:6px;">
+                    <label>Page range</label>
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <label style="font-size:13px; color:var(--text-color); text-transform:none; letter-spacing:0; font-weight:normal; white-space:nowrap;">From p.</label>
+                        <input type="number" id="goal-pg-from" placeholder="e.g. 0" min="0" style="flex:1; height:38px; font-size:13px; padding:6px; box-sizing:border-box; background:#fcfcf9; border:1px solid var(--border-color); border-radius:6px; color:var(--text-color);" oninput="enforceMin(event)">
+                        <label style="font-size:13px; color:var(--text-color); text-transform:none; letter-spacing:0; font-weight:normal; white-space:nowrap;">To p.</label>
+                        <input type="number" id="goal-pg-to" placeholder="e.g. 300" min="1" style="flex:1; height:38px; font-size:13px; padding:6px; box-sizing:border-box; background:#fcfcf9; border:1px solid var(--border-color); border-radius:6px; color:var(--text-color);" oninput="enforceMin(event)">
+                    </div>
+                </div>
+            </div>
+
+            <div class="goals-modal-buttons">
+                <button class="btn-cancel" onclick="closeGoalModal()">Cancel</button>
+                <button class="btn-save" id="goals-modal-save-btn" onclick="saveGoal()">Add Goal</button>
+            </div>
+        </div>
+    </div>
+    <!-- ============ END GOALS MODE PANEL ============ -->
+
+    <!-- Firebase: same project this app's goals data already lives in (kept in sync
+         with the original app, so goals you add here also show up there). -->
+    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+    <script>
+        // ============================================================
+        // FIREBASE: goals sync (same Realtime DB project as the full app)
+        // ============================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyBVrwFO3td4EWA-krxGH-dl6Hw0wwe4nH0",
+            authDomain: "tbr-wheel.firebaseapp.com",
+            databaseURL: "https://tbr-wheel-default-rtdb.firebaseio.com",
+            projectId: "tbr-wheel",
+            storageBucket: "tbr-wheel.firebasestorage.app",
+            messagingSenderId: "357091296526",
+            appId: "1:357091296526:web:f8bd789ea5b5f79650435f"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const fbDb = firebase.database();
+        const goalsRef = fbDb.ref('appData/goals');
+
+        let applyingRemoteGoals = false;
+        let fbGoalsSyncTimer = null;
+
+        function scheduleGoalsFirebaseSync() {
+            if (applyingRemoteGoals) return;
+            clearTimeout(fbGoalsSyncTimer);
+            fbGoalsSyncTimer = setTimeout(() => {
+                goalsRef.set(goalsData).catch(err => console.error('Goals sync failed:', err));
+            }, 400);
+        }
+
+        function initGoalsFirebaseSync() {
+            let firstSnapshot = true;
+            goalsRef.on('value', snapshot => {
+                const data = snapshot.val();
+                if (firstSnapshot) {
+                    firstSnapshot = false;
+                    if (data) {
+                        applyingRemoteGoals = true;
+                        goalsData = data;
+                        saveGoalsLocal();
+                        renderGoals();
+                        applyingRemoteGoals = false;
+                    } else if (goalsData.length > 0) {
+                        // Firebase is empty but we have local data (e.g. offline cache) — push it up.
+                        scheduleGoalsFirebaseSync();
+                    }
+                    return;
+                }
+                applyingRemoteGoals = true;
+                goalsData = Array.isArray(data) ? data : (data ? Object.values(data) : []);
+                saveGoalsLocal();
+                renderGoals();
+                applyingRemoteGoals = false;
+            }, err => console.error('Goals listener error:', err));
+        }
+
+        // ============================================================
+        // FIREBASE: read "Currently Reading" books from the LW app
+        // ============================================================
+        const lwFirebaseConfig = {
+            apiKey: "AIzaSyBqOuK-l7h5Do9sAk1y4MBxwYkFFu2pusY",
+            authDomain: "readingtracker-73e78.firebaseapp.com",
+            projectId: "readingtracker-73e78",
+            storageBucket: "readingtracker-73e78.firebasestorage.app",
+            messagingSenderId: "391536984056",
+            appId: "1:391536984056:web:ec841e6e42dbfd51e8e00d"
+        };
+        const lwApp = firebase.initializeApp(lwFirebaseConfig, "lwApp");
+        const lwDb = lwApp.firestore();
+        const LW_SHARED_DOC = lwDb.collection("shelf-spine").doc("shared");
+
+        let currentlyReadingBooks = [];
+
+        function initCurrentlyReadingSync() {
+            LW_SHARED_DOC.onSnapshot(snap => {
+                if (!snap.exists) { currentlyReadingBooks = []; return; }
+                const data = snap.data();
+                const books = Array.isArray(data.books) ? data.books : [];
+                currentlyReadingBooks = books.filter(b => b.status === 'reading');
+                // If the Add/Edit Goal modal is open with no book yet chosen, refresh its list.
+                const modalOpen = document.getElementById('goals-modal-overlay').classList.contains('active');
+                if (modalOpen) {
+                    const sel = document.getElementById('goal-book-select');
+                    const current = sel.value;
+                    populateBookSelect('goal-book-select', current);
+                }
+            }, err => {
+                console.error('Could not load Currently Reading books from LW:', err);
+            });
+        }
+    </script>
+
+    <script>
+        function enforceMin(e) {
+            let val = e.target.value;
+            if (val < 0) {
+                e.target.value = 0;
+                return;
+            }
+            if (val.length > 1 && val.startsWith('0') && val[1] !== '.') {
+                e.target.value = val.substring(1);
+            }
+        }
+
+        const VIEW_MODE_KEY = 'tbr_view_mode_preference';
+
+        function initViewMode() {
+            const saved = localStorage.getItem(VIEW_MODE_KEY);
+            const mode = saved || 'desktop';
+            setViewMode(mode, Boolean(saved));
+        }
+
+        function setViewMode(mode, persist = true) {
+            document.body.classList.toggle('view-mobile', mode === 'desktop' ? false : true);
+            document.getElementById('view-btn-desktop').classList.toggle('active', mode === 'desktop');
+            document.getElementById('view-btn-mobile').classList.toggle('active', mode === 'mobile');
+            if (persist) localStorage.setItem(VIEW_MODE_KEY, mode);
+        }
+
+        function fireConfetti() {
+            const colors = ['#e2f0cb', '#bffcc6', '#fff9a6', '#ffc6ff', '#c7ceea'];
+            for (let i = 0; i < 60; i++) {
+                const conf = document.createElement('div');
+                conf.className = 'confetti-piece';
+                conf.style.left = (Math.random() * window.innerWidth) + 'px';
+                conf.style.top = -10 + 'px';
+                conf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                document.body.appendChild(conf);
+
+                let startY = -20;
+                let startX = parseFloat(conf.style.left);
+                let speedY = Math.random() * 3 + 2;
+                let speedX = (Math.random() - 0.5) * 4;
+                let rot = Math.random() * 360;
+
+                const anim = setInterval(() => {
+                    startY += speedY;
+                    startX += speedX;
+                    rot += 5;
+                    conf.style.top = startY + 'px';
+                    conf.style.left = startX + 'px';
+                    conf.style.transform = `rotate(${rot}deg)`;
+
+                    if (startY > window.innerHeight) {
+                        clearInterval(anim);
+                        conf.remove();
+                    }
+                }, 16);
+            }
+        }
+
+        // ============================================================
+        // GOALS MODE
+        // ============================================================
+
+        const GOALS_STORAGE_KEY = 'reading_goals_data';
+
+        let goalsData = [];
+        let goalType = 'percentage';
+        let chapterMode = 'numeric'; // 'numeric' or 'text'
+        let pageJump = 5; // 5 or 10
+        let editingGoalId = null;
+
+        // Stack of previous goalsData snapshots, used to undo add/edit/remove actions.
+        let goalsUndoStack = [];
+        const GOALS_UNDO_LIMIT = 20;
+
+        const GOALS_BACKGROUNDS = [
+            'https://media.houseandgarden.co.uk/photos/6893320d7a7e18d716cf83aa/master/w_1280,c_limit/Shot-10-187_RT_LR.jpg',
+            'https://www.marthastewart.com/thmb/Illh5OkaMq__Lv9xsKx0b1tOEeg=/750x0/filters:no_upscale():max_bytes(150000):strip_icc()/home-library-getty-0623-bcc1b324350d4c59807fa46b4ccec264.jpg',
+            'https://www.bhg.com/thmb/OTtzUPW09HqK4DAa-xqlBRVkqs4=/750x0/filters:no_upscale():max_bytes(150000):strip_icc()/Pink-home-library-102423867_BoaCHJSBK_mAA7Cc3wZnd7-87a7b19c94f14178a2b98f636f715e40.jpg',
+            'https://www.bhg.com/thmb/r6KkxyZHj14QY6qpCH2A4G7PqJI=/750x0/filters:no_upscale():max_bytes(150000):strip_icc()/Traditional-living-room-102257234_8VxYwohrqmn9hJHLv5uPON-f2be68d676684fd6957657da361a46f2.jpeg',
+            'https://www.bhg.com/thmb/z8O3pO7BzpXpJZW457YD4jc2qI0=/750x0/filters:no_upscale():max_bytes(150000):strip_icc()/office-bookshelf-ladder-pillows-aaa6adb7-670bc12fbbc347478a3e32477c4c7a6e.jpg',
+            'https://www.bhg.com/thmb/7Ok9sYpoZWZySa5pKS7MMETXMp4=/750x0/filters:no_upscale():max_bytes(150000):strip_icc()/Home-library-101859577_Brsq_yrnKJ09YvU1MbUfOk-6e6c922f751f44faafb10b8e802bf847.jpg',
+            'https://www.bhg.com/thmb/E_mreSOid3KkD7RSfpGsFiPstEM=/750x0/filters:no_upscale():max_bytes(150000):strip_icc()/floor-to-ceiling-bookshelves-table-chairs-cf4b9ecb-6b87904f5b72481da2602b66fb122373.jpg',
+            'https://cdn.trendir.com/wp-content/uploads/2016/05/Circular-Classic-Home-LIbrary-900x659.jpg',
+            'https://cdn.trendir.com/wp-content/uploads/2016/05/Traditional-Home-Libraries--900x1203.jpg',
+            'https://cdn.trendir.com/wp-content/uploads/2016/05/Modern-Home-Library-900x573.jpg',
+            'https://cdn.trendir.com/wp-content/uploads/2016/05/Home-library-design-for-kids-900x675.jpg',
+            'https://hips.hearstapps.com/hmg-prod/images/edc0294-libraries-we-love-11-1662651523.jpg?crop=1.00xw:0.637xh;0,0.291xh&resize=1120:*',
+            'https://hips.hearstapps.com/hmg-prod/images/edc0294-libraries-we-love-05-1662648247.jpg?resize=980:*'
+        ];
+
+        function applyRandomGoalsBackground() {
+            const bg = GOALS_BACKGROUNDS[Math.floor(Math.random() * GOALS_BACKGROUNDS.length)];
+            document.body.style.backgroundImage = `url('${bg}')`;
+        }
+
+        function loadGoalsLocal() {
+            const saved = localStorage.getItem(GOALS_STORAGE_KEY);
+            if (saved) {
+                try { goalsData = JSON.parse(saved); } catch (e) { goalsData = []; }
+            }
+        }
+
+        function saveGoalsLocal() {
+            localStorage.setItem(GOALS_STORAGE_KEY, JSON.stringify(goalsData));
+        }
+
+        function saveGoals() {
+            saveGoalsLocal();
+            scheduleGoalsFirebaseSync();
+        }
+
+        // ---- Undo (add / edit / remove goal) ----
+
+        function pushGoalsUndoState() {
+            goalsUndoStack.push(JSON.stringify(goalsData));
+            if (goalsUndoStack.length > GOALS_UNDO_LIMIT) goalsUndoStack.shift();
+            updateGoalsUndoButton();
+        }
+
+        function updateGoalsUndoButton() {
+            const btn = document.getElementById('goals-undo-btn');
+            if (btn) btn.disabled = goalsUndoStack.length === 0;
+        }
+
+        function undoGoalsAction() {
+            if (goalsUndoStack.length === 0) return;
+            const prevState = goalsUndoStack.pop();
+            try { goalsData = JSON.parse(prevState); } catch (e) { return; }
+            saveGoals();
+            renderGoals();
+            updateGoalsUndoButton();
+        }
+
+        // ---- helpers ----
+
+        function getAllBooksForGoals() {
+            return currentlyReadingBooks.map(b => ({ title: b.title }));
+        }
+
+        function populateBookSelect(selectId, selectedTitle) {
+            const allBooks = getAllBooksForGoals();
+            const sel = document.getElementById(selectId);
+            sel.innerHTML = '';
+            if (allBooks.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = '— No books found —';
+                sel.appendChild(opt);
+            } else {
+                allBooks.forEach(b => {
+                    const opt = document.createElement('option');
+                    opt.value = b.title;
+                    opt.textContent = b.title;
+                    if (b.title === selectedTitle) opt.selected = true;
+                    sel.appendChild(opt);
+                });
+            }
+        }
+
+        // ---- Add Goal Modal ----
+
+        function openGoalModal() {
+            document.getElementById('goals-modal-title').textContent = 'Add Reading Goal';
+            document.getElementById('goals-modal-save-btn').textContent = 'Add Goal';
+            document.getElementById('goals-modal-save-btn').onclick = saveGoal;
+            editingGoalId = null;
+
+            populateBookSelect('goal-book-select', null);
+            const today = new Date();
+            const todayStr = toLocalDateStr(today);
+            document.getElementById('goal-date-from-input').value = todayStr;
+            document.getElementById('goal-date-to-input').value = todayStr;
+            setGoalType('percentage');
+            setChapterMode('numeric');
+            setPageMode(5);
+            document.getElementById('goal-pct-from').value = '0';
+            document.getElementById('goal-pct-to').value = '100';
+            document.getElementById('goal-ch-from').value = '';
+            document.getElementById('goal-ch-to').value = '';
+            document.getElementById('goal-ch-names').value = '';
+            document.getElementById('goal-pg-from').value = '0';
+            document.getElementById('goal-pg-to').value = '';
+            document.getElementById('goals-modal-overlay').classList.add('active');
+        }
+
+        function closeGoalModal() {
+            document.getElementById('goals-modal-overlay').classList.remove('active');
+            editingGoalId = null;
+        }
+
+        function setGoalType(type) {
+            goalType = type;
+            document.getElementById('goal-type-pct-btn').classList.toggle('active', type === 'percentage');
+            document.getElementById('goal-type-ch-btn').classList.toggle('active', type === 'chapter');
+            document.getElementById('goal-type-pg-btn').classList.toggle('active', type === 'page');
+            document.getElementById('goal-percentage-fields').style.display = type === 'percentage' ? 'block' : 'none';
+            document.getElementById('goal-chapter-fields').style.display = type === 'chapter' ? 'block' : 'none';
+            document.getElementById('goal-page-fields').style.display = type === 'page' ? 'block' : 'none';
+        }
+
+        function setPageMode(jump) {
+            pageJump = jump;
+            document.getElementById('goal-pg-jump-5-btn').classList.toggle('active', jump === 5);
+            document.getElementById('goal-pg-jump-10-btn').classList.toggle('active', jump === 10);
+        }
+
+        function setChapterMode(mode) {
+            chapterMode = mode;
+            document.getElementById('goal-ch-mode-num-btn').classList.toggle('active', mode === 'numeric');
+            document.getElementById('goal-ch-mode-txt-btn').classList.toggle('active', mode === 'text');
+            document.getElementById('goal-ch-numeric').style.display = mode === 'numeric' ? 'flex' : 'none';
+            document.getElementById('goal-ch-text').style.display = mode === 'text' ? 'block' : 'none';
+        }
+
+        function buildPctMilestones(from, to) {
+            const milestones = [];
+            let start = from + 1;
+            const lastFull = Math.floor(to / 5) * 5;
+            for (let end = Math.min(from + 5, lastFull); end >= start && end <= lastFull && start <= to; end += 5) {
+                milestones.push({ label: `Percentage ${start}-${end}%`, completed: false });
+                start = end + 1;
+            }
+            if (start <= to) {
+                milestones.push({ label: `Percentage ${start}-${to}%`, completed: false });
+            }
+            return milestones;
+        }
+
+        function buildPageMilestones(from, to, jump) {
+            const milestones = [];
+            let start = from + 1;
+            const lastFull = Math.floor(to / jump) * jump;
+            for (let end = Math.min(from + jump, lastFull); end >= start && end <= lastFull && start <= to; end += jump) {
+                milestones.push({ label: `Page ${start}-${end}`, completed: false });
+                start = end + 1;
+            }
+            if (start <= to) {
+                milestones.push({ label: `Page ${start}-${to}`, completed: false });
+            }
+            return milestones;
+        }
+
+        function toLocalDateStr(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        function buildDateRange(fromStr, toStr) {
+            const [fy, fm, fd] = fromStr.split('-').map(Number);
+            const [ty, tm, td] = toStr.split('-').map(Number);
+            const start = new Date(fy, fm - 1, fd);
+            const end = new Date(ty, tm - 1, td);
+            const dates = [];
+            const cursor = new Date(start);
+            while (cursor <= end) {
+                dates.push(toLocalDateStr(cursor));
+                cursor.setDate(cursor.getDate() + 1);
+            }
+            return dates;
+        }
+
+        function distributeMilestonesAcrossDates(milestones, dates) {
+            const n = milestones.length;
+            const d = dates.length;
+            if (d <= 1) {
+                milestones.forEach(m => m.date = dates[0]);
+                return milestones;
+            }
+            const base = Math.floor(n / d);
+            const remainder = n % d;
+            let msIdx = 0;
+            for (let dayIdx = 0; dayIdx < d; dayIdx++) {
+                const count = base + (dayIdx < remainder ? 1 : 0);
+                for (let c = 0; c < count; c++) {
+                    if (msIdx >= n) break;
+                    milestones[msIdx].date = dates[dayIdx];
+                    msIdx++;
+                }
+            }
+            return milestones;
+        }
+
+        function saveGoal() {
+            const bookTitle = document.getElementById('goal-book-select').value;
+            const fromDate = document.getElementById('goal-date-from-input').value;
+            const toDate = document.getElementById('goal-date-to-input').value;
+
+            if (!bookTitle) return alert('Please select a book.');
+            if (!fromDate || !toDate) return alert('Please pick a date range.');
+            if (toDate < fromDate) return alert('"To" date must be on or after the "From" date.');
+
+            let milestones = [];
+
+            if (goalType === 'percentage') {
+                const from = parseInt(document.getElementById('goal-pct-from').value);
+                const to = parseInt(document.getElementById('goal-pct-to').value);
+                if (isNaN(from) || isNaN(to)) return alert('Please enter valid percentages.');
+                if (to <= from) return alert('"To" must be greater than "From".');
+                if (from < 0 || to > 100) return alert('Percentages must be between 0 and 100.');
+                milestones = buildPctMilestones(from, to);
+                if (milestones.length === 0) return alert('Range too small — need at least 1% difference.');
+            } else if (goalType === 'page') {
+                const pgFrom = parseInt(document.getElementById('goal-pg-from').value);
+                const pgTo = parseInt(document.getElementById('goal-pg-to').value);
+                if (isNaN(pgFrom) || isNaN(pgTo)) return alert('Please enter a valid page range.');
+                if (pgTo <= pgFrom) return alert('"To" page must be greater than "From" page.');
+                if (pgFrom < 0) return alert('"From" page must be 0 or greater.');
+                milestones = buildPageMilestones(pgFrom, pgTo, pageJump);
+                if (milestones.length === 0) return alert('Range too small — need at least ' + pageJump + ' pages difference.');
+            } else {
+                if (chapterMode === 'numeric') {
+                    const chFrom = parseInt(document.getElementById('goal-ch-from').value);
+                    const chTo = parseInt(document.getElementById('goal-ch-to').value);
+                    if (isNaN(chFrom) || isNaN(chTo) || chFrom < 1 || chTo < chFrom) return alert('Please enter a valid chapter range (From ≤ To, both ≥ 1).');
+                    for (let ch = chFrom; ch <= chTo; ch++) {
+                        milestones.push({ label: 'Chapter ' + ch, completed: false });
+                    }
+                } else {
+                    const lines = document.getElementById('goal-ch-names').value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                    if (lines.length === 0) return alert('Please enter at least one chapter name.');
+                    lines.forEach(name => milestones.push({ label: name, completed: false }));
+                }
+                if (milestones.length === 0) return alert('No milestones generated.');
+            }
+
+            const dateRange = buildDateRange(fromDate, toDate);
+            distributeMilestonesAcrossDates(milestones, dateRange);
+
+            pushGoalsUndoState();
+
+            if (editingGoalId !== null) {
+                const goalIdx = goalsData.findIndex(g => g.id === editingGoalId);
+                if (goalIdx === -1) return;
+
+                const remainingCompletedCounts = {};
+                goalsData[goalIdx].milestones.forEach(m => {
+                    if (m.completed) remainingCompletedCounts[m.label] = (remainingCompletedCounts[m.label] || 0) + 1;
+                });
+                milestones.forEach(m => {
+                    if (remainingCompletedCounts[m.label] > 0) {
+                        m.completed = true;
+                        remainingCompletedCounts[m.label]--;
+                    }
+                });
+
+                goalsData[goalIdx].bookTitle = bookTitle;
+                goalsData[goalIdx].type = goalType;
+                goalsData[goalIdx].milestones = milestones;
+            } else {
+                const goal = {
+                    id: Date.now(),
+                    bookTitle,
+                    type: goalType,
+                    milestones
+                };
+                goalsData.push(goal);
+            }
+
+            saveGoals();
+            closeGoalModal();
+            renderGoals();
+        }
+
+        // ---- Edit Goal (reuses the Add Goal modal, pre-filled) ----
+
+        function openEditGoalModal(goalId) {
+            const goal = goalsData.find(g => g.id === goalId);
+            if (!goal) return;
+            editingGoalId = goalId;
+
+            document.getElementById('goals-modal-title').textContent = 'Edit Reading Goal';
+            document.getElementById('goals-modal-save-btn').textContent = 'Save Changes';
+            document.getElementById('goals-modal-save-btn').onclick = saveGoal;
+
+            populateBookSelect('goal-book-select', goal.bookTitle);
+
+            const dates = goal.milestones.map(m => m.date).filter(Boolean).sort();
+            const todayStr = toLocalDateStr(new Date());
+            const fromDate = dates.length ? dates[0] : todayStr;
+            const toDate = dates.length ? dates[dates.length - 1] : todayStr;
+            document.getElementById('goal-date-from-input').value = fromDate;
+            document.getElementById('goal-date-to-input').value = toDate;
+
+            setGoalType(goal.type);
+
+            if (goal.type === 'percentage') {
+                const pctRangeRegex = /^Percentage (\d+)-(\d+)%$/;
+                const starts = [], ends = [];
+                goal.milestones.forEach(m => {
+                    const match = m.label.match(pctRangeRegex);
+                    if (match) { starts.push(parseInt(match[1])); ends.push(parseInt(match[2])); }
+                });
+                const minStart = starts.length ? Math.min(...starts) : 1;
+                const maxEnd = ends.length ? Math.max(...ends) : 100;
+                document.getElementById('goal-pct-from').value = Math.max(0, minStart - 1);
+                document.getElementById('goal-pct-to').value = maxEnd;
+                setChapterMode('numeric');
+                setPageMode(5);
+                document.getElementById('goal-ch-from').value = '';
+                document.getElementById('goal-ch-to').value = '';
+                document.getElementById('goal-ch-names').value = '';
+                document.getElementById('goal-pg-from').value = '0';
+                document.getElementById('goal-pg-to').value = '';
+            } else if (goal.type === 'page') {
+                const pageRangeRegex = /^Page (\d+)-(\d+)$/;
+                const starts = [], ends = [];
+                goal.milestones.forEach(m => {
+                    const match = m.label.match(pageRangeRegex);
+                    if (match) { starts.push(parseInt(match[1])); ends.push(parseInt(match[2])); }
+                });
+                const minStart = starts.length ? Math.min(...starts) : 1;
+                const maxEnd = ends.length ? Math.max(...ends) : 0;
+                let inferredJump = 5;
+                if (starts.length >= 1) {
+                    const width = ends[0] - starts[0] + 1;
+                    if (width === 10) inferredJump = 10;
+                }
+                setPageMode(inferredJump);
+                document.getElementById('goal-pg-from').value = Math.max(0, minStart - 1);
+                document.getElementById('goal-pg-to').value = maxEnd;
+                setChapterMode('numeric');
+                document.getElementById('goal-pct-from').value = '0';
+                document.getElementById('goal-pct-to').value = '100';
+                document.getElementById('goal-ch-from').value = '';
+                document.getElementById('goal-ch-to').value = '';
+                document.getElementById('goal-ch-names').value = '';
+            } else {
+                const chapterNumRegex = /^Chapter (\d+)$/;
+                const allNumeric = goal.milestones.length > 0 && goal.milestones.every(m => chapterNumRegex.test(m.label));
+                document.getElementById('goal-pct-from').value = '0';
+                document.getElementById('goal-pct-to').value = '100';
+                document.getElementById('goal-pg-from').value = '0';
+                document.getElementById('goal-pg-to').value = '';
+                setPageMode(5);
+                if (allNumeric) {
+                    const nums = goal.milestones.map(m => parseInt(m.label.match(chapterNumRegex)[1]));
+                    setChapterMode('numeric');
+                    document.getElementById('goal-ch-from').value = Math.min(...nums);
+                    document.getElementById('goal-ch-to').value = Math.max(...nums);
+                    document.getElementById('goal-ch-names').value = '';
+                } else {
+                    setChapterMode('text');
+                    document.getElementById('goal-ch-from').value = '';
+                    document.getElementById('goal-ch-to').value = '';
+                    document.getElementById('goal-ch-names').value = goal.milestones.map(m => m.label).join('\n');
+                }
+            }
+
+            document.getElementById('goals-modal-overlay').classList.add('active');
+        }
+
+        // ---- Rendering ----
+
+        function renderGoals() {
+            updateGoalsUndoButton();
+            const container = document.getElementById('goals-content');
+            container.innerHTML = '';
+
+            if (goalsData.length === 0) {
+                container.innerHTML = `
+                    <div class="goals-empty-state">
+                        <div class="empty-icon">🎯</div>
+                        <p>No reading goals yet.</p>
+                        <p style="font-size:0.9em; opacity:0.8;">Click <strong>+ Add Goal</strong> to set your first milestone!</p>
+                    </div>`;
+                return;
+            }
+
+            const byDate = {};
+            goalsData.forEach(goal => {
+                const byDateForGoal = {};
+                goal.milestones.forEach((ms, idx) => {
+                    const d = ms.date || goal.date;
+                    if (!d) return;
+                    if (!byDateForGoal[d]) byDateForGoal[d] = [];
+                    byDateForGoal[d].push({ idx, ms });
+                });
+                Object.keys(byDateForGoal).forEach(d => {
+                    if (!byDate[d]) byDate[d] = [];
+                    byDate[d].push({ goal, items: byDateForGoal[d] });
+                });
+            });
+
+            const sortedDates = Object.keys(byDate).sort();
+
+            sortedDates.forEach(date => {
+                const entries = byDate[date];
+                const group = document.createElement('div');
+                group.className = 'goals-date-group';
+
+                let totalMs = 0, doneMs = 0;
+                entries.forEach(e => {
+                    totalMs += e.items.length;
+                    doneMs += e.items.filter(i => i.ms.completed).length;
+                });
+                const pct = totalMs > 0 ? Math.round((doneMs / totalMs) * 100) : 0;
+
+                const dateLabel = formatGoalDate(date);
+                const todayStr = toLocalDateStr(new Date());
+                const isPast = date < todayStr;
+                const isToday = date === todayStr;
+
+                group.innerHTML = `
+                    <div class="goals-date-header">
+                        <div class="goals-date-title">
+                            ${isPast && !isToday ? '⏰' : isToday ? '📅' : '📆'}
+                            <span class="date-badge">${dateLabel}</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <div class="goals-date-progress-wrap">
+                                <div class="goals-date-progress">${doneMs} / ${totalMs} done (${pct}%)</div>
+                                <div class="goals-progress-bar-wrap"><div class="goals-progress-bar-fill" style="width:${pct}%"></div></div>
+                            </div>
+                            <button onclick="deleteEntireDay('${date}')" ${pct === 100 ? '' : 'disabled'} title="${pct === 100 ? 'Delete this entire day' : 'Complete all goals for this day to enable'}" style="background:${pct === 100 ? 'var(--danger-color)' : '#ddd'};color:${pct === 100 ? '#5e3a3a' : '#999'};padding:5px 12px;font-size:11px;margin:0;border-radius:5px;border:none;cursor:${pct === 100 ? 'pointer' : 'not-allowed'};box-shadow:none;opacity:${pct === 100 ? '1' : '0.6'};white-space:nowrap;">Delete Day</button>
+                        </div>
+                    </div>
+                    <div class="goals-items-list"></div>
+                `;
+
+                const listEl = group.querySelector('.goals-items-list');
+
+                entries.forEach(({ goal, items }) => {
+                    const goalHeader = document.createElement('div');
+                    goalHeader.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:6px 14px 4px; margin-top:8px;';
+                    goalHeader.innerHTML = `
+                        <span style="font-size:12px; font-weight:bold; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">
+                            ${goal.type === 'percentage' ? '📊' : goal.type === 'page' ? '📄' : '📖'} ${escapeHtml(goal.bookTitle)}
+                        </span>
+                        <span style="display:flex; gap:6px;">
+                            <button onclick="openEditGoalModal(${goal.id})" style="background:var(--edit-color);color:#3b4052;padding:4px 10px;font-size:11px;margin:0;border-radius:5px;border:none;cursor:pointer;box-shadow:none;">Edit</button>
+                            <button onclick="deleteGoalForDate(${goal.id}, '${date}')" style="background:var(--danger-color);color:#5e3a3a;padding:4px 10px;font-size:11px;margin:0;border-radius:5px;border:none;cursor:pointer;box-shadow:none;" title="Remove this goal's milestones for this date only">Remove</button>
+                        </span>
+                    `;
+                    listEl.appendChild(goalHeader);
+
+                    items.forEach(({ idx: msIdx, ms }) => {
+                        const item = document.createElement('div');
+                        item.className = 'goal-item' + (ms.completed ? ' goal-done' : '');
+                        item.innerHTML = `
+                            <input type="checkbox" class="goal-checkbox" ${ms.completed ? 'checked' : ''}
+                                onchange="toggleMilestone(${goal.id}, ${msIdx}, this.checked)">
+                            <div class="goal-text" style="flex:1; min-width:0;">${escapeHtml(ms.label)}</div>
+                            <button class="goal-delete-btn" title="Remove milestone" onclick="deleteMilestone(${goal.id}, ${msIdx})">✕</button>
+                        `;
+                        listEl.appendChild(item);
+                    });
+                });
+
+                container.appendChild(group);
+            });
+        }
+
+        function toggleMilestone(goalId, msIdx, checked) {
+            const goal = goalsData.find(g => g.id === goalId);
+            if (!goal) return;
+            goal.milestones[msIdx].completed = checked;
+            saveGoals();
+            if (checked) {
+                fireConfetti();
+                showGoalToast(goal.bookTitle, goal.milestones[msIdx].label);
+            }
+            renderGoals();
+        }
+
+        function showGoalToast(bookTitle, label) {
+            const msgs = ['🎉 Goal reached!', '✅ Milestone hit!', '📚 Keep going!', '🌟 Great progress!', '🎯 Target achieved!', '💪 Nailed it!'];
+            const msg = msgs[Math.floor(Math.random() * msgs.length)];
+            const toast = document.createElement('div');
+            toast.innerHTML = `<div style="font-size:20px;">${msg}</div><div style="font-size:14px;margin-top:6px;opacity:0.8;">${escapeHtml(bookTitle)} — ${escapeHtml(label)}</div>`;
+            toast.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--primary-color);color:#444e37;padding:28px 40px;border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,0.3);font-weight:bold;z-index:10000;opacity:0;transition:opacity 0.3s ease;text-align:center;border:3px solid var(--accent-yellow);min-width:200px;';
+            document.body.appendChild(toast);
+            setTimeout(() => toast.style.opacity = '1', 10);
+            setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3500);
+        }
+
+        function deleteMilestone(goalId, msIdx) {
+            const goalIdx = goalsData.findIndex(g => g.id === goalId);
+            if (goalIdx === -1) return;
+            pushGoalsUndoState();
+            goalsData[goalIdx].milestones.splice(msIdx, 1);
+            if (goalsData[goalIdx].milestones.length === 0) goalsData.splice(goalIdx, 1);
+            saveGoals();
+            renderGoals();
+        }
+
+        function deleteGoalForDate(goalId, date) {
+            const goalIdx = goalsData.findIndex(g => g.id === goalId);
+            if (goalIdx === -1) return;
+            pushGoalsUndoState();
+            const goal = goalsData[goalIdx];
+            goal.milestones = goal.milestones.filter(ms => (ms.date || goal.date) !== date);
+            if (goal.milestones.length === 0) goalsData.splice(goalIdx, 1);
+            saveGoals();
+            renderGoals();
+        }
+
+        function deleteEntireDay(date) {
+            pushGoalsUndoState();
+            goalsData.forEach(goal => {
+                goal.milestones = goal.milestones.filter(ms => (ms.date || goal.date) !== date);
+            });
+            goalsData = goalsData.filter(goal => goal.milestones.length > 0);
+            saveGoals();
+            renderGoals();
+        }
+
+        function formatGoalDate(dateStr) {
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const date = new Date(y, m - 1, d);
+            const todayStr = toLocalDateStr(new Date());
+            if (dateStr === todayStr) return 'Today';
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            if (dateStr === toLocalDateStr(tomorrow)) return 'Tomorrow';
+            return date.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        // ============================================================
+        // END GOALS MODE
+        // ============================================================
+
+        function init() {
+            initViewMode();
+            loadGoalsLocal();
+            applyRandomGoalsBackground();
+            renderGoals();
+            initGoalsFirebaseSync();
+            initCurrentlyReadingSync();
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
