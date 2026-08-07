@@ -576,6 +576,9 @@
     </script>
 
     <script>
+        // Resume where I left off: mark this page as the last one visited.
+        localStorage.setItem('shelf:lastPage', 'goals.html');
+
         function enforceMin(e) {
             let val = e.target.value;
             if (val < 0) {
