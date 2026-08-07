@@ -8,6 +8,16 @@
 <link rel="apple-touch-icon" href="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT3mBiNx3NoAoJiRfsX4M5gVBVgbO82ha4SLtbwyYs-yw&s" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Shelf & Spine" />
+<script>
+  // Resume where I left off: if the last page visited wasn't the dashboard,
+  // jump straight there before anything renders.
+  (function(){
+    var last = localStorage.getItem('shelf:lastPage');
+    if (last && last !== 'index.html') {
+      location.replace(last);
+    }
+  })();
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700;800&display=swap');
   :root{
@@ -362,7 +372,7 @@ const SEED_WISHLIST = [
 
 /* ---------------- state ---------------- */
 let state = {
-  tab: "dashboard",
+  tab: localStorage.getItem('shelf:lastTab') || "dashboard",
   books: [],
   wishlist: [],
   goals: {},
@@ -378,6 +388,9 @@ let ui = {
   selected: new Set(),
   mobileMoreOpen: false,
 };
+
+// Resume where I left off: mark this page as the last one visited.
+localStorage.setItem('shelf:lastPage', 'index.html');
 
 /* ---------------- persistence (Firebase Firestore) ---------------- */
 let firestoreReady = false;
@@ -1074,6 +1087,7 @@ function runGoodreadsImport(){
   goodreadsParsed = null;
   state.modal = null;
   state.tab = "tracker";
+  localStorage.setItem('shelf:lastTab', state.tab);
   render();
 }
 function goodreadsImportHTML(){
@@ -1491,6 +1505,7 @@ function moveWishToTracker(id){
   state.wishlist = state.wishlist.filter(x=>x.id!==id);
   persistBooks(); persistWishlist();
   state.tab = "tracker";
+  localStorage.setItem('shelf:lastTab', state.tab);
   render();
 }
 function toggleSelect(id){ if(ui.selected.has(id)) ui.selected.delete(id); else ui.selected.add(id); }
@@ -1563,7 +1578,7 @@ document.addEventListener("click", (e)=>{
   const action = el.getAttribute("data-action");
   const id = el.getAttribute("data-id");
 
-  if(action==="set-tab"){ state.tab = el.getAttribute("data-tab"); ui.mobileMoreOpen = false; render(); }
+  if(action==="set-tab"){ state.tab = el.getAttribute("data-tab"); localStorage.setItem('shelf:lastTab', state.tab); ui.mobileMoreOpen = false; render(); }
   else if(action==="toggle-mobile-more"){ ui.mobileMoreOpen = !ui.mobileMoreOpen; render(); }
   else if(action==="close-mobile-more"){ ui.mobileMoreOpen = false; render(); }
   else if(action==="add-book"){ state.modal = {type:"book-form", payload:null}; renderModal(); }
