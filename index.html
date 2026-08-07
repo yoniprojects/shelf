@@ -148,8 +148,14 @@
   .pie{width:min(46%,320px);aspect-ratio:1/1;border-radius:50%;position:relative;flex-shrink:0;}
   .pie::after{content:'';position:absolute;inset:21.7%;background:#fff;border-radius:50%;}
   .pie-legend{font-size:12.5px;display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px 18px;flex:1;min-width:130px;max-width:420px;}
-  .pie-legend .row{display:flex;align-items:center;gap:6px;}
+  .pie-legend .row{display:flex;align-items:center;gap:6px;padding:2px 6px;margin:-2px -6px;border-radius:6px;cursor:pointer;transition:background .15s ease, opacity .15s ease;}
   .pie-legend .sw{width:9px;height:9px;border-radius:2px;flex-shrink:0;}
+  .pie-svg{display:block;width:100%;height:100%;overflow:visible;}
+  .pie-slice{cursor:pointer;transform-box:fill-box;transform-origin:center;transition:opacity .15s ease, transform .15s ease, filter .15s ease;}
+  .pie-wrap.has-active .pie-slice{opacity:.32;}
+  .pie-wrap.has-active .pie-slice.active{opacity:1;transform:scale(1.045);filter:drop-shadow(0 1px 3px rgba(0,0,0,.35));stroke:#fff;stroke-width:1.2;}
+  .pie-wrap.has-active .pie-legend .row{opacity:.42;}
+  .pie-wrap.has-active .pie-legend .row.active{opacity:1;background:var(--blush);font-weight:700;}
   .bars{display:flex;gap:4px;align-items:flex-end;height:180px;overflow-x:auto;padding-top:10px;}
   .bar-col{display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:34px;}
   .bar-pair{display:flex;gap:2px;align-items:flex-end;height:150px;}
@@ -730,14 +736,27 @@ function renderDashboard(){
 
   function pie(entries, colorFn){
     const total = entries.reduce((s,[,v])=>s+v,0) || 1;
-    let acc = 0; const stops = [];
-    entries.forEach(([name,val])=>{
-      const start = acc/total*100; acc += val; const end = acc/total*100;
-      stops.push(`${colorFn(name)} ${start}% ${end}%`);
-    });
-    const bg = stops.length ? `conic-gradient(${stops.join(",")})` : "#eee";
-    const legend = entries.map(([name,val])=>`<div class="row"><span class="sw" style="background:${colorFn(name)}"></span>${esc(name)} · ${val}</div>`).join("");
-    return `<div class="pie-wrap"><div class="pie" style="background:${bg}"></div><div class="pie-legend">${legend||"<span style='color:var(--muted)'>No data yet</span>"}</div></div>`;
+    const cx=50, cy=50, rOuter=49, rInner=28;
+    function polar(r, angleDeg){
+      const a = (angleDeg-90) * Math.PI/180;
+      return { x: cx + r*Math.cos(a), y: cy + r*Math.sin(a) };
+    }
+    function slicePath(startAngle, endAngle){
+      if(endAngle - startAngle >= 359.99) endAngle = startAngle + 359.99;
+      const startOuter = polar(rOuter, endAngle), endOuter = polar(rOuter, startAngle);
+      const startInner = polar(rInner, endAngle), endInner = polar(rInner, startAngle);
+      const largeArc = (endAngle-startAngle) > 180 ? 1 : 0;
+      return `M ${startOuter.x} ${startOuter.y} A ${rOuter} ${rOuter} 0 ${largeArc} 0 ${endOuter.x} ${endOuter.y} L ${endInner.x} ${endInner.y} A ${rInner} ${rInner} 0 ${largeArc} 1 ${startInner.x} ${startInner.y} Z`;
+    }
+    let acc = 0;
+    const slices = entries.map(([name,val],i)=>{
+      const start = acc/total*360; acc += val; const end = acc/total*360;
+      return `<path class="pie-slice" data-idx="${i}" d="${slicePath(start,end)}" fill="${colorFn(name)}"></path>`;
+    }).join("");
+    const svg = slices ? `<svg class="pie-svg" viewBox="0 0 100 100">${slices}</svg>` : "";
+    const pieStyle = slices ? "" : ` style="background:#eee"`;
+    const legend = entries.map(([name,val],i)=>`<div class="row" data-idx="${i}"><span class="sw" style="background:${colorFn(name)}"></span>${esc(name)} · ${val}</div>`).join("");
+    return `<div class="pie-wrap"><div class="pie"${pieStyle}>${svg}</div><div class="pie-legend">${legend||"<span style='color:var(--muted)'>No data yet</span>"}</div></div>`;
   }
 
   const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -1714,6 +1733,43 @@ function clearExamples(){
   state.wishlist = state.wishlist.filter(w=>!w.isExample);
   persistBooks(); persistWishlist();
   render();
+}
+
+/* ---------------- pie chart hover / tap highlight ---------------- */
+const PIE_HOVER_CAPABLE = !!(window.matchMedia && window.matchMedia("(hover:hover) and (pointer:fine)").matches);
+function setPieActive(wrap, idx){
+  if(!wrap) return;
+  wrap.classList.toggle("has-active", idx !== null);
+  wrap.querySelectorAll(".pie-slice").forEach(s=>{ s.classList.toggle("active", s.getAttribute("data-idx")===idx); });
+  wrap.querySelectorAll(".pie-legend .row").forEach(r=>{ r.classList.toggle("active", r.getAttribute("data-idx")===idx); });
+}
+if(PIE_HOVER_CAPABLE){
+  document.addEventListener("mouseover", (e)=>{
+    const target = e.target.closest(".pie-slice, .pie-legend .row");
+    if(!target) return;
+    setPieActive(target.closest(".pie-wrap"), target.getAttribute("data-idx"));
+  });
+  document.addEventListener("mouseout", (e)=>{
+    const target = e.target.closest(".pie-slice, .pie-legend .row");
+    if(!target) return;
+    const wrap = target.closest(".pie-wrap");
+    const related = e.relatedTarget;
+    if(related && wrap && wrap.contains(related) && related.closest(".pie-slice, .pie-legend .row")) return;
+    setPieActive(wrap, null);
+  });
+} else {
+  document.addEventListener("click", (e)=>{
+    const target = e.target.closest(".pie-slice, .pie-legend .row");
+    if(!target){
+      const insideWrap = e.target.closest(".pie-wrap");
+      if(!insideWrap) document.querySelectorAll(".pie-wrap.has-active").forEach(w=>setPieActive(w,null));
+      return;
+    }
+    const wrap = target.closest(".pie-wrap");
+    const idx = target.getAttribute("data-idx");
+    const isActive = target.classList.contains("active");
+    setPieActive(wrap, isActive ? null : idx);
+  });
 }
 
 /* ---------------- event delegation ---------------- */
