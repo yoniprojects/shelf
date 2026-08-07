@@ -1107,6 +1107,7 @@ function renderSidebar(){
     <div class="logo">Shelf &amp; Spine</div>
     ${TABS.map(t=>`<button class="nav-btn ${state.tab===t.key?"active":""}" data-action="set-tab" data-tab="${t.key}">${t.label}</button>`).join("")}
     <a href="bingo.html" class="nav-btn" style="text-decoration:none;display:block;">🎲 Bingo</a>
+    <a href="wrapped.html" class="nav-btn" style="text-decoration:none;display:block;">✦ Wrappd</a>
     <div style="margin-top:auto;"></div>
   `;
 
@@ -1122,6 +1123,7 @@ function renderSidebar(){
       <div class="mobile-more-panel">
         ${moreTabs.map(t=>`<button class="nav-btn ${state.tab===t.key?"active":""}" data-action="set-tab" data-tab="${t.key}">${t.label}</button>`).join("")}
         <a href="bingo.html" class="nav-btn" style="text-decoration:none;display:block;">🎲 Bingo</a>
+        <a href="wrapped.html" class="nav-btn" style="text-decoration:none;display:block;">✦ Wrappd</a>
       </div>
     ` : ""}
   `;
