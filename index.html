@@ -283,7 +283,16 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-const SHARED_DOC = db.collection("shelf-spine").doc("shared");
+
+// ---------------- multi-user profiles ----------------
+// Each profile's data lives in its own Firestore document, keyed by profile id.
+// 'shared' is the original single-user document, so anyone upgrading keeps
+// their existing data automatically as the default profile.
+function getCurrentUserId(){
+  return localStorage.getItem('shelf:currentUser') || 'shared';
+}
+const PROFILES_DOC = db.collection("shelf-spine").doc("_profiles");
+const SHARED_DOC = db.collection("shelf-spine").doc(getCurrentUserId());
 </script>
 
 <script>
@@ -381,6 +390,7 @@ let state = {
   goals: {},
   loaded: false,
   modal: null,
+  profiles: [],
 };
 let ui = {
   sortKey: "title",
@@ -433,6 +443,45 @@ function persistWishlist(){
 function persistGoals(){
   SHARED_DOC.set({ goals: state.goals }, { merge: true })
     .catch(err => console.error("Failed to save goals to Firestore:", err));
+}
+
+/* ---------------- multi-user profiles ---------------- */
+function loadProfiles(){
+  PROFILES_DOC.onSnapshot((snap) => {
+    if (!snap.exists || !Array.isArray(snap.data().list) || snap.data().list.length === 0) {
+      // First time this feature runs: seed the list with the existing
+      // (default) profile so current data shows up right away.
+      const seeded = [{ id: "shared", name: "Me" }];
+      PROFILES_DOC.set({ list: seeded }).catch(err => console.error("Failed to seed profiles:", err));
+      state.profiles = seeded;
+    } else {
+      state.profiles = snap.data().list;
+    }
+    render();
+  }, (err) => console.error("Profiles sync error:", err));
+}
+function getCurrentUserName(){
+  const p = state.profiles.find(p => p.id === getCurrentUserId());
+  return p ? p.name : "Me";
+}
+function slugifyUser(name){
+  const base = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-+|-+$)/g, "");
+  return (base || "user") + "-" + Math.random().toString(36).slice(2, 6);
+}
+function switchUser(userId){
+  if (userId === getCurrentUserId()) { state.modal = null; renderModal(); return; }
+  localStorage.setItem('shelf:currentUser', userId);
+  location.reload();
+}
+function addUserFromForm(){
+  const input = document.getElementById("new-user-name");
+  const name = input ? input.value.trim() : "";
+  if (!name) return;
+  const id = slugifyUser(name);
+  const updated = [...state.profiles, { id, name }];
+  PROFILES_DOC.set({ list: updated }, { merge: true })
+    .then(() => switchUser(id))
+    .catch(err => console.error("Failed to add profile:", err));
 }
 
 /* ---------------- JSON Backup & Restore ---------------- */
@@ -1307,6 +1356,24 @@ function backupImportModalHTML(){
   `;
 }
 
+function switchUserModalHTML(){
+  const currentId = getCurrentUserId();
+  const rows = state.profiles.map(p => `
+    <button class="btn ${p.id===currentId ? "btn-primary" : "btn-subtle"}" style="width:100%;justify-content:flex-start;margin-bottom:8px;" data-action="select-user" data-user-id="${esc(p.id)}">
+      ${p.id===currentId ? "✓ " : ""}${esc(p.name)}
+    </button>
+  `).join("");
+  return `
+    <div style="font-size:13px;line-height:1.5;margin-bottom:14px;">
+      Each person has their own separate books, wishlist, and goals. Tap a name to switch.
+    </div>
+    ${rows}
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <input type="text" id="new-user-name" class="input" placeholder="New person's name" style="flex:1;" />
+      <button class="btn btn-primary" data-action="add-user">Add</button>
+    </div>
+  `;
+}
 function renderModal(){
   const root = document.getElementById("modal-root");
   if(!state.modal){ root.innerHTML = ""; return; }
@@ -1321,6 +1388,7 @@ function renderModal(){
   else if(m.type==="backup-export"){ title = "Export Backup"; body = backupExportModalHTML(); }
   else if(m.type==="backup-import"){ title = "Restore Backup"; body = backupImportModalHTML(); }
   else if(m.type==="goal-form"){ title = "Yearly Reading Goal"; body = goalFormHTML(m.payload); }
+  else if(m.type==="switch-user"){ title = "Switch User"; body = switchUserModalHTML(); }
   root.innerHTML = `
     <div class="modal-overlay" data-action="overlay-close">
       <div class="modal-card ${wide?"wide":""}" data-stop>
@@ -1340,6 +1408,7 @@ function renderSidebar(){
     <a href="wheel.html" class="nav-btn" style="text-decoration:none;display:block;">Random wheel</a>
     <a href="goals.html" class="nav-btn" style="text-decoration:none;display:block;">Goals</a>
     <div style="margin-top:auto;"></div>
+    <button class="nav-btn" style="text-align:left;" data-action="open-switch-user">👤 ${esc(getCurrentUserName())}</button>
   `;
 
   const primaryTabs = MOBILE_PRIMARY_KEYS.map(k=>TABS.find(t=>t.key===k));
@@ -1357,6 +1426,7 @@ function renderSidebar(){
         <a href="wrapped.html" class="nav-btn" style="text-decoration:none;display:block;">Monthly wrap</a>
         <a href="wheel.html" class="nav-btn" style="text-decoration:none;display:block;">Random wheel</a>
         <a href="goals.html" class="nav-btn" style="text-decoration:none;display:block;">Goals</a>
+        <button class="nav-btn" style="text-align:left;" data-action="open-switch-user">👤 ${esc(getCurrentUserName())}</button>
       </div>
     ` : ""}
   `;
@@ -1639,6 +1709,9 @@ document.addEventListener("click", (e)=>{
       importBackupJSON(fileInput.files[0]);
     }
   }
+  else if(action==="open-switch-user"){ ui.mobileMoreOpen = false; state.modal = {type:"switch-user", payload:null}; renderModal(); }
+  else if(action==="select-user"){ switchUser(el.getAttribute("data-user-id")); }
+  else if(action==="add-user"){ addUserFromForm(); }
 });
 
 document.addEventListener("change", (e)=>{
@@ -1717,6 +1790,7 @@ document.addEventListener("input", (e)=>{
 
 /* ---------------- init ---------------- */
 loadData();
+loadProfiles();
 </script>
 </body>
 </html>
