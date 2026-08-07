@@ -1,0 +1,1668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ColorBlock Bingo</title>
+<link id="dynamicFontLink" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700;800&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&family=Archivo+Black&display=swap">
+<style>
+/* ============ DESIGN TOKENS ============ */
+:root{
+  --accent: #F0245C;
+  --accent-strong: #C21548;
+  --accent-soft: #FCE1E9;
+  --accent-ink: #ffffff;
+  --accent-bg: var(--accent);
+
+  --bg: #F4EEE1;
+  --bg-wash: none;
+  --surface: #FFFFFF;
+  --surface-2: #FBF5E6;
+  --border: #17140F;
+  --border-soft: #E7DFCC;
+  --ink: #17140F;
+  --ink-soft: #6B6357;
+  --ink-faint: #A79E8C;
+
+  --flare-pink: #F0245C;
+  --flare-orange: #FF8A2B;
+  --flare-yellow: #FFC839;
+  --flare-navy: #1B2A4C;
+  --flare-teal: #1FA398;
+
+  --radius-lg: 22px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+  --shadow-sm: 3px 3px 0 rgba(23,20,15,.9);
+  --shadow-md: 5px 5px 0 rgba(23,20,15,.9);
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-hero: 'Archivo Black', 'Space Grotesk', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --active-font: 'Inter', sans-serif;
+}
+body.dark-canvas{
+  --bg: #17161A;
+  --surface: #211F24;
+  --surface-2: #29272D;
+  --border: #F4EEE1;
+  --border-soft: #3A373D;
+  --ink: #F4EEE1;
+  --ink-soft: #B6AFA0;
+  --ink-faint: #746E62;
+  --accent-soft: rgba(255,255,255,.10);
+  --shadow-sm: 3px 3px 0 rgba(0,0,0,.6);
+  --shadow-md: 5px 5px 0 rgba(0,0,0,.6);
+}
+*{ box-sizing:border-box; }
+html,body{ height:100%; }
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family: var(--active-font); transition: background .5s ease, color .35s ease;
+  -webkit-font-smoothing: antialiased;
+  background-image:
+    var(--bg-wash),
+    radial-gradient(circle, rgba(23,20,15,.07) 1.4px, transparent 1.4px);
+  background-size: 100% 100%, 22px 22px;
+  background-attachment: fixed, scroll;
+}
+h1,h2,h3,.font-display{ font-family: var(--font-display); letter-spacing:-0.01em; font-weight:700; }
+button{ font-family: inherit; }
+::selection{ background: var(--accent); color: var(--accent-ink); }
+
+/* ============ SHELL / LAYOUT ============ */
+.shell{ display:flex; min-height:100vh; }
+.rail{
+  width:230px; flex-shrink:0; background:var(--surface); border-right:2.5px solid var(--border);
+  display:flex; flex-direction:column; padding:22px 16px; gap:26px; position:sticky; top:0; height:100vh;
+}
+.rail-brand{ display:flex; align-items:center; gap:11px; padding:2px 4px 14px; border-bottom:2.5px solid var(--border); margin-bottom:2px; }
+.brand-mark{
+  width:38px; height:38px; border-radius:10px; background:var(--accent-bg); flex-shrink:0;
+  display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:3px; padding:6px;
+  border:2px solid var(--border); box-shadow: 2px 2px 0 rgba(23,20,15,.9);
+  transition: background .3s ease;
+}
+.brand-mark span{ border-radius:3px; }
+.brand-mark span:nth-child(1){ background: var(--flare-yellow); }
+.brand-mark span:nth-child(2){ background: var(--accent-ink); }
+.brand-mark span:nth-child(3){ background: var(--flare-navy); }
+.brand-mark span:nth-child(4){ background: var(--accent-ink); opacity:.9; }
+.brand-text{ font-family:var(--font-display); font-weight:800; font-size:16px; line-height:1.15; }
+.brand-text small{ display:block; font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:11px; color:var(--ink-soft); letter-spacing:.03em; text-transform:uppercase; margin-top:1px; }
+
+.rail-nav{ display:flex; flex-direction:column; gap:6px; flex:1; }
+.rail-item{
+  display:flex; align-items:center; gap:11px; border:2px solid transparent; background:transparent; color:var(--ink-soft);
+  padding:10px 13px; border-radius:999px; font-size:13.5px; font-weight:700; cursor:pointer;
+  text-align:left; transition:.15s ease;
+}
+.rail-item .ic{ width:18px; height:18px; flex-shrink:0; display:grid; place-items:center; }
+.rail-item:hover{ background:var(--surface-2); color:var(--ink); border-color:var(--border-soft); }
+.rail-item.active{ background:var(--accent-bg); color:var(--accent-ink); border-color:var(--border); box-shadow: 2px 2px 0 rgba(23,20,15,.9); }
+
+.rail-token{ padding-top:14px; border-top:2.5px solid var(--border); }
+.token-chip{
+  display:flex; align-items:center; gap:8px; background:var(--flare-yellow); border:2px solid var(--border);
+  padding:10px 13px; border-radius:999px; font-family:var(--font-mono); font-weight:700; font-size:13px;
+  color:var(--ink); box-shadow: 2px 2px 0 rgba(23,20,15,.9);
+}
+.token-dot{ width:9px; height:9px; border-radius:50%; background:var(--flare-pink); flex-shrink:0; border:1.5px solid var(--border); }
+.token-chip .lbl{ color:var(--ink); opacity:.65; font-family:'Inter',sans-serif; font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+
+.content-col{ flex:1; min-width:0; display:flex; flex-direction:column; }
+.topbar{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding:22px 30px; border-bottom:2.5px solid var(--border); background:var(--surface);
+  position:relative; overflow:hidden;
+}
+.topbar:before{
+  content:''; position:absolute; top:-30px; right:-30px; width:130px; height:130px; border-radius:50%;
+  background:var(--flare-yellow); opacity:.35; z-index:0;
+}
+.topbar > *{ position:relative; z-index:1; }
+.topbar h1{ font-size:24px; margin:0 0 4px; letter-spacing:-0.02em; }
+.topbar .subtitle{ margin:0; color:var(--ink-soft); font-size:13px; font-weight:500; }
+.topbar-token{ display:none; }
+
+.main-area{ padding:26px 30px 90px; flex:1; }
+.view{ display:none; }
+.view.active{ display:block; animation: fadein .25s ease; }
+@keyframes fadein{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;} }
+
+.tabbar-mobile{ display:none; }
+
+/* ============ CARDS / PANELS ============ */
+.panel{ background:var(--surface); border:2.5px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow-sm); }
+.panel-pad{ padding:22px; }
+.panel-head{ display:flex; align-items:center; gap:11px; margin-bottom:4px; }
+.panel-head .swatch{ width:22px; height:22px; border-radius:7px; background:var(--accent); border:2px solid var(--border); flex-shrink:0; }
+.panel-title{ font-size:18px; font-weight:800; margin:0; letter-spacing:-0.01em; }
+.panel-desc{ color:var(--ink-soft); font-size:13px; margin:6px 0 0; line-height:1.55; }
+
+/* ============ WIDGETS ROW ============ */
+.widget-row{ display:flex; flex-direction:column; gap:14px; margin-bottom:24px; }
+.widget{
+  display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:15px 18px;
+  background:var(--surface); border:2.5px solid var(--border); border-radius:var(--radius-md); box-shadow:var(--shadow-sm);
+}
+.widget .wic{ font-family:var(--font-display); font-weight:800; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink); display:flex; align-items:center; gap:7px; }
+.widget .wic .dot{ width:9px; height:9px; border-radius:3px; background:var(--flare-orange); border:1.5px solid var(--border); }
+.field{
+  padding:8px 10px; border-radius:var(--radius-sm); border:2px solid var(--border); background:var(--surface-2);
+  font-weight:700; font-size:13px; text-align:center; color:var(--ink); font-family:var(--font-mono);
+}
+.field-sm{ width:58px; }
+.readout{
+  font-family:var(--font-mono); font-weight:800; font-size:16px; min-width:78px; text-align:center;
+  padding:8px 12px; border-radius:var(--radius-sm); background:var(--flare-yellow); border:2px solid var(--border); color:var(--ink);
+}
+
+/* ============ BUTTONS ============ */
+.btn{
+  border:2px solid var(--border); cursor:pointer; font-weight:800; font-size:12.5px; border-radius:999px;
+  padding:9px 16px; transition:.12s ease; display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
+  box-shadow: 2.5px 2.5px 0 rgba(23,20,15,.9);
+}
+.btn:active{ transform: translate(1.5px,1.5px); box-shadow: 1px 1px 0 rgba(23,20,15,.9); }
+.btn-primary{ background:var(--accent-bg); color:var(--accent-ink); }
+.btn-primary:hover{ filter:brightness(.92); }
+.btn-secondary{ background:var(--surface); color:var(--ink); border:2px solid var(--border); }
+.btn-secondary:hover{ background:var(--surface-2); }
+.btn-ghost{ background:transparent; color:var(--ink-soft); border:2px solid var(--border-soft); box-shadow:none; }
+.btn-ghost:hover{ background:var(--surface-2); color:var(--ink); border-color:var(--border); }
+.btn-danger{ background:#E24C4C; color:#fff; }
+.btn-danger:hover{ background:#C93D3D; }
+.btn-success{ background:var(--flare-teal); color:#fff; }
+.btn-success:hover{ background:#178a80; }
+.btn-block{ width:100%; justify-content:center; }
+.btn-active{ background:var(--accent-soft); color:var(--accent-strong); cursor:default; border:2px solid var(--border); box-shadow:none; }
+.btn:disabled{ opacity:.55; cursor:not-allowed; }
+
+/* ============ TABS (segmented) ============ */
+.seg-row{ display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; margin-bottom:20px; }
+.seg-btn{
+  border:2px solid var(--border); background:var(--surface); color:var(--ink); padding:9px 16px;
+  border-radius:999px; font-size:12.5px; font-weight:800; cursor:pointer; white-space:nowrap; transition:.15s ease;
+}
+.seg-btn:hover{ background:var(--surface-2); }
+.seg-btn.active{ background:var(--accent-bg); border-color:var(--border); color:var(--accent-ink); box-shadow: 2.5px 2.5px 0 rgba(23,20,15,.9); }
+
+/* ============ SHOP GRIDS ============ */
+.grid{ display:grid; gap:14px; }
+.grid-rewards{ grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); }
+.grid-swatch{ grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); }
+.grid-font{ grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); }
+
+.tile{
+  background:var(--surface); border:2.5px solid var(--border); border-radius:var(--radius-md);
+  padding:13px; display:flex; flex-direction:column; gap:8px; transition:.15s ease; box-shadow:var(--shadow-sm);
+}
+.tile:hover{ transform:translate(-1px,-1px); box-shadow: 4px 4px 0 rgba(23,20,15,.9); }
+.tile.equipped{ border-color:var(--accent); box-shadow:0 0 0 2.5px var(--accent-soft) inset, var(--shadow-sm); }
+.tile-icon{
+  width:40px; height:40px; border-radius:10px; display:grid; place-items:center; font-size:19px;
+  background:var(--flare-yellow); border:2px solid var(--border); flex-shrink:0;
+}
+.tile-name{ font-weight:800; font-size:13px; line-height:1.25; }
+.tile-desc{ color:var(--ink-soft); font-size:11.5px; line-height:1.45; flex:1; }
+.tile-foot{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding-top:9px; border-top:2px dashed var(--border-soft); }
+.price{ font-family:var(--font-mono); font-weight:800; font-size:12px; color:var(--flare-pink); display:flex; align-items:center; gap:4px; }
+
+.swatch-tile{ align-items:center; text-align:center; }
+.swatch-block{ width:100%; height:38px; border-radius:8px; border:2px solid var(--border); position:relative; }
+.theme-tag{
+  position:absolute; top:-8px; right:-6px; font-family:var(--font-mono); font-size:8.5px; font-weight:700;
+  background:var(--ink); color:var(--bg); padding:2px 6px; border-radius:999px; border:1.5px solid var(--border);
+  text-transform:uppercase; letter-spacing:.03em;
+}
+.swatch-label{ font-size:10.5px; font-weight:800; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%; }
+
+.font-tile{ flex-direction:row; align-items:center; justify-content:space-between; padding:13px 15px; }
+.font-sample{ font-size:14.5px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+.card-preview{ width:100%; height:36px; border-radius:8px; background:var(--surface-2); border:2px solid var(--border); position:relative; overflow:hidden; }
+.card-preview .bar{ position:absolute; left:0; top:0; bottom:0; width:7px; }
+.card-preview.bold{ display:grid; place-items:center; }
+
+.trail-tile{ align-items:center; text-align:center; }
+.trail-icon-wrap{ width:100%; height:36px; display:grid; place-items:center; font-size:20px; }
+
+/* ============ BINGO GRID ============ */
+.bingo-wrap{ display:flex; flex-direction:column; align-items:center; }
+.bingo-grid{ display:grid; gap:12px; width:100%; max-width:560px; aspect-ratio:1/1; }
+.bingo-grid.cols-4{ grid-template-columns:repeat(4,1fr); }
+.bingo-grid.cols-3{ grid-template-columns:repeat(3,1fr); }
+.cell{
+  border-radius:var(--radius-md); display:flex; align-items:center; justify-content:center; text-align:center;
+  padding:10px; font-size:12px; font-weight:700; line-height:1.3; cursor:pointer; user-select:none;
+  border:2.5px solid var(--border); background:var(--surface); color:var(--ink); transition:.15s ease;
+  box-shadow: 2px 2px 0 rgba(23,20,15,.55);
+}
+.cell:hover{ transform:translate(-1px,-1px); box-shadow: 3px 3px 0 rgba(23,20,15,.75); border-color:var(--accent); }
+.cell.state-1{ background:var(--accent-soft); border-color:var(--accent); color:var(--ink); }
+.cell.state-2{ background:var(--accent-bg); border-color:var(--border); color:var(--accent-ink); text-decoration:line-through; text-decoration-thickness:2px; box-shadow:none; transform:none; }
+
+/* ============ TOGGLES ============ */
+.setting-row{
+  display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 18px;
+  background:var(--surface); border:2.5px solid var(--border); border-radius:var(--radius-md); margin-bottom:12px;
+  box-shadow:var(--shadow-sm);
+}
+.setting-row h3{ font-size:13.5px; margin:0 0 3px; font-weight:800; }
+.setting-row p{ font-size:11.5px; color:var(--ink-soft); margin:0; }
+.switch{ position:relative; width:44px; height:26px; flex-shrink:0; }
+.switch input{ opacity:0; width:0; height:0; }
+.switch .track{ position:absolute; inset:0; background:var(--surface-2); border:2px solid var(--border); border-radius:999px; cursor:pointer; transition:.2s; }
+.switch .track:before{ content:''; position:absolute; width:18px; height:18px; left:2px; top:2px; background:#fff; border:1.5px solid var(--border); border-radius:50%; transition:.2s; }
+.switch input:checked + .track{ background:var(--accent); border-color:var(--border); }
+.switch input:checked + .track:before{ transform:translateX(18px); }
+
+textarea, input[type=text], input[type=number], input[type=file]{
+  font-family:inherit; border:2px solid var(--border); border-radius:var(--radius-sm); background:var(--surface-2); color:var(--ink);
+  padding:9px 11px; font-size:13px;
+}
+textarea{ width:100%; resize:vertical; }
+label.upload-btn{ display:inline-block; }
+input[type=file]::file-selector-button{
+  border:2px solid var(--border); background:var(--flare-yellow); color:var(--ink); padding:8px 14px; border-radius:999px;
+  font-weight:800; font-size:12px; margin-right:10px; cursor:pointer;
+}
+
+/* ============ MODAL ============ */
+.modal-overlay{
+  position:fixed; inset:0; background:rgba(23,20,15,.6); display:none; align-items:center; justify-content:center;
+  padding:16px; z-index:9998;
+}
+.modal-overlay.show{ display:flex; }
+.modal-panel{
+  background:var(--surface); border:2.5px solid var(--border); border-radius:var(--radius-lg); padding:26px;
+  max-width:420px; width:100%; max-height:85vh; overflow-y:auto; box-shadow:var(--shadow-md);
+}
+.modal-panel h3{ font-size:19px; margin:0 0 6px; text-align:center; font-weight:800; }
+.modal-panel .m-desc{ font-size:12.5px; color:var(--ink-soft); text-align:center; margin:0 0 16px; line-height:1.5; }
+.list-btn{
+  width:100%; text-align:left; padding:11px 14px; border-radius:var(--radius-sm); background:var(--surface-2);
+  border:2px solid var(--border-soft); font-size:12.5px; font-weight:700; cursor:pointer; color:var(--ink);
+}
+.list-btn:hover{ border-color:var(--border); background:var(--accent-soft); }
+
+/* ============ TOAST ============ */
+.toast{
+  position:fixed; top:20px; left:50%; transform:translateX(-50%); background:var(--flare-navy); color:#fff;
+  padding:13px 22px; border-radius:999px; font-weight:800; font-size:13px; z-index:99999;
+  box-shadow:var(--shadow-md); text-align:center; max-width:90vw; border:2px solid var(--border);
+}
+@keyframes toastIn{ from{opacity:0; transform:translate(-50%,-10px);} to{opacity:1; transform:translate(-50%,0);} }
+
+/* trail particles */
+.trail-particle{ position:fixed; pointer-events:none; z-index:9999; font-size:14px; filter:drop-shadow(0 1px 2px rgba(0,0,0,.25)); }
+
+/* ============ DECORATIVE CONFETTI STRIP (signature motif) ============ */
+.confetti-strip{ display:flex; gap:6px; margin-top:2px; }
+.confetti-dot{ width:16px; height:16px; border-radius:5px; border:1.5px solid var(--border); }
+
+/* ============ RESPONSIVE ============ */
+@media (max-width:860px){
+  .rail{ display:none; }
+  .topbar-token{ display:flex; }
+  .tabbar-mobile{
+    display:flex; position:fixed; bottom:0; left:0; right:0; background:var(--surface); border-top:2.5px solid var(--border);
+    padding:8px 10px calc(8px + env(safe-area-inset-bottom)); gap:4px; z-index:50;
+  }
+  .tabbar-mobile button{
+    flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; background:none; border:none;
+    color:var(--ink-faint); font-size:10.5px; font-weight:700; padding:6px 2px; border-radius:var(--radius-sm); cursor:pointer;
+  }
+  .tabbar-mobile button .ic{ font-size:16px; }
+  .tabbar-mobile button.active{ color:var(--accent); }
+  .main-area{ padding:18px 16px 90px; }
+  .topbar{ padding:16px 18px; }
+}
+
+</style>
+</head>
+<body id="appBody">
+
+<div class="shell">
+  <aside class="rail">
+    <div class="rail-brand">
+      <div class="brand-mark"><span></span><span></span><span></span><span></span></div>
+      <div class="brand-text">ColorBlock<br><small>Bingo</small></div>
+    </div>
+    <div class="confetti-strip" style="margin:-14px 0 2px 2px;">
+      <span class="confetti-dot" style="background:var(--flare-pink);"></span>
+      <span class="confetti-dot" style="background:var(--flare-orange);"></span>
+      <span class="confetti-dot" style="background:var(--flare-yellow);"></span>
+      <span class="confetti-dot" style="background:var(--flare-navy);"></span>
+    </div>
+    <nav class="rail-nav">
+      <a href="index.html" class="rail-item" style="text-decoration:none;"><span class="ic">←</span>Shelf &amp; Spine</a>
+      <button class="rail-item active" id="navBingo" onclick="switchTab('bingo')"><span class="ic">▦</span>Bingo</button>
+      <button class="rail-item" id="navShop" onclick="switchTab('shop')"><span class="ic">◆</span>Shop</button>
+      <button class="rail-item" id="navInventory" onclick="switchTab('inventory')"><span class="ic">■</span>Inventory</button>
+      <button class="rail-item" id="navSettings" onclick="switchTab('settings')"><span class="ic">●</span>Settings</button>
+    </nav>
+    <div class="rail-token">
+      <div class="token-chip"><span class="token-dot"></span><span id="tokenCount">0</span><span class="lbl">Tokens</span></div>
+    </div>
+  </aside>
+
+  <div class="content-col">
+    <header class="topbar">
+      <div>
+        <a href="index.html" class="btn btn-secondary" style="margin-bottom:10px;">← Shelf &amp; Spine</a>
+        <h1 id="pageTitle" style="font-family:var(--font-hero); font-weight:400; text-transform:uppercase; font-size:22px;">Bingo Board</h1>
+        <p class="subtitle" id="pageSubtitle">Complete lines, earn tokens, unlock rewards.</p>
+      </div>
+      <div class="topbar-token token-chip"><span class="token-dot"></span><span id="tokenCountMobile">0</span><span class="lbl">Tokens</span></div>
+    </header>
+
+    <main class="main-area">
+
+      <!-- BINGO -->
+      <section id="sectionBingo" class="view active">
+        <div class="widget-row">
+          <div id="timerBar" class="widget">
+            <span class="wic"><span class="dot"></span>Timer</span>
+            <input type="number" id="timerMinutes" min="1" max="120" value="25" class="field field-sm">
+            <span style="font-size:11px;font-weight:700;color:var(--ink-faint);">MIN</span>
+            <button onclick="startTimer()" class="btn btn-primary">Start</button>
+            <button onclick="stopTimer()" class="btn btn-secondary">Reset</button>
+            <div id="timerDisplay" class="readout">25:00</div>
+          </div>
+          <div id="pageCounterBar" class="widget">
+            <span class="wic"><span class="dot"></span>Pages</span>
+            <input type="number" id="startPageInput" placeholder="Start" class="field field-sm">
+            <span style="font-size:11px;font-weight:700;color:var(--ink-faint);">TO</span>
+            <input type="number" id="endPageInput" placeholder="End" class="field field-sm">
+            <button onclick="initPageCounter()" class="btn btn-primary">Set</button>
+            <button onclick="incrementPage()" class="btn btn-success">Page Finished</button>
+            <div id="pageCounterDisplay" class="readout">0 / 0</div>
+          </div>
+        </div>
+        <div class="bingo-wrap">
+          <div id="bingoGridContainer" style="width:100%;display:flex;justify-content:center;"></div>
+        </div>
+      </section>
+
+      <!-- SHOP -->
+      <section id="sectionShop" class="view">
+        <div class="seg-row">
+          <button onclick="switchShopTab('rewards')" id="shopTabRewards" class="seg-btn active">Rewards</button>
+          <button onclick="switchShopTab('themes')" id="shopTabThemes" class="seg-btn">Themes · 50</button>
+          <button onclick="switchShopTab('fonts')" id="shopTabFonts" class="seg-btn">Fonts · 50</button>
+          <button onclick="switchShopTab('cards')" id="shopTabCards" class="seg-btn">Card Styles · 50</button>
+          <button onclick="switchShopTab('trails')" id="shopTabTrails" class="seg-btn">Cursor Trails · 50</button>
+        </div>
+
+        <div id="subSectionRewards" class="panel panel-pad">
+          <div class="panel-head"><span class="swatch"></span><h2 class="panel-title">Rewards Shop</h2></div>
+          <p class="panel-desc">Exchange tokens for perks, mystery boxes, passes and coupons. Purchases move to your Inventory until redeemed — several launch a real mini-game.</p>
+          <div class="grid grid-rewards" id="rewardsGrid" style="margin-top:16px;"></div>
+        </div>
+
+        <div id="subSectionThemes" class="panel panel-pad" style="display:none;">
+          <div class="panel-head"><span class="swatch"></span><h2 class="panel-title">Color Themes</h2></div>
+          <p class="panel-desc">Each theme sets your accent color-block across the whole app.</p>
+          <div class="grid grid-swatch" id="skinsGrid" style="margin-top:16px;"></div>
+        </div>
+
+        <div id="subSectionFonts" class="panel panel-pad" style="display:none;">
+          <div class="panel-head"><span class="swatch"></span><h2 class="panel-title">Typography</h2></div>
+          <p class="panel-desc">Fonts apply to task text and body copy throughout the app.</p>
+          <div class="grid grid-font" id="fontsGrid" style="margin-top:16px;"></div>
+        </div>
+
+        <div id="subSectionCards" class="panel panel-pad" style="display:none;">
+          <div class="panel-head"><span class="swatch"></span><h2 class="panel-title">Bingo Card Styles</h2></div>
+          <p class="panel-desc">Changes the look of your bingo board's unfinished cells.</p>
+          <div class="grid grid-swatch" id="cardSkinsGrid" style="margin-top:16px;"></div>
+        </div>
+
+        <div id="subSectionTrails" class="panel panel-pad" style="display:none;">
+          <div class="panel-head"><span class="swatch"></span><h2 class="panel-title">Cursor Trails</h2></div>
+          <p class="panel-desc">A little flourish that follows your cursor around the app.</p>
+          <div class="grid grid-swatch" id="trailsGrid" style="margin-top:16px;"></div>
+        </div>
+      </section>
+
+      <!-- INVENTORY -->
+      <section id="sectionInventory" class="view">
+        <div class="panel panel-pad">
+          <div class="panel-head"><span class="swatch"></span><h2 class="panel-title">Inventory</h2></div>
+          <p class="panel-desc">Rewards you've purchased are stored here until you redeem them.</p>
+          <div class="grid grid-rewards" id="inventoryGrid" style="margin-top:16px;"></div>
+        </div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section id="sectionSettings" class="view">
+        <div class="panel panel-pad" style="margin-bottom:16px;">
+          <div class="panel-head"><span class="swatch"></span><h2 class="panel-title">Board &amp; App Settings</h2></div>
+          <p class="panel-desc">Configure widgets, tasks, and test features.</p>
+        </div>
+
+        <div class="setting-row">
+          <div><h3>Show Timer</h3><p>Toggle the countdown timer widget on the Bingo tab.</p></div>
+          <label class="switch"><input type="checkbox" id="showTimerToggle" onchange="toggleShowTimer(event)"><span class="track"></span></label>
+        </div>
+        <div class="setting-row">
+          <div><h3>Show Page Counter</h3><p>Toggle the page counter widget on the Bingo tab.</p></div>
+          <label class="switch"><input type="checkbox" id="showPageCounterToggle" onchange="toggleShowPageCounter(event)"><span class="track"></span></label>
+        </div>
+        <div class="setting-row">
+          <div><h3>Test Mode</h3><p>Unlimited tokens instantly. Purchases made while on won't be saved.</p></div>
+          <label class="switch"><input type="checkbox" id="testModeToggle" onchange="toggleTestMode(event)"><span class="track"></span></label>
+        </div>
+
+        <div class="panel panel-pad" style="margin-bottom:12px;">
+          <h3 style="font-size:13.5px;margin:0 0 3px;">Manual Token Amount</h3>
+          <p style="font-size:11.5px;color:var(--ink-soft);margin:0 0 12px;">Manually set your token balance. Requires confirmation.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <input type="number" id="manualTokenInput" placeholder="Enter amount" class="field" style="width:160px;">
+            <button onclick="promptManualTokenChange()" class="btn btn-primary">Update Tokens</button>
+          </div>
+        </div>
+
+        <div class="panel panel-pad" style="margin-bottom:12px;">
+          <h3 style="font-size:13.5px;margin:0 0 3px;">Auto-Generate Health &amp; Reading Board</h3>
+          <p style="font-size:11.5px;color:var(--ink-soft);margin:0 0 12px;">Instantly generate health tasks and reading goals based on your editable counts below (automatically sum to 16).</p>
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <label style="font-size:12px;font-weight:700;">Health Tasks:</label>
+              <input type="number" id="healthCountInput" min="1" max="15" value="5" class="field field-sm" oninput="handleCountChange('health')">
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <label style="font-size:12px;font-weight:700;">Reading Goals:</label>
+              <input type="number" id="readingCountInput" min="1" max="15" value="11" class="field field-sm" oninput="handleCountChange('reading')">
+            </div>
+          </div>
+          <button onclick="generateRandomHealthReadingBoard()" class="btn btn-success">Generate Random Board</button>
+        </div>
+
+        <!-- NEW DEDICATED READING LIST RESET BUTTON -->
+        <div class="panel panel-pad" style="margin-bottom:12px;">
+          <h3 style="font-size:13.5px;margin:0 0 3px;">Reset Reading Database Lists</h3>
+          <p style="font-size:11.5px;color:var(--ink-soft);margin:0 0 12px;">Clear and restore your customized reading goals back to original defaults without wiping tokens or application state.</p>
+          <button onclick="resetReadingDatabaseLists()" class="btn btn-danger">Reset Reading Lists</button>
+        </div>
+
+        <div class="panel panel-pad" style="margin-bottom:12px;">
+          <h3 style="font-size:13.5px;margin:0 0 3px;">Reset to Original Code Options</h3>
+          <p style="font-size:11.5px;color:var(--ink-soft);margin:0 0 12px;">Clear all locally-saved edits, tasks, databases, and custom options, restoring original defaults.</p>
+          <button onclick="resetToOriginalCodeOptions()" class="btn btn-danger">Reset to Original Code</button>
+        </div>
+
+        <div class="panel panel-pad">
+          <h3 style="font-size:13.5px;margin:0 0 3px;">Manual Refresh / Import Tasks</h3>
+          <div style="display:flex;flex-wrap:wrap;gap:20px;margin-top:12px;">
+            <div style="flex:1;min-width:240px;display:flex;flex-direction:column;gap:8px;">
+              <label style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-faint);">Paste Tasks (one per line)</label>
+              <textarea id="textInput" rows="3" placeholder="Task 1&#10;Task 2&#10;..."></textarea>
+              <button onclick="loadFromText()" class="btn btn-primary" style="align-self:flex-start;">Generate Board from Text</button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <label style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-faint);">Upload JSON File</label>
+              <input type="file" id="jsonFile" accept=".json" onchange="loadFromJSON(event)">
+              <button onclick="loadDefaultTasks()" class="btn btn-ghost" style="align-self:flex-start;">Load Sample Tasks</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <nav class="tabbar-mobile">
+    <button class="active" id="navBingoM" onclick="switchTab('bingo')"><span class="ic">▦</span>Bingo</button>
+    <button id="navShopM" onclick="switchTab('shop')"><span class="ic">◆</span>Shop</button>
+    <button id="navInventoryM" onclick="switchTab('inventory')"><span class="ic">■</span>Bag</button>
+    <button id="navSettingsM" onclick="switchTab('settings')"><span class="ic">●</span>Settings</button>
+  </nav>
+</div>
+
+<div id="minigameModal" class="modal-overlay">
+  <div class="modal-panel" id="minigameModalContent"></div>
+</div>
+
+<!-- Firebase (same project as Shelf & Spine — plain <script> tags, no bundler needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyBqOuK-l7h5Do9sAk1y4MBxwYkFFu2pusY",
+  authDomain: "readingtracker-73e78.firebaseapp.com",
+  projectId: "readingtracker-73e78",
+  storageBucket: "readingtracker-73e78.firebasestorage.app",
+  messagingSenderId: "391536984056",
+  appId: "1:391536984056:web:ec841e6e42dbfd51e8e00d"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+// Bingo gets its own document in the same Firebase project as Shelf & Spine,
+// so it doesn't touch the shelf's data but still persists to the cloud
+// instead of being stuck in this one browser's localStorage.
+const BINGO_DOC = db.collection("bingo-app").doc("shared");
+
+// Drop-in replacement for localStorage, backed by BINGO_DOC. Every value is
+// kept as a string in memory (matching real localStorage semantics) so the
+// rest of the app's getItem/JSON.parse/parseInt calls work unchanged.
+let _bingoCache = {};
+const appStorage = {
+  getItem(key){
+    return Object.prototype.hasOwnProperty.call(_bingoCache, key) ? _bingoCache[key] : null;
+  },
+  setItem(key, value){
+    const str = String(value);
+    _bingoCache[key] = str;
+    BINGO_DOC.set({ [key]: str }, { merge: true }).catch(err => console.error("Bingo save failed", err));
+  },
+  removeItem(key){
+    delete _bingoCache[key];
+    BINGO_DOC.set({ [key]: firebase.firestore.FieldValue.delete() }, { merge: true }).catch(err => console.error("Bingo remove failed", err));
+  }
+};
+async function loadBingoCacheFromFirestore(){
+  try{
+    const snap = await BINGO_DOC.get();
+    if(snap.exists) _bingoCache = snap.data() || {};
+  }catch(err){ console.error("Bingo load failed", err); }
+}
+</script>
+
+<script>
+// ============================================================
+// STATIC TASK DATABASES
+// ============================================================
+const defaultHealthDatabase = [
+  "Drink a full glass of water","Do 10 pushups","Stretch for 5 minutes","Clear inbox clutter",
+  "Write down 3 gratitudes","Take a tech-free break","Organize desktop icons","Step outside for fresh air",
+  "Learn one new word","Call a family member","Do a quick posture check","Plan tomorrow's priorities",
+  "Eat a piece of fruit","Listen to a favorite song","Compliment a colleague","Do 20 jumping jacks",
+  "Meditate for 3 minutes","Clean your workspace desk","Do eye strain relief exercises","Take 10 deep belly breaths",
+  "Drink a cup of herbal tea","Do a 5-minute core stretch","Wash your face with cold water","Write down a daily affirmation",
+  "Do 15 squats","Tidy up your phone apps","Open window for fresh ventilation","Eat a handful of nuts",
+  "Do a shoulder mobility roll","Practice standing on one leg for 1 minute","Write a kind text to a friend","Take a short 10-minute walk",
+  "Do a quick digital declutter","Prepare gym clothes for tomorrow","Eat a vegetable-rich snack","Do a wrist and finger stretch",
+  "Review weekly self-care goals","Do 10 wall push-ups","Smile in the mirror for 30 seconds","Hydrate with electrolyte water",
+  "Do a 3-minute gratitude journal entry","Take a moment of complete silence","Do neck rotation stretches","Adjust chair ergonomics",
+  "Snack on fresh berries","Do a 5-minute room cleanup","Write down tomorrow's main objective","Practice deep diaphragmatic breathing",
+  "Do a quick energy check-in","Step away from screen for 5 minutes"
+];
+
+const defaultReadingDatabase = [
+  // Read for 1/2/3/4/5/6 minutes
+  "Read for 1 minute",
+  "Read for 2 minutes",
+  "Read for 3 minutes",
+  "Read for 4 minutes",
+  "Read for 5 minutes",
+  "Read for 6 minutes",
+
+  // Read 1 or 2 chapters
+  "Read 1 chapter",
+  "Read 2 chapters",
+
+  // Read 1/2/3/4/5/6 pages
+  "Read 1 page",
+  "Read 2 pages",
+  "Read 3 pages",
+  "Read 4 pages",
+  "Read 5 pages",
+  "Read 6 pages",
+
+  // Read 1/2/3/4/5 pages of your favorite book
+  "Read 1 page of your favorite book",
+  "Read 2 pages of your favorite book",
+  "Read 3 pages of your favorite book",
+  "Read 4 pages of your favorite book",
+  "Read 5 pages of your favorite book",
+
+  // Read 1/2/3/4/5 pages of your least favorite book
+  "Read 1 page of your least favorite book",
+  "Read 2 pages of your least favorite book",
+  "Read 3 pages of your least favorite book",
+  "Read 4 pages of your least favorite book",
+  "Read 5 pages of your least favorite book",
+
+  // Listen to 1 chapter of audiobook
+  "Listen to 1 chapter of audiobook",
+
+  // Listen to 1/2/3/4/5/6/7/8/9/10 minutes of audiobook
+  "Listen to 1 minute of audiobook",
+  "Listen to 2 minutes of audiobook",
+  "Listen to 3 minutes of audiobook",
+  "Listen to 4 minutes of audiobook",
+  "Listen to 5 minutes of audiobook",
+  "Listen to 6 minutes of audiobook",
+  "Listen to 7 minutes of audiobook",
+  "Listen to 8 minutes of audiobook",
+  "Listen to 9 minutes of audiobook",
+  "Listen to 10 minutes of audiobook",
+
+  // Listen to 1/2/3/4/5/6/7/8/9/10 minutes of favorite audiobook
+  "Listen to 1 minute of favorite audiobook",
+  "Listen to 2 minutes of favorite audiobook",
+  "Listen to 3 minutes of favorite audiobook",
+  "Listen to 4 minutes of favorite audiobook",
+  "Listen to 5 minutes of favorite audiobook",
+  "Listen to 6 minutes of favorite audiobook",
+  "Listen to 7 minutes of favorite audiobook",
+  "Listen to 8 minutes of favorite audiobook",
+  "Listen to 9 minutes of favorite audiobook",
+  "Listen to 10 minutes of favorite audiobook",
+
+  // Listen to 1/2/3/4/5/6/7/8/9/10 minutes of least favorite audiobook
+  "Listen to 1 minute of least favorite audiobook",
+  "Listen to 2 minutes of least favorite audiobook",
+  "Listen to 3 minutes of least favorite audiobook",
+  "Listen to 4 minutes of least favorite audiobook",
+  "Listen to 5 minutes of least favorite audiobook",
+  "Listen to 6 minutes of least favorite audiobook",
+  "Listen to 7 minutes of least favorite audiobook",
+  "Listen to 8 minutes of least favorite audiobook",
+  "Listen to 9 minutes of least favorite audiobook",
+  "Listen to 10 minutes of least favorite audiobook"
+];
+
+// ============================================================
+// GLOBAL STATE
+// ============================================================
+let tokens, activeTab, currentSkin, unlockedSkins;
+let currentFont, unlockedFonts, currentCardSkin, unlockedCardSkins;
+let currentTrail, unlockedTrails, testMode, inventory;
+let showTimer, showPageCounter;
+let healthDatabase, readingDatabase, tasks, cellStates;
+let completedLines = new Set();
+let isCompact3x3Active = false;
+
+let timerInterval = null, timeLeft = 25*60, timerRunning = false;
+let currentPage = 0, endPage = 0;
+let _editingTaskIndex = null;
+
+function loadStateFromStorage(){
+  tokens = parseInt(appStorage.getItem('bingo_tokens')) || 50;
+  currentSkin = appStorage.getItem('bingo_skin') || 'sunset';
+  unlockedSkins = JSON.parse(appStorage.getItem('bingo_unlocked_skins')) || ['sunset'];
+  currentFont = appStorage.getItem('bingo_font') || 'Inter';
+  unlockedFonts = JSON.parse(appStorage.getItem('bingo_unlocked_fonts')) || ['Inter'];
+  currentCardSkin = appStorage.getItem('bingo_card_skin') || 'default_card';
+  unlockedCardSkins = JSON.parse(appStorage.getItem('bingo_unlocked_card_skins')) || ['default_card'];
+  currentTrail = appStorage.getItem('bingo_trail') || 'none';
+  unlockedTrails = JSON.parse(appStorage.getItem('bingo_unlocked_trails')) || ['none'];
+  inventory = JSON.parse(appStorage.getItem('bingo_inventory')) || [];
+  showTimer = appStorage.getItem('bingo_show_timer') !== 'false';
+  showPageCounter = appStorage.getItem('bingo_show_page_counter') !== 'false';
+  healthDatabase = JSON.parse(appStorage.getItem('bingo_health_db_overrides')) || [...defaultHealthDatabase];
+  readingDatabase = JSON.parse(appStorage.getItem('bingo_reading_db_overrides')) || [...defaultReadingDatabase];
+  
+  // Load editable counts if saved
+  let savedHealthCount = appStorage.getItem('bingo_health_count');
+  let savedReadingCount = appStorage.getItem('bingo_reading_count');
+  if(savedHealthCount !== null && document.getElementById('healthCountInput')) {
+    document.getElementById('healthCountInput').value = savedHealthCount;
+  }
+  if(savedReadingCount !== null && document.getElementById('readingCountInput')) {
+    document.getElementById('readingCountInput').value = savedReadingCount;
+  }
+
+  tasks = JSON.parse(appStorage.getItem('bingo_tasks')) || generateHealthReadingTasks();
+  let raw = JSON.parse(appStorage.getItem('bingo_cell_states'));
+  cellStates = (raw && raw.length) ? raw.map(s => s===true?2:(s===false?0:s)) : Array(tasks.length).fill(0);
+  isCompact3x3Active = tasks.length === 9;
+  populateCompletedLinesSilently();
+}
+
+function handleCountChange(source) {
+  const healthInput = document.getElementById('healthCountInput');
+  const readingInput = document.getElementById('readingCountInput');
+  if (!healthInput || !readingInput) return;
+
+  let hVal = parseInt(healthInput.value) || 0;
+  let rVal = parseInt(readingInput.value) || 0;
+
+  if (source === 'health') {
+    if (hVal < 1) hVal = 1;
+    if (hVal > 15) hVal = 15;
+    healthInput.value = hVal;
+    readingInput.value = 16 - hVal;
+  } else {
+    if (rVal < 1) rVal = 1;
+    if (rVal > 15) rVal = 15;
+    readingInput.value = rVal;
+    healthInput.value = 16 - rVal;
+  }
+}
+
+function resetReadingDatabaseLists(){
+  if (!confirm("Are you sure you want to reset your edited reading database lists back to original defaults?")) return;
+  appStorage.removeItem('bingo_reading_db_overrides');
+  readingDatabase = [...defaultReadingDatabase];
+  tasks = generateHealthReadingTasks();
+  cellStates = Array(tasks.length).fill(0);
+  completedLines.clear();
+  isCompact3x3Active = false;
+  renderBingoBoard();
+  saveState();
+  showToast("Reading database lists restored to original defaults.");
+}
+
+function resetToOriginalCodeOptions(){
+  if (!confirm("Are you sure you want to reset all locally-saved edits, tasks, inventories, and custom options back to the original code defaults?")) return;
+  const keysToRemove = [
+    'bingo_tokens', 'bingo_skin', 'bingo_unlocked_skins', 'bingo_font',
+    'bingo_unlocked_fonts', 'bingo_card_skin', 'bingo_unlocked_card_skins',
+    'bingo_trail', 'bingo_unlocked_trails', 'bingo_inventory', 'bingo_show_timer',
+    'bingo_show_page_counter', 'bingo_health_db_overrides', 'bingo_reading_db_overrides',
+    'bingo_tasks', 'bingo_cell_states', 'bingo_test_mode', 'bingo_health_count', 'bingo_reading_count'
+  ];
+  keysToRemove.forEach(k => appStorage.removeItem(k));
+  testMode = false;
+  document.getElementById('testModeToggle').checked = false;
+  if(document.getElementById('healthCountInput')) document.getElementById('healthCountInput').value = 5;
+  if(document.getElementById('readingCountInput')) document.getElementById('readingCountInput').value = 11;
+  loadStateFromStorage();
+  document.getElementById('showTimerToggle').checked = showTimer;
+  document.getElementById('showPageCounterToggle').checked = showPageCounter;
+  applyTimerVisibility(); applyPageCounterVisibility(); updateTokensUI();
+  applySkin(currentSkin); applyFont(currentFont); applyCardSkin(currentCardSkin); applyTrail(currentTrail);
+  renderBingoBoard(); renderRewards(); renderInventory();
+  renderSkins(); renderFonts(); renderCardSkins(); renderTrails();
+  switchTab('bingo');
+  showToast("Reset all settings back to the original code defaults.");
+}
+
+function populateCompletedLinesSilently(){
+  completedLines.clear();
+  const n = isCompact3x3Active ? 3 : 4;
+  const lines = [];
+  for (let r=0;r<n;r++){ let row=[]; for(let c=0;c<n;c++) row.push(r*n+c); lines.push(row); }
+  for (let c=0;c<n;c++){ let col=[]; for(let r=0;r<n;r++) col.push(r*n+c); lines.push(col); }
+  let d1=[], d2=[];
+  for (let i=0;i<n;i++){ d1.push(i*n+i); d2.push(i*n+(n-1-i)); }
+  lines.push(d1,d2);
+  lines.forEach((line, idx) => { if (line.every(i => cellStates[i]===2)) completedLines.add(idx); });
+}
+
+// ============================================================
+// SHOP DATA
+// ============================================================
+const baseRewardsList = [
+  { id:'sweet_treat', name:'Sweet Treat IRL', cost:100, desc:'Treat yourself to your favorite coffee, pastry, or snack.', icon:'🍩', type:'perk' },
+  { id:'breather', name:'5-Minute Work Breather', cost:100, desc:'Step away completely guilt-free for 5 minutes.', icon:'🧘', type:'perk' },
+  { id:'scratch_ticket', name:'Mystery Scratch Ticket', cost:50, desc:'Scratch the ticket to reveal a random prize between 1 and 100 tokens.', icon:'🎟️', type:'gamble' },
+  { id:'task_skip', name:'Task Skip Pass', cost:20, desc:'Pick any uncompleted bingo task from a list and mark it done instantly.', icon:'⚡', type:'perk' },
+  { id:'shekel_coupon', name:'5 Shekel Coupon', cost:300, desc:'Add 5 shekel for free to your fun budget.', icon:'💵', type:'perk' },
+  { id:'mystery_box', name:'Mystery Loot Box', cost:120, desc:'Shake and open the box for a chance at a massive token jackpot or a bonus task.', icon:'📦', type:'gamble' },
+  { id:'shuffle_pass', name:'One-Click Shuffle Pass', cost:65, desc:'Watch your uncompleted bingo tasks shuffle into a brand new order.', icon:'🔀', type:'perk' },
+  { id:'slot_spin', name:'Slot Machine Spin', cost:80, desc:'Pull the lever on a 3-reel slot machine to win big or lose tokens.', icon:'🎰', type:'gamble' },
+  { id:'grid_resizer', name:'Dynamic Grid Resizer', cost:50, desc:"Watch your board compact from 4x4 down to a speedy 3x3 layout for one pass.", icon:'📐', type:'perk' }
+];
+
+const skinPalettes = [
+  { id:'sunset',   name:'Classic Pink',      cost:0,   type:'solid',   colors:['#F0245C'],                       dark:false, ink:'#ffffff', bgTint:0.09 },
+  { id:'cyber',    name:'Cyberpunk Night',   cost:60,  type:'duo',     colors:['#FF2E63','#08D9D6'],             dark:true,  ink:'#0B0F0C', bgTint:0.22 },
+  { id:'emerald',  name:'Ocean Breeze',      cost:55,  type:'duo',     colors:['#0077B6','#00B4D8'],             dark:false, ink:'#ffffff', bgTint:0.13 },
+  { id:'neon',     name:'Neon Pop',          cost:70,  type:'duo',     colors:['#FF00E5','#00E0FF'],             dark:true,  ink:'#0B0F0C', bgTint:0.25 },
+  { id:'mint',     name:'Mint Sorbet',       cost:45,  type:'solid',   colors:['#2EC4B6'],                       dark:false, ink:'#ffffff', bgTint:0.12 },
+  { id:'lavender', name:'Lavender Dusk',     cost:65,  type:'duo',     colors:['#A084DC','#4A2C7A'],             dark:false, ink:'#ffffff', bgTint:0.15 },
+  { id:'peach',    name:'Peach Fuzz',        cost:40,  type:'solid',   colors:['#FF9E7D'],                       dark:false, ink:'#17140F', bgTint:0.14 },
+  { id:'arctic',   name:'Arctic Frost',      cost:55,  type:'duo',     colors:['#DFF6FF','#5FA8D3'],             dark:false, ink:'#17140F', bgTint:0.11 },
+  { id:'ruby',     name:'Ruby Velvet',       cost:90,  type:'solid',   colors:['#9B111E'],                       dark:true,  ink:'#ffffff', bgTint:0.20 },
+  { id:'golden',   name:'Golden Hour',       cost:60,  type:'duo',     colors:['#FFD60A','#FB8500'],             dark:false, ink:'#17140F', bgTint:0.16 },
+  { id:'lime',     name:'Lime Twist',        cost:35,  type:'solid',   colors:['#9FE436'],                       dark:false, ink:'#17140F', bgTint:0.14 },
+  { id:'teal',     name:'Deep Teal',         cost:80,  type:'solid',   colors:['#023E3E'],                       dark:true,  ink:'#ffffff', bgTint:0.20 },
+  { id:'slate',    name:'Slate Mono',        cost:30,  type:'solid',   colors:['#4A5568'],                       dark:true,  ink:'#ffffff', bgTint:0 },
+  { id:'rose',     name:'Dusty Rose',        cost:50,  type:'duo',     colors:['#F4C7CE','#B76E79'],             dark:false, ink:'#17140F', bgTint:0.13 },
+  { id:'indigo',   name:'Indigo Night',      cost:95,  type:'duo',     colors:['#2B2D82','#6C63FF'],             dark:true,  ink:'#ffffff', bgTint:0.22 },
+  { id:'coral',    name:'Coral Reef',        cost:110, type:'trio',    colors:['#FF6F61','#FFD166','#06D6A0'],   dark:false, ink:'#17140F', bgTint:0.14 },
+  { id:'coffee',   name:'Warm Mocha',        cost:70,  type:'solid',   colors:['#6F4518'],                       dark:true,  ink:'#ffffff', bgTint:0.20 },
+  { id:'cherry',   name:'Cherry Blossom',    cost:45,  type:'duo',     colors:['#FFC2D1','#FF8FAB'],             dark:false, ink:'#17140F', bgTint:0.12 },
+  { id:'matrix',   name:'Matrix Code',       cost:120, type:'solid',   colors:['#00FF41'],                       dark:true,  ink:'#0B0F0C', bgTint:0.11 },
+  { id:'royal',    name:'Royal Amethyst',    cost:100, type:'duo',     colors:['#3C1361','#960078'],             dark:true,  ink:'#ffffff', bgTint:0.24 },
+  { id:'volcanic', name:'Volcanic Ash',      cost:130, type:'trio',    colors:['#1A1A1D','#C3073F','#950101'],   dark:true,  ink:'#ffffff', bgTint:0.22, tintColor:'#C3073F' },
+  { id:'cotton',   name:'Cotton Candy Sky',  cost:75,  type:'trio',    colors:['#FFD6E8','#C9F2FF','#FFF3B0'],   dark:false, ink:'#17140F', bgTint:0.16 },
+  { id:'aurora',   name:'Midnight Aurora',   cost:140, type:'trio',    colors:['#0F2027','#2C5364','#00C9A7'],   dark:true,  ink:'#ffffff', bgTint:0.20, tintColor:'#00C9A7' },
+  { id:'lagoon',   name:'Tropical Lagoon',   cost:55,  type:'duo',     colors:['#00B4D8','#90E0EF'],             dark:false, ink:'#17140F', bgTint:0.14 },
+  { id:'blueberry',name:'Blueberry Fields',  cost:65,  type:'solid',   colors:['#1B1F3B'],                       dark:true,  ink:'#ffffff', bgTint:0.18 },
+  { id:'toxic',    name:'Toxic Slime',       cost:85,  type:'duo',     colors:['#39FF14','#123312'],             dark:true,  ink:'#ffffff', bgTint:0.16, tintColor:'#39FF14' },
+  { id:'bubblegum',name:'Bubblegum Pop',     cost:60,  type:'duo',     colors:['#FF6EC7','#7873F5'],             dark:false, ink:'#ffffff', bgTint:0.16 },
+  { id:'sherbet',  name:'Rainbow Sherbet',   cost:220, type:'rainbow', colors:['#FF6B6B','#FFD166','#06D6A0','#4CC9F0','#B983FF'], dark:false, ink:'#17140F', bgTint:0.10 }
+];
+
+const fontDefs = [
+  ['Pacifico','cursive'],['Bangers','cursive'],['Press Start 2P','monospace'],['Dancing Script','cursive'],
+  ['Lobster','cursive'],['Permanent Marker','cursive'],['Shadows Into Light','cursive'],['Caveat','cursive'],
+  ['Righteous','sans-serif'],['Fredoka','sans-serif'],['Bungee','sans-serif'],['Comfortaa','sans-serif'],
+  ['Playfair Display','serif'],['Merriweather','serif'],['Abril Fatface','serif'],['Amatic SC','sans-serif'],
+  ['Special Elite','monospace'],['VT323','monospace'],['Orbitron','sans-serif'],['Monoton','cursive'],
+  ['Creepster','cursive'],['Rubik Mono One','monospace'],['Zilla Slab','serif'],['Cinzel','serif'],
+  ['Cormorant Garamond','serif'],['Indie Flower','cursive'],['Satisfy','cursive'],['Great Vibes','cursive'],
+  ['Kalam','cursive'],['Patrick Hand','cursive'],['Sacramento','cursive'],['Handlee','cursive'],
+  ['Courgette','cursive'],['Yellowtail','cursive'],['Chewy','cursive'],['Luckiest Guy','cursive'],
+  ['Bebas Neue','sans-serif'],['Anton','sans-serif'],['Archivo Black','sans-serif'],['Alfa Slab One','serif'],
+  ['Fjalla One','sans-serif'],['Josefin Sans','sans-serif'],['Quicksand','sans-serif'],['Nunito','sans-serif'],
+  ['Raleway','sans-serif'],['Poppins','sans-serif'],['Oswald','sans-serif'],['Barlow Condensed','sans-serif'],
+  ['Exo 2','sans-serif'],['Staatliches','sans-serif']
+];
+const fontsList = [
+  { id:'Inter', name:'Inter (Default)', cost:0, family:"'Inter', sans-serif" },
+  ...fontDefs.map((f,i) => ({ id:`font_${i+1}`, name:f[0], cost:40+i*10, family:`'${f[0]}', ${f[1]}` }))
+];
+(function loadShopFonts(){
+  const link = document.getElementById('dynamicFontLink');
+  const families = fontDefs.map(f => `family=${f[0].replace(/ /g,'+')}:wght@400;700`).join('&');
+  link.href = `https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&${families}&display=swap`;
+})();
+
+const cardHueDefs = [
+  [350,'Rose'],[330,'Pink'],[300,'Fuchsia'],[270,'Purple'],[258,'Violet'],[243,'Indigo'],[217,'Blue'],
+  [199,'Sky'],[189,'Cyan'],[173,'Teal'],[152,'Emerald'],[142,'Green'],[84,'Lime'],[45,'Yellow'],[38,'Amber'],
+  [25,'Orange'],[0,'Red'],[30,'Sandstone'],[0,'Charcoal'],[230,'Zinc'],[218,'Slate'],[220,'Graphite']
+];
+const cardSkinsList = [ { id:'default_card', name:'Minimal (Default)', cost:0, hue:null, sat:0, bold:false } ];
+cardHueDefs.forEach(([hue,label],i) => {
+  const sat = (label==='Sandstone'||label==='Charcoal'||label==='Zinc'||label==='Slate'||label==='Graphite') ? 12 : 74;
+  cardSkinsList.push({ id:`card_soft_${i}`, name:`${label} Soft`, cost:55+i*10, hue, sat, bold:false });
+  cardSkinsList.push({ id:`card_bold_${i}`, name:`${label} Bold`, cost:90+i*10, hue, sat, bold:true });
+});
+const cardDuoDefs = [
+  ['Sunset Blaze',18,340],['Ocean Current',201,173],['Forest Canopy',142,158],
+  ['Galaxy Swirl',266,242],['Wildfire',0,26],['Glacier Ice',189,212]
+];
+cardDuoDefs.forEach(([name,h1,h2],i) => cardSkinsList.push({ id:`card_duo_${i+1}`, name, cost:500+i*20, hue:h1, hue2:h2, sat:76, bold:true, duo:true }));
+
+const shapeIconMap = { circle:'●', square:'■', diamond:'◆', triangle:'▲', ring:'◯', star:'★', heart:'♥' };
+const shapeTypes = ['circle','square','diamond','triangle','ring','star','heart'];
+const shapeColors = ['#f43f5e','#3b82f6','#10b981','#fbbf24','#8b5cf6','#ec4899','#14b8a6','#f97316','#6366f1','#84cc16','#06b6d4','#e11d48'];
+const shapeAdjectives = ['Blazing','Sparkling','Frosty','Electric','Mystic','Radiant','Cosmic','Glowing','Shimmering','Dazzling',
+  'Twinkling','Vivid','Luminous','Enchanted','Fiery','Icy','Golden','Silver','Neon','Velvet','Crystal','Stellar','Whimsical','Magical','Sunny'];
+const trailEmojis = ['🔥','⭐','💫','🌟','🎉','🌈','❄️','🍃','💧','⚡','🎈','🦋','🌸','💎','🎊','☄️','🌙','🍀','👑','🍬','🎵','🐝','🌺','🍭','✨'];
+const emojiEffectNames = ['Fire Trail','Star Shower','Comet Tail','Twinkle Streak','Confetti Burst','Rainbow Ribbon','Frost Breath',
+  'Leaf Flutter','Water Droplet','Lightning Zap','Balloon Float','Butterfly Flight','Petal Drift','Diamond Sparkle',
+  'Party Streamer','Shooting Star','Moonlight Glow','Lucky Clover','Royal Sparkle','Candy Sprinkle','Musical Note',
+  'Busy Bee','Flower Bloom','Sweet Swirl','Fairy Dust'];
+const trailsList = [
+  { id:'none', name:'No Trail (Default)', cost:0, renderType:'none' },
+  ...shapeAdjectives.map((adj,i) => {
+    const shape = shapeTypes[i % shapeTypes.length];
+    const label = shape.charAt(0).toUpperCase()+shape.slice(1);
+    return { id:`trail_shape_${i+1}`, name:`${adj} ${label} Trail`, cost:45+i*8, renderType:'shape', shape, color:shapeColors[i%shapeColors.length] };
+  }),
+  ...emojiEffectNames.map((name,i) => ({ id:`trail_emoji_${i+1}`, name:`${trailEmojis[i]} ${name}`, cost:60+i*8, renderType:'emoji', emoji:trailEmojis[i] }))
+];
+
+// ============================================================
+// INIT
+// ============================================================
+window.onload = async function(){
+  await loadBingoCacheFromFirestore();
+  testMode = appStorage.getItem('bingo_test_mode') === 'true';
+  loadStateFromStorage();
+  if (testMode){ tokens = 99999; document.getElementById('testModeToggle').checked = true; }
+  activeTab = 'bingo';
+  document.getElementById('showTimerToggle').checked = showTimer;
+  document.getElementById('showPageCounterToggle').checked = showPageCounter;
+  applyTimerVisibility(); applyPageCounterVisibility(); updateTokensUI();
+  applySkin(currentSkin); applyFont(currentFont);
+  renderBingoBoard(); renderRewards(); renderInventory();
+  renderSkins(); renderFonts(); renderCardSkins(); renderTrails();
+  setupCursorTrail();
+};
+
+function saveState(){
+  if (!testMode){
+    appStorage.setItem('bingo_tokens', tokens);
+    appStorage.setItem('bingo_inventory', JSON.stringify(inventory));
+    appStorage.setItem('bingo_tasks', JSON.stringify(tasks));
+    appStorage.setItem('bingo_cell_states', JSON.stringify(cellStates));
+  }
+}
+function updateTokensUI(){
+  const v = testMode ? '∞' : tokens;
+  document.getElementById('tokenCount').innerText = v;
+  document.getElementById('tokenCountMobile').innerText = v;
+}
+
+function toggleTestMode(event){
+  testMode = event.target.checked;
+  appStorage.setItem('bingo_test_mode', testMode);
+  if (testMode){ tokens = 99999; }
+  else {
+    loadStateFromStorage();
+    document.getElementById('showTimerToggle').checked = showTimer;
+    document.getElementById('showPageCounterToggle').checked = showPageCounter;
+    applyTimerVisibility(); applyPageCounterVisibility();
+    applySkin(currentSkin); applyFont(currentFont); applyCardSkin(currentCardSkin); applyTrail(currentTrail);
+    renderBingoBoard();
+  }
+  updateTokensUI(); renderInventory(); renderSkins(); renderFonts(); renderCardSkins(); renderTrails();
+}
+
+function promptManualTokenChange(){
+  if (testMode){ alert("Turn off Test Mode before manually editing your token balance."); return; }
+  const newAmt = parseInt(document.getElementById('manualTokenInput').value);
+  if (isNaN(newAmt) || newAmt < 0){ alert("Enter a valid positive token amount."); return; }
+  if (confirm(`Change your token balance to ${newAmt}?`)){
+    tokens = newAmt; saveState(); updateTokensUI();
+    document.getElementById('manualTokenInput').value = '';
+    showToast(`Token amount updated to ${tokens}.`);
+  }
+}
+
+function toggleShowTimer(e){ showTimer = e.target.checked; if(!testMode) appStorage.setItem('bingo_show_timer', showTimer); applyTimerVisibility(); }
+function applyTimerVisibility(){ document.getElementById('timerBar').style.display = showTimer ? 'flex' : 'none'; }
+function toggleShowPageCounter(e){ showPageCounter = e.target.checked; if(!testMode) appStorage.setItem('bingo_show_page_counter', showPageCounter); applyPageCounterVisibility(); }
+function applyPageCounterVisibility(){ document.getElementById('pageCounterBar').style.display = showPageCounter ? 'flex' : 'none'; }
+
+function startTimer(){
+  const mins = parseInt(document.getElementById('timerMinutes').value) || 25;
+  if (!timerRunning){ timeLeft = mins*60; timerRunning = true; }
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    if (timeLeft > 0){
+      timeLeft--;
+      const m = Math.floor(timeLeft/60), s = timeLeft%60;
+      document.getElementById('timerDisplay').innerText = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    } else {
+      clearInterval(timerInterval); timerRunning = false;
+      showToast("Timer finished! Great work.");
+    }
+  }, 1000);
+}
+function stopTimer(){
+  if (timerInterval) clearInterval(timerInterval);
+  timerRunning = false;
+  const mins = parseInt(document.getElementById('timerMinutes').value) || 25;
+  timeLeft = mins*60;
+  const m = Math.floor(timeLeft/60), s = timeLeft%60;
+  document.getElementById('timerDisplay').innerText = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function initPageCounter(){
+  let start = parseInt(document.getElementById('startPageInput').value) || 0;
+  let end = parseInt(document.getElementById('endPageInput').value) || 0;
+  if (start > end){ alert("Start page must be less than or equal to end page."); return; }
+  currentPage = start; endPage = end; updatePageDisplay();
+  showToast("Page goal set.");
+}
+function incrementPage(){
+  if (endPage === 0 || currentPage >= endPage) return;
+  currentPage++; updatePageDisplay();
+  if (currentPage >= endPage) showToast("Page goal reached! Outstanding work.");
+}
+function updatePageDisplay(){ document.getElementById('pageCounterDisplay').innerText = `${currentPage} / ${endPage}`; }
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+const TAB_META = {
+  bingo:{ title:'Bingo Board', sub:'Complete lines, earn tokens, unlock rewards.' },
+  shop:{ title:'Shop', sub:'Spend tokens on rewards, themes, fonts, and more.' },
+  inventory:{ title:'Inventory', sub:"Rewards you've purchased, ready to redeem." },
+  settings:{ title:'Settings', sub:'Configure widgets, tasks, and test features.' }
+};
+function switchTab(tab){
+  activeTab = tab;
+  ['bingo','shop','inventory','settings'].forEach(t => {
+    document.getElementById(`section${cap(t)}`).classList.toggle('active', t===tab);
+    document.getElementById(`nav${cap(t)}`).classList.toggle('active', t===tab);
+    document.getElementById(`nav${cap(t)}M`).classList.toggle('active', t===tab);
+  });
+  document.getElementById('pageTitle').innerText = TAB_META[tab].title;
+  document.getElementById('pageSubtitle').innerText = TAB_META[tab].sub;
+}
+function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+
+function switchShopTab(subTab){
+  const subs = ['rewards','themes','fonts','cards','trails'];
+  subs.forEach(s => {
+    document.getElementById(`subSection${cap(s)}`).style.display = (s===subTab) ? 'block' : 'none';
+    document.getElementById(`shopTab${cap(s)}`).classList.toggle('active', s===subTab);
+  });
+}
+
+// ============================================================
+// TASK GENERATORS
+// ============================================================
+function generateHealthReadingTasks(){
+  let hCount = parseInt(document.getElementById('healthCountInput').value) || 5;
+  let rCount = parseInt(document.getElementById('readingCountInput').value) || 11;
+  appStorage.setItem('bingo_health_count', hCount);
+  appStorage.setItem('bingo_reading_count', rCount);
+  
+  let h = [...healthDatabase].sort(() => Math.random()-0.5).slice(0, hCount);
+  let r = [...readingDatabase].sort(() => Math.random()-0.5).slice(0, rCount);
+  return [...h, ...r].sort(() => Math.random()-0.5);
+}
+function generateRandomHealthReadingBoard(){
+  tasks = generateHealthReadingTasks(); cellStates = Array(tasks.length).fill(0);
+  completedLines.clear(); isCompact3x3Active = false;
+  renderBingoBoard(); saveState(); switchTab('bingo');
+  showToast("New Health & Reading board generated.");
+}
+function randomizeTasks(){
+  tasks = tasks.sort(() => Math.random()-0.5); cellStates = Array(tasks.length).fill(0);
+  completedLines.clear(); renderBingoBoard(); saveState();
+}
+function loadDefaultTasks(){ tasks = generateHealthReadingTasks(); isCompact3x3Active = false; randomizeTasks(); switchTab('bingo'); }
+function loadFromText(){
+  const val = document.getElementById('textInput').value.trim();
+  if (!val){ alert('Please enter some tasks.'); return; }
+  const lines = val.split('\n').map(l => l.trim()).filter(l => l.length>0);
+  const req = isCompact3x3Active ? 9 : 16;
+  if (lines.length < req){ alert(`Please provide at least ${req} tasks for this grid layout.`); return; }
+  tasks = lines.slice(0, req); randomizeTasks(); switchTab('bingo');
+}
+function loadFromJSON(event){
+  const file = event.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      const data = JSON.parse(e.target.result);
+      let imported = Array.isArray(data) ? data : (data.tasks || []);
+      const req = isCompact3x3Active ? 9 : 16;
+      if (imported.length < req){ alert(`JSON must contain an array of at least ${req} task strings.`); return; }
+      tasks = imported.slice(0, req); randomizeTasks(); switchTab('bingo');
+    } catch(err){ alert('Invalid JSON file format.'); }
+  };
+  reader.readAsText(file);
+}
+
+// ============================================================
+// BINGO BOARD
+// ============================================================
+function renderBingoBoard(){
+  const container = document.getElementById('bingoGridContainer');
+  container.innerHTML = '';
+  const cols = isCompact3x3Active ? 3 : 4;
+  const target = cols*cols;
+  if (tasks.length < target){ while (tasks.length < target) tasks.push("Extra Task "+(tasks.length+1)); }
+  if (cellStates.length !== target){ cellStates = Array(target).fill(0); }
+
+  const grid = document.createElement('div');
+  grid.className = `bingo-grid cols-${cols}`;
+
+  const skin = cardSkinsList.find(s => s.id===currentCardSkin) || cardSkinsList[0];
+
+  tasks.slice(0, target).forEach((task, index) => {
+    const state = cellStates[index];
+    const cell = document.createElement('div');
+    cell.className = `cell state-${state}`;
+    cell.innerText = task;
+    cell.title = 'Click to mark in progress / complete • Long-press to edit';
+    if (state === 0){
+      if (skin.hue !== null && skin.hue !== undefined){
+        if (skin.bold){
+          cell.style.background = `hsl(${skin.hue} ${skin.sat}% 50%)`;
+          if (skin.duo) cell.style.background = `linear-gradient(135deg, hsl(${skin.hue} ${skin.sat}% 48%), hsl(${skin.hue2} ${skin.sat}% 42%))`;
+          cell.style.borderColor = `hsl(${skin.hue} ${skin.sat}% 38%)`;
+          cell.style.color = '#fff';
+        } else {
+          cell.style.background = `hsl(${skin.hue} ${skin.sat}% 95%)`;
+          cell.style.borderColor = `hsl(${skin.hue} ${skin.sat}% 75%)`;
+          cell.style.color = 'var(--ink)';
+        }
+      }
+    }
+    attachCellInteractions(cell, index);
+    grid.appendChild(cell);
+  });
+  container.appendChild(grid);
+}
+
+function attachCellInteractions(cell, index){
+  let pressTimer = null, longPressFired = false;
+  const startPress = () => { longPressFired = false; pressTimer = setTimeout(() => { longPressFired = true; openTaskEditor(index); }, 550); };
+  const cancelPress = () => { if (pressTimer) clearTimeout(pressTimer); };
+  cell.addEventListener('mousedown', startPress);
+  cell.addEventListener('mouseup', cancelPress);
+  cell.addEventListener('mouseleave', cancelPress);
+  cell.addEventListener('touchstart', startPress, { passive:true });
+  cell.addEventListener('touchend', cancelPress);
+  cell.addEventListener('touchmove', cancelPress);
+  cell.addEventListener('contextmenu', e => e.preventDefault());
+  cell.addEventListener('click', () => { if (longPressFired){ longPressFired = false; return; } toggleCell(index); });
+}
+function toggleCell(index){
+  cellStates[index] = (cellStates[index]+1) % 3;
+  renderBingoBoard(); checkBingoLines(); saveState();
+}
+
+function openTaskEditor(index){
+  _editingTaskIndex = index;
+  openMinigame(`
+    <h3>Edit Task</h3>
+    <p class="m-desc">Editing a task pulled from the saved database updates it permanently for future boards too.</p>
+    <textarea id="taskEditInput" rows="3" style="width:100%;margin-bottom:14px;"></textarea>
+    <div style="display:flex;gap:8px;">
+      <button onclick="saveTaskEdit()" class="btn btn-primary btn-block">Save</button>
+      <button onclick="closeMinigame()" class="btn btn-secondary btn-block">Cancel</button>
+    </div>
+  `);
+  setTimeout(() => {
+    const ta = document.getElementById('taskEditInput');
+    if (ta && _editingTaskIndex !== null){ ta.value = tasks[_editingTaskIndex]; ta.focus(); }
+  }, 30);
+}
+function saveTaskEdit(){
+  const ta = document.getElementById('taskEditInput');
+  if (!ta || _editingTaskIndex === null){ closeMinigame(); return; }
+  const newText = ta.value.trim();
+  if (!newText){ closeMinigame(); return; }
+  const oldText = tasks[_editingTaskIndex];
+  tasks[_editingTaskIndex] = newText;
+  let permanent = false;
+  const hIdx = healthDatabase.indexOf(oldText);
+  if (hIdx !== -1){ healthDatabase[hIdx] = newText; if(!testMode) appStorage.setItem('bingo_health_db_overrides', JSON.stringify(healthDatabase)); permanent = true; }
+  const rIdx = readingDatabase.indexOf(oldText);
+  if (rIdx !== -1){ readingDatabase[rIdx] = newText; if(!testMode) appStorage.setItem('bingo_reading_db_overrides', JSON.stringify(readingDatabase)); permanent = true; }
+  renderBingoBoard(); saveState(); closeMinigame();
+  showToast(permanent ? "Task updated & saved permanently to the database." : "Task updated.");
+  _editingTaskIndex = null;
+}
+
+function checkBingoLines(){
+  const n = isCompact3x3Active ? 3 : 4;
+  const lines = [];
+  for (let r=0;r<n;r++){ let row=[]; for(let c=0;c<n;c++) row.push(r*n+c); lines.push(row); }
+  for (let c=0;c<n;c++){ let col=[]; for(let r=0;r<n;r++) col.push(r*n+c); lines.push(col); }
+  let d1=[], d2=[];
+  for (let i=0;i<n;i++){ d1.push(i*n+i); d2.push(i*n+(n-1-i)); }
+  lines.push(d1,d2);
+  lines.forEach((line, idx) => {
+    if (line.every(i => cellStates[i]===2) && !completedLines.has(idx)){ completedLines.add(idx); triggerBingoWin(); }
+  });
+}
+function triggerBingoWin(){
+  let won = 0; const roll = Math.random();
+  if (roll < 0.01){ won = Math.floor(Math.random()*51)+50; showToast(`JACKPOT BINGO! Won +${won} tokens!`); }
+  else { won = Math.floor(Math.random()*20)+1; showToast(`Bingo line complete! Won +${won} tokens!`); }
+  if (!testMode){ tokens += won; updateTokensUI(); saveState(); }
+}
+
+// ============================================================
+// TOAST + MODAL
+// ============================================================
+function showToast(message){
+  const box = document.createElement('div');
+  box.className = 'toast';
+  box.style.animation = 'toastIn .25s ease';
+  box.innerText = message;
+  document.body.appendChild(box);
+  setTimeout(() => box.remove(), 3200);
+}
+function openMinigame(innerHtml){
+  document.getElementById('minigameModalContent').innerHTML = innerHtml;
+  document.getElementById('minigameModal').classList.add('show');
+}
+function closeMinigame(){
+  document.getElementById('minigameModal').classList.remove('show');
+  document.getElementById('minigameModalContent').innerHTML = '';
+}
+
+// ============================================================
+// REWARDS / INVENTORY
+// ============================================================
+function renderRewards(){
+  const grid = document.getElementById('rewardsGrid');
+  grid.innerHTML = '';
+  baseRewardsList.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'tile';
+    card.innerHTML = `
+      <div class="tile-icon">${item.icon}</div>
+      <div class="tile-name">${item.name}</div>
+      <div class="tile-desc">${item.desc}</div>
+      <div class="tile-foot">
+        <span class="price">${item.cost} tk</span>
+        <button onclick="buyReward('${item.id}', ${item.cost})" class="btn btn-primary">Purchase</button>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+function buyReward(id, cost){
+  if (!testMode && tokens < cost){ alert('Not enough tokens! Complete bingo lines to earn more.'); return; }
+  if (!testMode){ tokens -= cost; updateTokensUI(); }
+  const ref = baseRewardsList.find(r => r.id===id);
+  inventory.push({ ...ref, uuid: Date.now()+Math.random() });
+  saveState(); updateTokensUI(); renderInventory();
+  showToast(`Purchased "${ref.name}" — stored in your Inventory.`);
+}
+function renderInventory(){
+  const grid = document.getElementById('inventoryGrid');
+  grid.innerHTML = '';
+  if (inventory.length === 0){
+    grid.innerHTML = `<p style="color:var(--ink-soft);font-size:13px;grid-column:1/-1;">Your inventory is empty. Purchase rewards from the shop.</p>`;
+    return;
+  }
+  inventory.forEach((item, idx) => {
+    const card = document.createElement('div');
+    card.className = 'tile';
+    card.innerHTML = `
+      <div class="tile-icon">${item.icon}</div>
+      <div class="tile-name">${item.name}</div>
+      <div class="tile-desc">${item.desc}</div>
+      <button onclick="redeemInventoryItem(${idx}, '${item.id}')" class="btn btn-success btn-block">Redeem / Use</button>`;
+    grid.appendChild(card);
+  });
+}
+function redeemInventoryItem(index, id){
+  inventory.splice(index, 1); saveState(); renderInventory();
+  switch(id){
+    case 'scratch_ticket': launchScratchTicket(); break;
+    case 'task_skip': launchTaskSkipGame(); break;
+    case 'mystery_box': launchLootBox(); break;
+    case 'shuffle_pass': launchShufflePass(); break;
+    case 'slot_spin': launchSlotMachine(); break;
+    case 'grid_resizer': launchGridResizer(); break;
+    case 'shekel_coupon': showToast("5 Shekel Coupon redeemed! Added to your fun budget."); break;
+    default: showToast(`Redeemed: ${baseRewardsList.find(r => r.id===id).name}`);
+  }
+}
+
+// ============================================================
+// MINI-GAMES
+// ============================================================
+function launchScratchTicket(){
+  const prize = Math.floor(Math.random()*100)+1;
+  openMinigame(`
+    <h3>Mystery Scratch Ticket</h3>
+    <p class="m-desc">Scratch the surface with your mouse or finger to reveal your prize.</p>
+    <div style="position:relative;width:100%;height:150px;border-radius:12px;overflow:hidden;border:1px solid var(--border);margin-bottom:14px;">
+      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;background:var(--accent-soft);">+${prize} Tokens</div>
+      <canvas id="scratchCanvas" width="400" height="150" style="position:absolute;inset:0;width:100%;height:100%;cursor:pointer;"></canvas>
+    </div>
+    <p id="scratchStatus" style="font-size:11.5px;text-align:center;color:var(--ink-soft);margin:0 0 12px;">Keep scratching...</p>
+    <button onclick="closeMinigame()" class="btn btn-secondary btn-block">Close</button>
+  `);
+  setTimeout(() => setupScratchCanvas(prize), 50);
+}
+function setupScratchCanvas(prize){
+  const canvas = document.getElementById('scratchCanvas'); if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#B9BCC4'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 18px Inter, sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('Scratch Here', canvas.width/2, canvas.height/2);
+  let scratching = false, claimed = false;
+  function scratchAt(x,y){ ctx.globalCompositeOperation = 'destination-out'; ctx.beginPath(); ctx.arc(x,y,18,0,Math.PI*2); ctx.fill(); }
+  function getPos(e){
+    const rect = canvas.getBoundingClientRect();
+    const cx = e.touches ? e.touches[0].clientX : e.clientX, cy = e.touches ? e.touches[0].clientY : e.clientY;
+    return { x:(cx-rect.left)*(canvas.width/rect.width), y:(cy-rect.top)*(canvas.height/rect.height) };
+  }
+  function checkRevealed(){
+    if (claimed) return;
+    const data = ctx.getImageData(0,0,canvas.width,canvas.height).data;
+    let clear=0, total=0;
+    for (let i=3;i<data.length;i+=4*20){ total++; if (data[i]===0) clear++; }
+    if (clear/total > 0.5){
+      claimed = true;
+      const el = document.getElementById('scratchStatus'); if (el) el.innerText = 'Revealed!';
+      if (!testMode){ tokens += prize; updateTokensUI(); saveState(); }
+      showToast(`Scratch ticket result: you won ${prize} tokens!`);
+    }
+  }
+  canvas.addEventListener('mousedown', e => { scratching = true; const p = getPos(e); scratchAt(p.x,p.y); });
+  canvas.addEventListener('mousemove', e => { if (scratching){ const p = getPos(e); scratchAt(p.x,p.y); checkRevealed(); } });
+  window.addEventListener('mouseup', () => scratching = false);
+  canvas.addEventListener('touchstart', e => { scratching = true; const p = getPos(e); scratchAt(p.x,p.y); }, { passive:true });
+  canvas.addEventListener('touchmove', e => { const p = getPos(e); scratchAt(p.x,p.y); checkRevealed(); }, { passive:true });
+  canvas.addEventListener('touchend', () => scratching = false);
+}
+
+function launchTaskSkipGame(){
+  const uncompleted = tasks.map((t,i) => ({t,i})).filter(o => cellStates[o.i] !== 2);
+  if (uncompleted.length === 0){
+    openMinigame(`<h3>Task Skip Pass</h3><p class="m-desc">All your tasks are already complete!</p><button onclick="closeMinigame()" class="btn btn-secondary btn-block">Close</button>`);
+    return;
+  }
+  const options = uncompleted.map(o => `<button onclick="confirmTaskSkip(${o.i})" class="list-btn" style="margin-bottom:6px;">${o.t}</button>`).join('');
+  openMinigame(`
+    <h3>Task Skip Pass</h3>
+    <p class="m-desc">Pick the task you'd like to skip instantly.</p>
+    <div style="max-height:260px;overflow-y:auto;margin-bottom:14px;">${options}</div>
+    <button onclick="closeMinigame()" class="btn btn-secondary btn-block">Cancel</button>
+  `);
+}
+function confirmTaskSkip(index){
+  cellStates[index] = 2; closeMinigame(); renderBingoBoard(); checkBingoLines(); saveState(); switchTab('bingo');
+  showToast("Task Skip Pass used — task marked complete.");
+}
+
+function launchLootBox(){
+  openMinigame(`
+    <h3>Mystery Loot Box</h3>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
+      <div id="lootBoxIcon" style="font-size:56px;transition:transform .12s ease;">📦</div>
+      <button id="lootBoxOpenBtn" onclick="openLootBox()" class="btn btn-primary">Open Box</button>
+      <p id="lootBoxResult" style="font-size:13px;font-weight:700;text-align:center;min-height:20px;margin:0;"></p>
+      <button onclick="closeMinigame()" class="btn btn-secondary btn-block">Close</button>
+    </div>
+  `);
+}
+function openLootBox(){
+  const icon = document.getElementById('lootBoxIcon'), btn = document.getElementById('lootBoxOpenBtn');
+  btn.disabled = true; let shakes = 0;
+  const iv = setInterval(() => {
+    icon.style.transform = `translateX(${shakes%2===0?'-8px':'8px'}) rotate(${shakes%2===0?'-8deg':'8deg'})`;
+    shakes++;
+    if (shakes > 10){
+      clearInterval(iv); icon.style.transform = 'none'; icon.innerText = '🎁';
+      const roll = Math.random(); let res = '';
+      if (roll < 0.2){ res = "Empty box — gamble lost."; }
+      else if (roll < 0.5){ const w = Math.floor(Math.random()*50)+10; if(!testMode){tokens+=w;updateTokensUI();saveState();} res = `Small haul! Won +${w} tokens.`; }
+      else if (roll < 0.8){ res = "Bonus Task: drink a cup of water — take 50 tokens!"; if(!testMode){tokens+=50;updateTokensUI();saveState();} }
+      else { const w = Math.floor(Math.random()*200)+150; if(!testMode){tokens+=w;updateTokensUI();saveState();} res = `Massive jackpot! Won +${w} tokens!`; }
+      document.getElementById('lootBoxResult').innerText = res; showToast(res);
+    }
+  }, 100);
+}
+
+function launchShufflePass(){
+  closeMinigame();
+  const idxs = []; tasks.forEach((_,i) => { if (cellStates[i] !== 2) idxs.push(i); });
+  if (idxs.length < 2){ showToast("Not enough uncompleted tasks to shuffle."); return; }
+  const cells = document.querySelectorAll('.bingo-grid > div');
+  idxs.forEach(i => cells[i].style.opacity = '0');
+  setTimeout(() => {
+    const ts = idxs.map(i => tasks[i]), sts = idxs.map(i => cellStates[i]);
+    for (let i=ts.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [ts[i],ts[j]]=[ts[j],ts[i]]; [sts[i],sts[j]]=[sts[j],sts[i]]; }
+    idxs.forEach((idx,i) => { tasks[idx]=ts[i]; cellStates[idx]=sts[i]; });
+    renderBingoBoard(); saveState(); switchTab('bingo'); showToast("Board successfully shuffled.");
+  }, 350);
+}
+
+function launchSlotMachine(){
+  openMinigame(`
+    <h3>Slot Machine Spin</h3>
+    <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:18px;background:var(--surface-2);padding:16px;border-radius:12px;border:1px solid var(--border);font-size:34px;">
+      <span id="slot1">❓</span><span id="slot2">❓</span><span id="slot3">❓</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button id="slotSpinBtn" onclick="spinSlots()" class="btn btn-primary btn-block">Pull Lever</button>
+      <p id="slotResult" style="font-size:12.5px;font-weight:700;text-align:center;min-height:20px;color:var(--ink-soft);margin:0;"></p>
+      <button onclick="closeMinigame()" class="btn btn-secondary btn-block">Close</button>
+    </div>
+  `);
+}
+function spinSlots(){
+  const btn = document.getElementById('slotSpinBtn'); btn.disabled = true;
+  document.getElementById('slotResult').innerText = "Spinning...";
+  const symbols = ['💎','🍒','🔔','🍀','7️⃣']; const rnd = () => symbols[Math.floor(Math.random()*symbols.length)];
+  let ticks = 0;
+  const iv = setInterval(() => {
+    document.getElementById('slot1').innerText = rnd(); document.getElementById('slot2').innerText = rnd(); document.getElementById('slot3').innerText = rnd();
+    ticks++;
+    if (ticks > 15){
+      clearInterval(iv);
+      const s1=rnd(), s2=rnd(), s3=rnd();
+      document.getElementById('slot1').innerText = s1; document.getElementById('slot2').innerText = s2; document.getElementById('slot3').innerText = s3;
+      if (s1===s2 && s2===s3){
+        const win = s1==='7️⃣' ? 300 : 150; if(!testMode){tokens+=win;updateTokensUI();saveState();}
+        document.getElementById('slotResult').innerText = `JACKPOT! 3x ${s1} — won +${win} tokens!`;
+        showToast(`Jackpot win: +${win} tokens!`);
+      } else if (s1===s2 || s2===s3 || s1===s3){
+        const win = 40; if(!testMode){tokens+=win;updateTokensUI();saveState();}
+        document.getElementById('slotResult').innerText = `Mini win — two matching symbols! Won +${win} tokens.`;
+        showToast(`Mini win: +${win} tokens!`);
+      } else {
+        document.getElementById('slotResult').innerText = "No match. Better luck next time!";
+        showToast("Spin complete — no match.");
+      }
+      btn.disabled = false;
+    }
+  }, 80);
+}
+
+function launchGridResizer(){
+  closeMinigame();
+  if (isCompact3x3Active){ showToast("Board is already compacted to 3x3."); return; }
+  isCompact3x3Active = true; tasks = tasks.slice(0,9); cellStates = cellStates.slice(0,9);
+  completedLines.clear(); renderBingoBoard(); saveState(); switchTab('bingo');
+  showToast("Board resized to a speedy 3x3 layout.");
+}
+
+// ============================================================
+// THEMES
+// ============================================================
+function hexToRgb(hex){
+  const h = hex.replace('#','');
+  const full = h.length===3 ? h.split('').map(c=>c+c).join('') : h;
+  const n = parseInt(full,16);
+  return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
+}
+function shade(hex, amt){
+  const { r,g,b } = hexToRgb(hex);
+  const t = amt < 0 ? 0 : 255, p = Math.abs(amt);
+  const mix = (c) => Math.round(c + (t - c) * p);
+  return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
+}
+function themeBg(t){
+  if (t.type === 'solid') return t.colors[0];
+  if (t.type === 'rainbow') return `conic-gradient(from 180deg, ${t.colors.join(', ')}, ${t.colors[0]})`;
+  return `linear-gradient(135deg, ${t.colors.join(', ')})`;
+}
+function themeTagLabel(t){
+  return t.type === 'duo' ? 'Gradient' : t.type === 'trio' ? 'Multi' : t.type === 'rainbow' ? 'Rainbow' : '';
+}
+
+function mixHex(hexA, hexB, amt){
+  const a = hexToRgb(hexA), b = hexToRgb(hexB);
+  const m = (x,y) => Math.round(x + (y-x) * amt);
+  return `rgb(${m(a.r,b.r)}, ${m(a.g,b.g)}, ${m(a.b,b.b)})`;
+}
+function buildWash(colors){
+  const positions = {
+    3: ['18% 18%','85% 12%','50% 92%'],
+    5: ['12% 18%','85% 12%','15% 88%','88% 82%','50% 48%']
+  };
+  const pos = positions[colors.length] || positions[3];
+  return colors.map((c,i) => `radial-gradient(circle at ${pos[i % pos.length]}, ${c}3D, transparent 45%)`).join(', ');
+}
+
+function applySkin(id){
+  currentSkin = id;
+  if (!testMode) appStorage.setItem('bingo_skin', id);
+  const t = skinPalettes.find(s => s.id===id) || skinPalettes[0];
+  const base = t.colors[0];
+  document.documentElement.style.setProperty('--accent', base);
+  document.documentElement.style.setProperty('--accent-bg', themeBg(t));
+  document.documentElement.style.setProperty('--accent-ink', t.ink);
+  document.documentElement.style.setProperty('--accent-strong', shade(base, t.dark ? 0.18 : -0.22));
+  document.documentElement.style.setProperty('--accent-soft', shade(base, t.dark ? -0.55 : 0.85));
+  document.getElementById('appBody').classList.toggle('dark-canvas', t.dark);
+
+  const canvasBase = t.dark ? '#17161A' : '#F4EEE1';
+  const tintSource = t.tintColor || base;
+  const tintAmt = t.bgTint !== undefined ? t.bgTint : 0.14;
+  const appBody = document.getElementById('appBody');
+  appBody.style.setProperty('--bg', mixHex(canvasBase, tintSource, tintAmt));
+  appBody.style.setProperty('--bg-wash', (t.type === 'trio' || t.type === 'rainbow') ? buildWash(t.colors) : 'none');
+
+  renderSkins();
+}
+function buySkin(id, cost){
+  if (!testMode && tokens < cost){ alert('Not enough tokens!'); return; }
+  if (!testMode){ tokens -= cost; updateTokensUI(); }
+  unlockedSkins.push(id);
+  if (!testMode) appStorage.setItem('bingo_unlocked_skins', JSON.stringify(unlockedSkins));
+  applySkin(id);
+  showToast(`Unlocked & applied theme: ${skinPalettes.find(s=>s.id===id).name}`);
+}
+function renderSkins(){
+  const grid = document.getElementById('skinsGrid'); if (!grid) return; grid.innerHTML = '';
+  skinPalettes.forEach(s => {
+    const unlocked = unlockedSkins.includes(s.id), active = currentSkin === s.id;
+    const card = document.createElement('div');
+    card.className = 'tile swatch-tile' + (active ? ' equipped' : '');
+    let btn = active ? `<button class="btn btn-active btn-block">Active</button>`
+      : unlocked ? `<button onclick="applySkin('${s.id}')" class="btn btn-primary btn-block">Equip</button>`
+      : `<button onclick="buySkin('${s.id}', ${s.cost})" class="btn btn-secondary btn-block">${s.cost} tk</button>`;
+    const tag = themeTagLabel(s);
+    card.innerHTML = `
+      <div class="swatch-block" style="background:${themeBg(s)};">${tag ? `<span class="theme-tag">${tag}</span>` : ''}</div>
+      <span class="swatch-label" title="${s.name}">${s.name}</span>
+      ${btn}`;
+    grid.appendChild(card);
+  });
+}
+
+// ============================================================
+// FONTS
+// ============================================================
+function applyFont(id){
+  currentFont = id;
+  if (!testMode) appStorage.setItem('bingo_font', id);
+  const f = fontsList.find(x => x.id===id) || fontsList[0];
+  document.documentElement.style.setProperty('--active-font', f.family);
+  renderFonts();
+}
+function buyFont(id, cost){
+  if (!testMode && tokens < cost){ alert('Not enough tokens!'); return; }
+  if (!testMode){ tokens -= cost; updateTokensUI(); }
+  unlockedFonts.push(id);
+  if (!testMode) appStorage.setItem('bingo_unlocked_fonts', JSON.stringify(unlockedFonts));
+  applyFont(id);
+  showToast(`Unlocked & applied font: ${fontsList.find(f=>f.id===id).name}`);
+}
+function renderFonts(){
+  const grid = document.getElementById('fontsGrid'); if (!grid) return; grid.innerHTML = '';
+  fontsList.forEach(f => {
+    const unlocked = unlockedFonts.includes(f.id), active = currentFont === f.id;
+    const card = document.createElement('div');
+    card.className = 'tile font-tile' + (active ? ' equipped' : '');
+    let btn = active ? `<button class="btn btn-active">Active</button>`
+      : unlocked ? `<button onclick="applyFont('${f.id}')" class="btn btn-primary">Equip</button>`
+      : `<button onclick="buyFont('${f.id}', ${f.cost})" class="btn btn-secondary">${f.cost} tk</button>`;
+    card.innerHTML = `
+      <div class="font-sample" style="font-family:${f.family};">${f.name}</div>
+      ${btn}`;
+    grid.appendChild(card);
+  });
+}
+
+// ============================================================
+// CARD STYLES
+// ============================================================
+function applyCardSkin(id){
+  currentCardSkin = id;
+  if (!testMode) appStorage.setItem('bingo_card_skin', id);
+  renderBingoBoard(); renderCardSkins();
+}
+function buyCardSkin(id, cost){
+  if (!testMode && tokens < cost){ alert('Not enough tokens!'); return; }
+  if (!testMode){ tokens -= cost; updateTokensUI(); }
+  unlockedCardSkins.push(id);
+  if (!testMode) appStorage.setItem('bingo_unlocked_card_skins', JSON.stringify(unlockedCardSkins));
+  applyCardSkin(id);
+  showToast(`Unlocked & applied card style: ${cardSkinsList.find(s=>s.id===id).name}`);
+}
+function renderCardSkins(){
+  const grid = document.getElementById('cardSkinsGrid'); if (!grid) return; grid.innerHTML = '';
+  cardSkinsList.forEach(s => {
+    const unlocked = unlockedCardSkins.includes(s.id), active = currentCardSkin === s.id;
+    const card = document.createElement('div');
+    card.className = 'tile swatch-tile' + (active ? ' equipped' : '');
+    let btn = active ? `<button class="btn btn-active btn-block">Active</button>`
+      : unlocked ? `<button onclick="applyCardSkin('${s.id}')" class="btn btn-primary btn-block">Equip</button>`
+      : `<button onclick="buyCardSkin('${s.id}', ${s.cost})" class="btn btn-secondary btn-block">${s.cost} tk</button>`;
+    
+    let previewStyle = '';
+    if (s.hue !== null && s.hue !== undefined){
+      if (s.bold){
+        if (s.duo) previewStyle = `background:linear-gradient(135deg, hsl(${s.hue} ${s.sat}% 48%), hsl(${s.hue2} ${s.sat}% 42%)); border-color:hsl(${s.hue} ${s.sat}% 38%);`;
+        else previewStyle = `background:hsl(${s.hue} ${s.sat}% 50%); border-color:hsl(${s.hue} ${s.sat}% 38%);`;
+      } else {
+        previewStyle = `background:hsl(${s.hue} ${s.sat}% 95%); border-color:hsl(${s.hue} ${s.sat}% 75%);`;
+      }
+    } else {
+      previewStyle = `background:var(--surface); border-color:var(--border);`;
+    }
+
+    card.innerHTML = `
+      <div class="card-preview${s.bold?' bold':''}" style="${previewStyle}"></div>
+      <span class="swatch-label" title="${s.name}">${s.name}</span>
+      ${btn}`;
+    grid.appendChild(card);
+  });
+}
+
+// ============================================================
+// CURSOR TRAILS
+// ============================================================
+function applyTrail(id){
+  currentTrail = id;
+  if (!testMode) appStorage.setItem('bingo_trail', id);
+  renderTrails();
+}
+function buyTrail(id, cost){
+  if (!testMode && tokens < cost){ alert('Not enough tokens!'); return; }
+  if (!testMode){ tokens -= cost; updateTokensUI(); }
+  unlockedTrails.push(id);
+  if (!testMode) appStorage.setItem('bingo_unlocked_trails', JSON.stringify(unlockedTrails));
+  applyTrail(id);
+  showToast(`Unlocked & applied cursor trail: ${trailsList.find(t=>t.id===id).name}`);
+}
+function renderTrails(){
+  const grid = document.getElementById('trailsGrid'); if (!grid) return; grid.innerHTML = '';
+  trailsList.forEach(t => {
+    const unlocked = unlockedTrails.includes(t.id), active = currentTrail === t.id;
+    const card = document.createElement('div');
+    card.className = 'tile trail-tile' + (active ? ' equipped' : '');
+    let btn = active ? `<button class="btn btn-active btn-block">Active</button>`
+      : unlocked ? `<button onclick="applyTrail('${t.id}')" class="btn btn-primary btn-block">Equip</button>`
+      : `<button onclick="buyTrail('${t.id}', ${t.cost})" class="btn btn-secondary btn-block">${t.cost} tk</button>`;
+    
+    let iconHTML = '∅';
+    if (t.renderType === 'shape'){
+      iconHTML = `<span style="color:${t.color};font-size:18px;">${shapeIconMap[t.shape]}</span>`;
+    } else if (t.renderType === 'emoji'){
+      iconHTML = `<span style="font-size:18px;">${t.emoji}</span>`;
+    }
+    card.innerHTML = `
+      <div class="trail-icon-wrap" style="background:var(--surface-2);border-radius:8px;border:1px solid var(--border);">${iconHTML}</div>
+      <span class="swatch-label" title="${t.name}">${t.name}</span>
+      ${btn}`;
+    grid.appendChild(card);
+  });
+}
+
+function setupCursorTrail(){
+  let lastX = 0, lastY = 0, throttle = 0;
+  window.addEventListener('mousemove', e => {
+    if (currentTrail === 'none') return;
+    const now = Date.now();
+    if (now - throttle < 55) return;
+    throttle = now;
+    if (Math.abs(e.clientX - lastX) < 12 && Math.abs(e.clientY - lastY) < 12) return;
+    lastX = e.clientX; lastY = e.clientY;
+
+    const trailObj = trailsList.find(t => t.id === currentTrail);
+    if (!trailObj) return;
+
+    const p = document.createElement('div');
+    p.className = 'trail-particle';
+    p.style.left = (e.clientX + (Math.random()*10 - 5)) + 'px';
+    p.style.top = (e.clientY + (Math.random()*10 - 5)) + 'px';
+
+    if (trailObj.renderType === 'shape'){
+      p.style.color = trailObj.color;
+      p.innerText = shapeIconMap[trailObj.shape] || '●';
+    } else if (trailObj.renderType === 'emoji'){
+      p.innerText = trailObj.emoji;
+    }
+    document.body.appendChild(p);
+
+    let op = 1, ty = 0;
+    const anim = setInterval(() => {
+      op -= 0.08; ty -= 3;
+      p.style.opacity = op;
+      p.style.transform = `translateY(${ty}px) scale(${op})`;
+      if (op <= 0){ clearInterval(anim); p.remove(); }
+    }, 35);
+  });
+}
+</script>
+</body>
+</html>
