@@ -347,6 +347,77 @@
         margin-bottom: 15px;
     }
 
+    /* Spins Complete Congrats Modal */
+    #congrats-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: rgba(0, 0, 0, 0.65);
+        backdrop-filter: blur(6px);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 99999;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+    }
+
+    #congrats-modal.active {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .congrats-card {
+        background: rgba(255, 255, 255, 0.95);
+        padding: 45px 50px;
+        border-radius: 20px;
+        border: 2px solid var(--border-color);
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+        text-align: center;
+        max-width: 500px;
+        width: 90%;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        transform: scale(0.9);
+        transition: transform 0.3s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+    }
+
+    #congrats-modal.active .congrats-card {
+        transform: scale(1);
+    }
+
+    .congrats-badge {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        padding: 6px 14px;
+        border-radius: 20px;
+        color: #ffffff;
+        background: linear-gradient(135deg, #a259ff, #ff6b6b, #ffd700);
+    }
+
+    .congrats-message {
+        font-size: 26px;
+        font-weight: 800;
+        color: var(--text-color);
+        line-height: 1.3;
+        margin: 5px 0;
+    }
+
+    .congrats-sub {
+        font-size: 15px;
+        color: var(--text-muted);
+        font-weight: 500;
+        margin-bottom: 10px;
+    }
+
     /* Confetti */
     .confetti-piece {
         position: fixed;
@@ -394,7 +465,7 @@
 
             <button onclick="spinSmallWheel()" style="padding: 10px 20px; font-size: 14px; margin-top: 5px;">Spin Amount</button>
             
-            <div id="small-wheel-result" style="margin: 15px 0 5px 0; font-size: 15px; font-weight: bold; min-height: 22px; color: #444e37;">Spins left: 0</div>
+            <div id="small-wheel-result" style="margin: 15px 0 5px 0; font-size: 15px; font-weight: bold; min-height: 22px; color: #444e37;"></div>
             
             <div style="display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: 10px; width: 100%;">
                 <button id="one-down-btn" onclick="decreaseSpins()" style="display: none; background-color: #ffb3ba; color: #5e3a3a; padding: 8px 14px; font-size: 13px; margin-top: 0;">1 down</button>
@@ -439,6 +510,16 @@
             <div id="winner-title" class="winner-title">Book Title</div>
             <div id="winner-author" class="winner-author">Author Name</div>
             <button onclick="closeWinnerModal()" style="margin-top: 10px; padding: 12px 30px; font-size: 15px; background-color: var(--accent-yellow); color: #5c572b;">Close</button>
+        </div>
+    </div>
+
+    <!-- Spins Complete Congrats Modal -->
+    <div id="congrats-modal">
+        <div class="congrats-card">
+            <div class="congrats-badge">Spins Complete!</div>
+            <div id="congrats-message" class="congrats-message">Nice work!</div>
+            <div class="congrats-sub">Time to spin the Book Wheel for your next read.</div>
+            <button onclick="closeCongratsModal()" style="margin-top: 5px; padding: 12px 30px; font-size: 15px; background-color: var(--accent-yellow); color: #5c572b;">Close</button>
         </div>
     </div>
 
@@ -747,11 +828,33 @@
             oneDownBtn.style.display = currentSpins > 1 ? 'inline-block' : 'none';
         }
 
+        const spinsCompleteMessages = [
+            "🎉 All done! You earned it!",
+            "✨ Spins complete — great job!",
+            "🥳 That's a wrap! Well spun!",
+            "📚 Nailed it! On to the next read!",
+            "🌟 Amazing! All spins finished!",
+            "🎊 Woohoo! You did it!",
+            "💫 Fantastic! Spins all used up!"
+        ];
+
         function completeSmallWheel() {
             currentSpins = 0;
-            document.getElementById('small-wheel-result').innerText = 'Spins left: 0';
+            document.getElementById('small-wheel-result').innerText = '';
             document.getElementById('done-btn').style.display = 'none';
             document.getElementById('one-down-btn').style.display = 'none';
+            showSpinsCongrats();
+        }
+
+        function showSpinsCongrats() {
+            const message = spinsCompleteMessages[Math.floor(Math.random() * spinsCompleteMessages.length)];
+            document.getElementById('congrats-message').innerText = message;
+            document.getElementById('congrats-modal').classList.add('active');
+            fireConfetti();
+        }
+
+        function closeCongratsModal() {
+            document.getElementById('congrats-modal').classList.remove('active');
         }
 
         function fireConfetti() {
