@@ -291,7 +291,10 @@ const db = firebase.firestore();
 function getCurrentUserId(){
   return localStorage.getItem('shelf:currentUser') || 'shared';
 }
-const PROFILES_DOC = db.collection("shelf-spine").doc("_profiles");
+const PROFILES = [
+  { id: "shared", name: "Yoni" },
+  { id: "tom", name: "Tom" }
+];
 const SHARED_DOC = db.collection("shelf-spine").doc(getCurrentUserId());
 </script>
 
@@ -446,42 +449,19 @@ function persistGoals(){
 }
 
 /* ---------------- multi-user profiles ---------------- */
+/* ---------------- multi-user profiles ---------------- */
 function loadProfiles(){
-  PROFILES_DOC.onSnapshot((snap) => {
-    if (!snap.exists || !Array.isArray(snap.data().list) || snap.data().list.length === 0) {
-      // First time this feature runs: seed the list with the existing
-      // (default) profile so current data shows up right away.
-      const seeded = [{ id: "shared", name: "Me" }];
-      PROFILES_DOC.set({ list: seeded }).catch(err => console.error("Failed to seed profiles:", err));
-      state.profiles = seeded;
-    } else {
-      state.profiles = snap.data().list;
-    }
-    render();
-  }, (err) => console.error("Profiles sync error:", err));
+  state.profiles = PROFILES;
+  render();
 }
 function getCurrentUserName(){
   const p = state.profiles.find(p => p.id === getCurrentUserId());
-  return p ? p.name : "Me";
-}
-function slugifyUser(name){
-  const base = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-+|-+$)/g, "");
-  return (base || "user") + "-" + Math.random().toString(36).slice(2, 6);
+  return p ? p.name : "Yoni";
 }
 function switchUser(userId){
   if (userId === getCurrentUserId()) { state.modal = null; renderModal(); return; }
   localStorage.setItem('shelf:currentUser', userId);
   location.reload();
-}
-function addUserFromForm(){
-  const input = document.getElementById("new-user-name");
-  const name = input ? input.value.trim() : "";
-  if (!name) return;
-  const id = slugifyUser(name);
-  const updated = [...state.profiles, { id, name }];
-  PROFILES_DOC.set({ list: updated }, { merge: true })
-    .then(() => switchUser(id))
-    .catch(err => console.error("Failed to add profile:", err));
 }
 
 /* ---------------- JSON Backup & Restore ---------------- */
@@ -1368,10 +1348,6 @@ function switchUserModalHTML(){
       Each person has their own separate books, wishlist, and goals. Tap a name to switch.
     </div>
     ${rows}
-    <div style="display:flex;gap:8px;margin-top:16px;">
-      <input type="text" id="new-user-name" class="input" placeholder="New person's name" style="flex:1;" />
-      <button class="btn btn-primary" data-action="add-user">Add</button>
-    </div>
   `;
 }
 function renderModal(){
@@ -1711,7 +1687,6 @@ document.addEventListener("click", (e)=>{
   }
   else if(action==="open-switch-user"){ ui.mobileMoreOpen = false; state.modal = {type:"switch-user", payload:null}; renderModal(); }
   else if(action==="select-user"){ switchUser(el.getAttribute("data-user-id")); }
-  else if(action==="add-user"){ addUserFromForm(); }
 });
 
 document.addEventListener("change", (e)=>{
