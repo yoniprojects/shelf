@@ -490,7 +490,12 @@
         <!-- Right Panel: Books on Wheel with Genre Filter -->
         <div class="panel" style="align-items: flex-start;">
             <div class="panel-title" id="books-count-title">Books on Wheel (0)</div>
-            
+
+            <div class="mode-toggle" id="wheel-mode-toggle">
+                <button type="button" id="mode-reading-btn" class="active" onclick="setWheelMode('reading')">CURRENTLY READING</button>
+                <button type="button" id="mode-tbr-btn" onclick="setWheelMode('tbr')">TBR</button>
+            </div>
+
             <div class="filter-group">
                 <label for="filter-genre">Genre</label>
                 <select id="filter-genre" onchange="applyFilters()">
@@ -556,6 +561,9 @@
         
         let allBooks = [];
         let filteredBooks = [];
+        let readingBooks = [];
+        let tbrBooks = [];
+        let wheelMode = localStorage.getItem('shelf:wheelMode') === 'tbr' ? 'tbr' : 'reading';
 
         function updateGenreDropdown() {
             const select = document.getElementById('filter-genre');
@@ -571,17 +579,31 @@
             select.innerHTML = html;
         }
 
-        // Real-time synchronization with Index app (Filtered for "Currently reading" books only)
+        // Real-time synchronization with Index app.
+        // Keeps both "Currently reading" books and the Wishlist (TBR) in sync,
+        // and switches between them based on wheelMode.
         SHARED_DOC.onSnapshot((snap) => {
             if (snap.exists) {
                 const data = snap.data();
-                if (Array.isArray(data.books)) {
-                    allBooks = data.books.filter(book => book.status === 'reading');
-                    updateGenreDropdown();
-                    applyFilters();
-                }
+                readingBooks = Array.isArray(data.books) ? data.books.filter(book => book.status === 'reading') : [];
+                tbrBooks = Array.isArray(data.wishlist) ? data.wishlist : [];
+                allBooks = wheelMode === 'tbr' ? tbrBooks : readingBooks;
+                updateGenreDropdown();
+                applyFilters();
             }
         });
+
+        function setWheelMode(mode) {
+            if (mode !== 'reading' && mode !== 'tbr') return;
+            wheelMode = mode;
+            localStorage.setItem('shelf:wheelMode', mode);
+            document.getElementById('mode-reading-btn').classList.toggle('active', mode === 'reading');
+            document.getElementById('mode-tbr-btn').classList.toggle('active', mode === 'tbr');
+            allBooks = mode === 'tbr' ? tbrBooks : readingBooks;
+            document.getElementById('filter-genre').value = 'All Genres';
+            updateGenreDropdown();
+            applyFilters();
+        }
 
         function applyFilters() {
             const genre = document.getElementById('filter-genre').value;
@@ -597,7 +619,8 @@
         function updateBooksListUI() {
             const container = document.getElementById('books-container');
             const titleElem = document.getElementById('books-count-title');
-            titleElem.innerText = `Books on Wheel (${filteredBooks.length})`;
+            const modeLabel = wheelMode === 'tbr' ? 'TBR Books' : 'Currently Reading';
+            titleElem.innerText = `${modeLabel} on Wheel (${filteredBooks.length})`;
 
             if (filteredBooks.length === 0) {
                 container.innerHTML = `<div class="empty-state">No books match your current filters.</div>`;
@@ -897,6 +920,8 @@
         }
 
         window.onload = () => {
+            document.getElementById('mode-reading-btn').classList.toggle('active', wheelMode === 'reading');
+            document.getElementById('mode-tbr-btn').classList.toggle('active', wheelMode === 'tbr');
             updateGenreDropdown();
             applyFilters();
             drawSmallWheel();
