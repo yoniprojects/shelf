@@ -539,10 +539,14 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-// Bingo gets its own document in the same Firebase project as Shelf & Spine,
-// so it doesn't touch the shelf's data but still persists to the cloud
-// instead of being stuck in this one browser's localStorage.
-const BINGO_DOC = db.collection("bingo-app").doc("shared");
+// Same per-user document scheme as the main Shelf & Spine app.
+function getCurrentUserId(){
+  return localStorage.getItem('shelf:currentUser') || 'shared';
+}
+// Bingo gets its own document per user in the same Firebase project as
+// Shelf & Spine, so it doesn't touch the shelf's data but still persists to
+// the cloud instead of being stuck in this one browser's localStorage.
+const BINGO_DOC = db.collection("bingo-app").doc(getCurrentUserId());
 
 // Drop-in replacement for localStorage, backed by BINGO_DOC. Every value is
 // kept as a string in memory (matching real localStorage semantics) so the
