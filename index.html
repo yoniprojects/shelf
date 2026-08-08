@@ -72,9 +72,21 @@
   .tracker-group-head{display:flex;align-items:baseline;gap:8px;padding:12px 16px 10px;}
   table.tracker td.chk, table.tracker th.chk{width:34px;padding-left:14px;}
   table.tracker tr.selected-row{outline:2px solid var(--gold);outline-offset:-2px;}
-  .fact-list{display:flex;flex-direction:column;gap:10px;}
-  .fact-row{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.5;}
-  .fact-row .fact-icon{font-size:15px;flex-shrink:0;}
+  .fact-list{display:flex;flex-direction:column;gap:16px;font-size:14.5px;}
+  .fact-row{display:flex;gap:11px;align-items:flex-start;font-size:1em;line-height:1.55;}
+  .fact-row .fact-icon{font-size:1.15em;flex-shrink:0;}
+  .rating-shimmer{
+    background: linear-gradient(90deg, #a8791b 0%, #f5d580 22%, #fffbe0 50%, #f5d580 78%, #a8791b 100%);
+    background-size: 220% auto;
+    color: transparent;
+    -webkit-background-clip: text;
+    background-clip: text;
+    animation: rating-shimmer-move 2.4s linear infinite;
+  }
+  @keyframes rating-shimmer-move{
+    0%{ background-position: 0% 50%; }
+    100%{ background-position: 220% 50%; }
+  }
   .card{background:#fff;border-radius:12px;padding:16px 18px;box-shadow:0 2px 8px rgba(47,63,42,.10);}
   .field{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:600;color:var(--oxblood-dark);margin-bottom:12px;}
   .input, select.input, textarea.input{border:1.5px solid var(--line);border-radius:7px;padding:8px 10px;font-size:13.5px;font-family:inherit;color:var(--ink);outline:none;background:#fff;width:100%;}
@@ -179,6 +191,19 @@
   .wish-action-btn.remove{color:#A2572B;}
   .flexwrap{display:flex;flex-wrap:wrap;gap:16px;}
   
+  .cr-list{display:flex;flex-direction:column;}
+  .cr-row{display:flex;flex-direction:column;gap:7px;padding:10px 0;border-bottom:1px solid var(--line);}
+  .cr-row:last-child{border-bottom:none;}
+  .cr-row-top{display:flex;align-items:center;justify-content:space-between;gap:16px;}
+  .cr-row .cr-title{font-weight:700;font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;}
+  .cr-row .cr-title:hover{text-decoration:underline;text-decoration-color:var(--line);}
+  .cr-row .cr-controls{display:flex;align-items:center;gap:12px;flex-shrink:0;}
+  .cr-progress-row{display:flex;align-items:center;gap:9px;}
+  .cr-progress-bar{flex:1;height:6px;border-radius:999px;background:var(--blush);overflow:hidden;cursor:pointer;}
+  .cr-progress-fill{height:100%;background:var(--oxblood);border-radius:999px;transition:width .25s ease;}
+  .cr-progress-pct{font-size:11.5px;font-weight:700;color:var(--oxblood);cursor:pointer;flex-shrink:0;min-width:34px;text-align:right;}
+  .cr-progress-pct:hover{text-decoration:underline;}
+
   .btn-complete {
     background: #2E7D32;
     color: #fff;
@@ -382,6 +407,7 @@ const TAB_SUBTITLES = {
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
 function hashStr(s){ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h; }
+function fmtRating(r){ r = Number(r)||0; return Number.isInteger(r) ? String(r) : String(Math.round(r*100)/100); }
 function genreColor(g){ if(!g) return SPINE_COLORS[0]; return SPINE_COLORS[hashStr(g)%SPINE_COLORS.length]; }
 function spineHeight(title){ return 190 + (hashStr(title||"x")%40); }
 function esc(s){ return (s==null?"":String(s)).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
@@ -786,13 +812,53 @@ function renderDashboard(){
         ${goalPaceHTML}
       </div>
     </div>
-    ${funFacts.length ? `
-    <div class="card" style="margin-bottom:18px;">
-      <div class="section-label">Fun facts</div>
-      <div class="fact-list">
-        ${funFacts.map(f=>`<div class="fact-row"><span class="fact-icon">${f.icon}</span><span>${f.text}</span></div>`).join("")}
-      </div>
-    </div>` : ""}
+    <div id="cr-ff-row" style="display:flex;gap:14px;flex-wrap:wrap;align-items:stretch;margin-bottom:18px;">
+      ${(()=>{
+        const readingBooks = books.filter(b=>b.status==="reading");
+        if(!readingBooks.length) return "";
+        // Scale row sizing down as the list grows past 3 books, so the card's
+        // overall height stays roughly constant instead of growing unbounded.
+        const scale = readingBooks.length > 3 ? Math.max(0.55, 3/readingBooks.length) : 1;
+        const coverH = Math.round(64*scale);
+        const coverW = Math.round(coverH*0.68);
+        const rowPad = Math.max(5, Math.round(12*scale));
+        const rowGap = Math.max(6, Math.round(12*scale));
+        const innerGap = Math.max(4, Math.round(7*scale));
+        const titleSize = Math.max(11.5, Math.round(13.5*scale));
+        const starSize = Math.max(11, Math.round(13*scale));
+        return `
+      <div class="card" id="cr-card" style="flex:1 1 340px;min-width:300px;">
+        <div class="section-label">Currently Reading</div>
+        <div class="cr-list">
+          ${readingBooks.map(b=>{
+            const pct = Math.max(0, Math.min(100, Number(b.progressPercent)||0));
+            return `
+            <div class="cr-row" style="flex-direction:row;align-items:center;gap:${rowGap}px;padding:${rowPad}px 0;">
+              <div style="width:${coverW}px;flex-shrink:0;">${coverHTML(b, coverH)}</div>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:${innerGap}px;">
+                <div class="cr-row-top">
+                  <div class="cr-title" data-action="edit-progress" data-id="${b.id}" title="${esc(b.title)}" style="font-size:${titleSize}px;">${esc(b.title)}</div>
+                  <div class="cr-controls">
+                    ${starsHTML(b.rating,false,null,starSize)}
+                  </div>
+                </div>
+                <div class="cr-progress-row">
+                  <div class="cr-progress-bar" data-action="edit-progress" data-id="${b.id}"><div class="cr-progress-fill" style="width:${pct}%"></div></div>
+                  <div class="cr-progress-pct" data-action="edit-progress" data-id="${b.id}">${pct}%</div>
+                </div>
+              </div>
+            </div>`;}).join("")}
+        </div>
+      </div>`;
+      })()}
+      ${funFacts.length ? `
+      <div class="card" id="ff-card" style="flex:1 1 340px;min-width:300px;">
+        <div class="section-label">Fun facts</div>
+        <div class="fact-list">
+          ${funFacts.map(f=>`<div class="fact-row"><span class="fact-icon">${f.icon}</span><span>${f.text}</span></div>`).join("")}
+        </div>
+      </div>` : ""}
+    </div>
     <div class="dash-grid" style="display:grid;grid-template-columns:260px 1fr 1fr;gap:16px;margin-bottom:18px;">
       <div class="card">
         <div class="section-label">Last Finished</div>
@@ -822,10 +888,36 @@ function renderDashboard(){
       </div>
     </div>
     <div class="card">
-      <div class="section-label">${year} in books</div>
-      <div class="bars">${bars}</div>
-      <div class="legend">
-        <div><span class="dot" style="background:${COLORS.oxblood}"></span>Finished</div>
+      <div style="display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start;">
+        <div>
+          <div class="section-label">${year} in books</div>
+          <div class="bars">${bars}</div>
+          <div class="legend">
+            <div><span class="dot" style="background:${COLORS.oxblood}"></span>Finished</div>
+          </div>
+        </div>
+        ${(()=>{
+          const topReads = completed.filter(b=>b.rating>0)
+            .sort((a,b)=> b.rating-a.rating || a.title.localeCompare(b.title))
+            .slice(0,24);
+          if(!topReads.length) return "";
+          return `
+        <div style="flex:1;min-width:260px;">
+          <div class="section-label">Top reads of all time</div>
+          <div id="top-reads-row" style="display:flex;flex-wrap:nowrap;gap:20px;padding:22px 4px 34px;">
+            ${topReads.map((b,i)=>{
+              const tilt = (hashStr(b.id)%15)-7;
+              const isFive = Number(b.rating) >= 5;
+              return `
+            <div class="top-read-item" data-idx="${i}" style="position:relative;width:66px;flex-shrink:0;transform:rotate(${tilt}deg);${i>=6?"display:none;":""}" title="${esc(b.title)}">
+              ${coverHTML(b, 96)}
+              <div style="position:absolute;bottom:-18px;left:50%;z-index:5;transform:translate(-50%,0) rotate(${-tilt}deg);background:rgba(10,10,10,.88);border-radius:999px;padding:5px 11px;box-shadow:0 3px 10px rgba(0,0,0,.4);white-space:nowrap;">
+                <span style="font-weight:800;font-size:14.5px;letter-spacing:.2px;${isFive?"":"color:#fff;"}" class="${isFive?"rating-shimmer":""}">${fmtRating(b.rating)}★</span>
+              </div>
+            </div>`;}).join("")}
+          </div>
+        </div>`;
+        })()}
       </div>
     </div>
   `;
@@ -1262,6 +1354,51 @@ function completeBookModalHTML(book){
   `;
 }
 
+function progressFormHTML(book){
+  const mode = book.progressMode === "pages" ? "pages" : "percent";
+  const totalPages = Number(book.pagesHours) || 0;
+  const pct = Math.max(0, Math.min(100, Number(book.progressPercent)||0));
+  const curPage = book.progressPage !== undefined && book.progressPage !== "" ? Number(book.progressPage) : "";
+  return `
+    <input type="hidden" id="pf-id" value="${book.id}" />
+    <input type="hidden" id="pf-mode" value="${mode}" />
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">
+      How far are you into <b>${esc(book.title)}</b>?
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+      <button type="button" class="btn ${mode==='percent'?'btn-primary':'btn-ghost'}" data-action="progress-mode" data-mode="percent" data-id="${book.id}" style="flex:1;">Percentage</button>
+      <button type="button" class="btn ${mode==='pages'?'btn-primary':'btn-ghost'}" data-action="progress-mode" data-mode="pages" data-id="${book.id}" style="flex:1;">Pages</button>
+    </div>
+    ${mode==='percent' ? `
+      <label class="field">Percent read
+        <input type="number" class="input" id="pf-percent" min="0" max="100" step="1" value="${pct||""}" placeholder="0-100" autofocus />
+      </label>
+    ` : totalPages>0 ? `
+      <label class="field">Current page <span style="color:var(--muted);font-weight:500;">(of ${totalPages})</span>
+        <input type="number" class="input" id="pf-page" min="0" max="${totalPages}" step="1" value="${curPage}" placeholder="e.g. 120" autofocus />
+      </label>
+    ` : `
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:6px;line-height:1.5;">
+        This book doesn't have a total page count yet. Add one in the "Pages / hours" field on the book's edit form to track progress by page — or switch to Percentage above.
+      </div>
+    `}
+    <label class="field">Rating
+      <span style="display:flex;align-items:center;gap:10px;">
+        ${starsHTML(book.rating||0, true, "pf-rating", 20)}
+        <input type="number" class="input" id="pf-rating-num" min="0" max="5" step="0.25" value="${book.rating||""}" placeholder="0-5" style="width:80px;" />
+      </span>
+      <input type="hidden" id="pf-rating" value="${book.rating||0}" />
+    </label>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;">
+      <button class="btn" style="background:#2E7D32;color:#fff;" data-action="mark-completed" data-id="${book.id}">Complete ✓</button>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-ghost" data-action="close-modal">Cancel</button>
+        <button class="btn btn-primary" data-action="save-progress" ${mode==='pages' && !totalPages ? "disabled":""}>Save</button>
+      </div>
+    </div>
+  `;
+}
+
 function bookFormHTML(book){
   const b = book || { id:uid(), title:"", author:"", genre:"", subGenre:"", format:"Physical", source:"Purchased", status:"reading", priority:"Interested", rating:0, dateFinished:"", language:"English", pagesHours:"", review:"", notes:"", recommendedBy:"", coverUrl:"" };
   const priorityHidden = (b.status==="done" || b.status==="dnf");
@@ -1478,6 +1615,7 @@ function renderModal(){
   let title="", body="", wide=false;
   if(m.type==="book-form"){ title = m.payload ? "Edit book" : "Add a book"; body = bookFormHTML(m.payload); }
   else if(m.type==="complete-book"){ title = "Complete book"; body = completeBookModalHTML(m.payload); }
+  else if(m.type==="progress-form"){ title = "Update progress"; body = progressFormHTML(m.payload); }
   else if(m.type==="book-detail"){ title="Book details"; body = bookDetailHTML(m.payload); wide=true; }
   else if(m.type==="wish-form"){ title = m.payload ? "Edit wishlist item" : "Add to wishlist"; body = wishFormHTML(m.payload); }
   else if(m.type==="move-wish-form"){ title = "Move to Currently Reading"; body = moveWishFormHTML(m.payload); }
@@ -1559,6 +1697,7 @@ function render(){
   else if(state.tab==="calendar") content.innerHTML = renderCalendar();
   else if(state.tab==="wishlist") content.innerHTML = renderWishlist();
   renderModal();
+  if(state.tab==="dashboard") scheduleFunFactsFit();
 }
 
 /* ---------------- actions ---------------- */
@@ -1589,10 +1728,37 @@ function saveBookFromForm(){
     notes: document.getElementById("f-notes").value.trim(),
     recommendedBy: document.getElementById("f-recby").value.trim(),
     coverUrl: document.getElementById("f-cover").value.trim(),
+    progressPercent: existing ? (existing.progressPercent || 0) : 0,
+    progressMode: existing ? (existing.progressMode || "percent") : "percent",
+    progressPage: existing ? (existing.progressPage || "") : "",
   };
   if(!b.title) return;
   if(existing) state.books = state.books.map(x=>x.id===id?b:x);
   else state.books.push(b);
+  persistBooks();
+  state.modal = null;
+  render();
+}
+function saveProgressFromForm(){
+  const id = document.getElementById("pf-id").value;
+  const mode = document.getElementById("pf-mode").value;
+  const book = findBook(id);
+  if(!book) return;
+  let percent, progressPage = book.progressPage || "";
+  if(mode === "percent"){
+    const val = document.getElementById("pf-percent");
+    percent = Math.max(0, Math.min(100, Number(val ? val.value : 0) || 0));
+  } else {
+    const totalPages = Number(book.pagesHours) || 0;
+    if(totalPages <= 0) return;
+    const val = document.getElementById("pf-page");
+    const curPage = Math.max(0, Math.min(totalPages, Number(val ? val.value : 0) || 0));
+    progressPage = curPage;
+    percent = Math.round((curPage/totalPages)*100);
+  }
+  const ratingEl = document.getElementById("pf-rating");
+  const rating = ratingEl ? Math.max(0, Math.min(5, Number(ratingEl.value)||0)) : (book.rating||0);
+  state.books = state.books.map(b => b.id===id ? { ...b, progressPercent: percent, progressMode: mode, progressPage: progressPage, rating: rating } : b);
   persistBooks();
   state.modal = null;
   render();
@@ -1687,7 +1853,7 @@ function completeMoveWish(){
     id:uid(), title:w.title, author:w.author, genre:w.genre||"", subGenre:w.subGenre||"",
     format, source, status:"reading", priority:"Interested", rating:0, dateFinished:"",
     language, pagesHours:w.pagesHours||"", review:"", notes, recommendedBy, coverUrl:w.coverUrl||"",
-    isExample:false
+    isExample:false, progressPercent:0, progressMode:"percent", progressPage:""
   });
   state.wishlist = state.wishlist.filter(x=>x.id!==id);
   persistBooks(); persistWishlist();
@@ -1808,6 +1974,15 @@ document.addEventListener("click", (e)=>{
   else if(action==="close-mobile-more"){ ui.mobileMoreOpen = false; render(); }
   else if(action==="add-book"){ state.modal = {type:"book-form", payload:null}; renderModal(); }
   else if(action==="mark-completed"){ state.modal = {type:"complete-book", payload: findBook(id)}; renderModal(); }
+  else if(action==="edit-progress"){ state.modal = {type:"progress-form", payload: findBook(id)}; renderModal(); }
+  else if(action==="progress-mode"){
+    if(state.modal && state.modal.type==="progress-form"){
+      const newMode = el.getAttribute("data-mode");
+      state.modal = {type:"progress-form", payload:{...state.modal.payload, progressMode:newMode}};
+      renderModal();
+    }
+  }
+  else if(action==="save-progress"){ saveProgressFromForm(); }
   else if(action==="edit-book"){ state.modal = {type:"book-form", payload: findBook(id)}; renderModal(); }
   else if(action==="open-book"){ state.modal = {type:"book-detail", payload: findBook(id)}; renderModal(); }
   else if(action==="edit-from-detail"){ state.modal = {type:"book-form", payload: findBook(id)}; renderModal(); }
@@ -1924,8 +2099,8 @@ document.addEventListener("input", (e)=>{
       else { prev.classList.add("empty"); prev.innerHTML = "📖"; }
     }
   }
-  else if(e.target.id==="f-rating-num" || e.target.id==="cf-rating-num"){
-    const targetId = e.target.id === "cf-rating-num" ? "cf-rating" : "f-rating";
+  else if(/-rating-num$/.test(e.target.id)){
+    const targetId = e.target.id.replace(/-num$/, "");
     const hidden = document.getElementById(targetId);
     let val = Number(e.target.value)||0;
     val = Math.max(0, Math.min(5, val));
@@ -1933,6 +2108,77 @@ document.addEventListener("input", (e)=>{
     const wrap = e.target.closest("span")?.querySelector(".stars");
     if(wrap) applyStarFills(wrap, val);
   }
+});
+
+/* ---------------- dashboard: top reads dynamic fit ---------------- */
+function fitTopReads(){
+  const row = document.getElementById("top-reads-row");
+  if(!row) return;
+  const items = Array.from(row.querySelectorAll(".top-read-item"));
+  if(!items.length) return;
+  items.forEach(it=>{ it.style.display = ""; });
+  const rowWidth = row.clientWidth;
+  const itemWidth = items[0].getBoundingClientRect().width;
+  if(itemWidth <= 0) return;
+  const gapPx = parseFloat(getComputedStyle(row).columnGap || getComputedStyle(row).gap) || 0;
+  let count = Math.floor((rowWidth + gapPx) / (itemWidth + gapPx));
+  count = Math.max(1, Math.min(items.length, count));
+  items.forEach((it,i)=>{ it.style.display = i < count ? "" : "none"; });
+}
+
+/* ---------------- dashboard: fun-facts dynamic sizing ---------------- */
+function fitFunFactsHeight(){
+  const row = document.getElementById("cr-ff-row");
+  const crCard = document.getElementById("cr-card");
+  const ffCard = document.getElementById("ff-card");
+  if(!row || !crCard || !ffCard) return;
+  const factList = ffCard.querySelector(".fact-list");
+  if(!factList) return;
+
+  const BASE_FONT = 14.5, BASE_GAP = 16;
+  const MIN_SCALE = 0.72, MAX_SCALE = 1.65;
+
+  // Measure natural (unstretched) heights so we can compare real content sizes,
+  // not the equalized heights align-items:stretch produces.
+  row.style.alignItems = "flex-start";
+  factList.style.fontSize = "";
+  factList.style.gap = "";
+
+  // Only relevant when the two cards are actually sharing a row.
+  const sameRow = Math.abs(crCard.getBoundingClientRect().top - ffCard.getBoundingClientRect().top) < 1;
+  if(!sameRow){
+    row.style.alignItems = "stretch";
+    return;
+  }
+
+  const crHeight = crCard.offsetHeight;
+  let ffHeight = ffCard.offsetHeight;
+  if(crHeight > 0 && ffHeight > 0){
+    let scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, crHeight/ffHeight));
+    factList.style.fontSize = (BASE_FONT*scale).toFixed(2)+"px";
+    factList.style.gap = Math.max(6, Math.round(BASE_GAP*scale))+"px";
+    // One corrective pass: line-wrapping means font-size vs height isn't perfectly
+    // linear, so re-measure once and nudge closer.
+    ffHeight = ffCard.offsetHeight;
+    if(ffHeight > 0){
+      const correction = Math.max(0.85, Math.min(1.18, crHeight/ffHeight));
+      scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale*correction));
+      factList.style.fontSize = (BASE_FONT*scale).toFixed(2)+"px";
+      factList.style.gap = Math.max(6, Math.round(BASE_GAP*scale))+"px";
+    }
+  }
+  row.style.alignItems = "stretch";
+}
+let funFactsFitRAF = null;
+function scheduleFunFactsFit(){
+  if(state.tab !== "dashboard") return;
+  if(funFactsFitRAF) cancelAnimationFrame(funFactsFitRAF);
+  funFactsFitRAF = requestAnimationFrame(()=>{ fitFunFactsHeight(); fitTopReads(); });
+}
+let funFactsResizeTimer = null;
+window.addEventListener("resize", ()=>{
+  clearTimeout(funFactsResizeTimer);
+  funFactsResizeTimer = setTimeout(scheduleFunFactsFit, 120);
 });
 
 /* ---------------- init ---------------- */
