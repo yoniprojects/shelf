@@ -1404,7 +1404,7 @@ function progressFormHTML(book){
       </label>
     ` : `
       <div style="font-size:12.5px;color:var(--muted);margin-bottom:6px;line-height:1.5;">
-        This book doesn't have a total page count yet. Add one in the "Pages / hours" field on the book's edit form to track progress by page — or switch to Percentage above.
+        This book doesn't have a total page count yet. Add one in the "Pages" field on the book's edit form to track progress by page — or switch to Percentage above.
       </div>
     `}
     <label class="field">Rating
@@ -1555,7 +1555,7 @@ function bookFormHTML(book){
       <label class="field">Status<select class="input" id="f-status" data-action="form-status-change">${Object.entries(STATUS).map(([k,v])=>`<option value="${k}" ${b.status===k?"selected":""}>${v}</option>`).join("")}</select></label>
       <label class="field" id="priority-field-wrap" style="${priorityHidden?"display:none;":""}">Priority<select class="input" id="f-priority">${selectOptions(PRIORITIES,b.priority)}</select></label>
       <label class="field">Date finished<input type="date" class="input" id="f-finished" value="${b.dateFinished}" /></label>
-      <label class="field">Pages / hours<input class="input" id="f-pages" value="${esc(b.pagesHours)}" placeholder="e.g. 320" /></label>
+      <label class="field">Pages<input class="input" id="f-pages" value="${esc(b.pagesHours)}" placeholder="e.g. 320" /></label>
       <label class="field">Language<select class="input" id="f-language">${selectOptions(LANGUAGES,b.language)}</select></label>
       <label class="field">Series<input class="input" id="f-series-name" list="series-list" value="${esc(b.seriesName||"")}" placeholder="e.g. Mistborn" />
         <datalist id="series-list">${allSeries.map(s=>`<option value="${esc(s)}">`).join("")}</datalist>
