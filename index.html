@@ -122,6 +122,15 @@
   .cover-preview{width:60px;height:88px;border-radius:5px;overflow:hidden;flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,.15);}
   .cover-preview img{width:100%;height:100%;object-fit:cover;display:block;}
   .cover-preview.empty{display:flex;align-items:center;justify-content:center;background:var(--blush);font-size:18px;}
+  .gb-search-box{background:var(--blush);border-radius:8px;padding:12px;margin-bottom:14px;}
+  .gb-search-label{font-size:12px;font-weight:700;color:var(--oxblood-dark);}
+  .gb-result{display:flex;gap:10px;align-items:center;width:100%;text-align:left;padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff;margin-top:6px;cursor:pointer;font-family:inherit;}
+  .gb-result:hover{border-color:var(--oxblood);}
+  .gb-result-cover{width:36px;height:52px;flex-shrink:0;border-radius:4px;overflow:hidden;background:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;}
+  .gb-result-cover img{width:100%;height:100%;object-fit:cover;}
+  .gb-result-text{min-width:0;}
+  .gb-result-title{font-size:12.5px;font-weight:700;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .gb-result-meta{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .cover-card{cursor:pointer;width:128px;}
   .cover-card .cover{height:176px;margin-bottom:8px;}
   .cover-card .title{font-size:12.5px;font-weight:700;line-height:1.25;}
@@ -386,6 +395,13 @@ const SOURCES = ["Purchased","Borrowed","Gift","Free"];
 const PRIORITIES = ["Must-read","Interested","Maybe"];
 const LANGUAGES = ["English","Hebrew"];
 const DEFAULT_GENRES = ["Fiction","Non-fiction","Romance","Fantasy","Sci-fi","Mystery","Historical","Young Adult","Memoir","Poetry"];
+// Optional: paste a Google Books API key here so every user of this file gets reliable
+// search without needing to add their own. Leave as "" to require each user to add one.
+// Get a free key: console.cloud.google.com → enable "Books API" → Credentials → Create API key.
+// Note: anyone who views this page's source can see this key. Restrict it in Google Cloud
+// Console (Application restrictions → HTTP referrers, or API restrictions → Books API only)
+// to limit what it can be used for elsewhere.
+const EMBEDDED_GB_API_KEY = "AIzaSyD3np6iq1tmsXi2fkAG9JP_rxluX5UDP-M";
 const TABS = [
   {key:"dashboard",label:"Dashboard"},
   {key:"tracker",label:"Book Tracker"},
@@ -1495,19 +1511,29 @@ function bookFormHTML(book){
   return `
     <input type="hidden" id="f-id" value="${b.id}" />
     <input type="hidden" id="f-cover" value="${esc(b.coverUrl||"")}" />
-    <div class="field">Cover image
-      <div class="cover-upload-box">
-        <div class="cover-preview ${b.coverUrl?"":"empty"}" id="cover-preview">${b.coverUrl?`<img src="${esc(b.coverUrl)}" alt="cover preview"/>`:"📖"}</div>
-        <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
-          <input class="input" id="f-cover-url" placeholder="Paste a Goodreads cover image URL…" value="${esc(b.coverUrl && b.coverUrl.startsWith('data:')?'':b.coverUrl||'')}" />
-          <div style="display:flex;align-items:center;gap:8px;">
-            <label class="btn btn-ghost" style="padding:6px 12px;font-size:12px;cursor:pointer;">Upload image<input type="file" accept="image/*" id="f-cover-file" style="display:none;" /></label>
-            ${b.coverUrl?`<button type="button" class="btn-text" style="color:#A2572B;" data-action="clear-cover">Remove cover</button>`:""}
+    <div class="grid2" style="align-items:start;">
+      <div class="gb-search-box" style="margin-bottom:0;">
+        <label class="gb-search-label" for="gb-search-q">🔎 Search Book Online</label>
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <input class="input" id="gb-search-q" value="${esc([b.title,b.author].filter(Boolean).join(" "))}" placeholder="Search by title or author…" style="flex:1;background:#fff;" />
+          <button type="button" class="btn btn-primary" data-action="gb-search" style="white-space:nowrap;" title="Search" aria-label="Search">🔎</button>
+        </div>
+        <div id="gb-results"></div>
+      </div>
+      <div class="field" style="margin-bottom:0;">Cover image
+        <div class="cover-upload-box">
+          <div class="cover-preview ${b.coverUrl?"":"empty"}" id="cover-preview">${b.coverUrl?`<img src="${esc(b.coverUrl)}" alt="cover preview"/>`:"📖"}</div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+            <input class="input" id="f-cover-url" placeholder="Paste image URL…" value="${esc(b.coverUrl && b.coverUrl.startsWith('data:')?'':b.coverUrl||'')}" />
+            <div style="display:flex;align-items:center;gap:8px;">
+              <label class="btn btn-ghost" style="padding:6px 12px;font-size:12px;cursor:pointer;">Upload image<input type="file" accept="image/*" id="f-cover-file" style="display:none;" /></label>
+              ${b.coverUrl?`<button type="button" class="btn-text" style="color:#A2572B;" data-action="clear-cover">Remove cover</button>`:""}
+            </div>
           </div>
         </div>
-      </div>
-      <div style="font-size:11px;color:var(--muted);font-weight:500;margin-top:4px;line-height:1.4;">
-        Tip: on a book's Goodreads page, right-click the cover → "Copy image address" → paste it above. Or upload your own image.
+        <div style="font-size:11px;color:var(--muted);font-weight:500;margin-top:4px;line-height:1.4;">
+          Tip: on a book's Goodreads page, right-click the cover → "Copy image address" → paste it above. Or upload your own image.
+        </div>
       </div>
     </div>
     <div class="grid2">
@@ -1604,14 +1630,24 @@ function wishFormHTML(w){
   return `
     <input type="hidden" id="wf-id" value="${item.id}" />
     <input type="hidden" id="f-cover" value="${esc(item.coverUrl||"")}" />
-    <div class="field">Cover image
-      <div class="cover-upload-box">
-        <div class="cover-preview ${item.coverUrl?"":"empty"}" id="cover-preview">${item.coverUrl?`<img src="${esc(item.coverUrl)}" alt="cover preview"/>`:"📖"}</div>
-        <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
-          <input class="input" id="f-cover-url" placeholder="Paste a Goodreads cover image URL…" value="${esc(item.coverUrl && item.coverUrl.startsWith('data:')?'':item.coverUrl||'')}" />
-          <div style="display:flex;align-items:center;gap:8px;">
-            <label class="btn btn-ghost" style="padding:6px 12px;font-size:12px;cursor:pointer;">Upload image<input type="file" accept="image/*" id="f-cover-file" style="display:none;" /></label>
-            ${item.coverUrl?`<button type="button" class="btn-text" style="color:#A2572B;" data-action="clear-cover">Remove cover</button>`:""}
+    <div class="grid2" style="align-items:start;">
+      <div class="gb-search-box" style="margin-bottom:0;">
+        <label class="gb-search-label" for="gb-search-q">🔎 Search Book Online</label>
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <input class="input" id="gb-search-q" value="${esc([item.title,item.author].filter(Boolean).join(" "))}" placeholder="Search by title or author…" style="flex:1;background:#fff;" />
+          <button type="button" class="btn btn-primary" data-action="gb-search" style="white-space:nowrap;" title="Search" aria-label="Search">🔎</button>
+        </div>
+        <div id="gb-results"></div>
+      </div>
+      <div class="field" style="margin-bottom:0;">Cover image
+        <div class="cover-upload-box">
+          <div class="cover-preview ${item.coverUrl?"":"empty"}" id="cover-preview">${item.coverUrl?`<img src="${esc(item.coverUrl)}" alt="cover preview"/>`:"📖"}</div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+            <input class="input" id="f-cover-url" placeholder="Paste image URL…" value="${esc(item.coverUrl && item.coverUrl.startsWith('data:')?'':item.coverUrl||'')}" />
+            <div style="display:flex;align-items:center;gap:8px;">
+              <label class="btn btn-ghost" style="padding:6px 12px;font-size:12px;cursor:pointer;">Upload image<input type="file" accept="image/*" id="f-cover-file" style="display:none;" /></label>
+              ${item.coverUrl?`<button type="button" class="btn-text" style="color:#A2572B;" data-action="clear-cover">Remove cover</button>`:""}
+            </div>
           </div>
         </div>
       </div>
@@ -1619,9 +1655,6 @@ function wishFormHTML(w){
     <div class="grid2">
       <label class="field">Title<input class="input" id="wf-title" value="${esc(item.title)}" /></label>
       <label class="field">Author<input class="input" id="wf-author" value="${esc(item.author)}" /></label>
-    </div>
-    <div style="margin:-4px 0 12px;">
-      <button type="button" class="btn-text" style="color:var(--oxblood);" data-action="goodreads-search-wf">🔎 Search this book on Goodreads</button>
     </div>
     <div class="grid2">
       <label class="field">Genre<input class="input" id="f-genre" list="genre-list" value="${esc(item.genre)}" placeholder="e.g. Fantasy" />
@@ -1713,6 +1746,93 @@ function switchUserModalHTML(){
     </div>
     ${rows}
   `;
+}
+/* ---------------- google books lookup ---------------- */
+let gbResults = [];
+let gbSearchSeq = 0;
+function getGbApiKey(){
+  return EMBEDDED_GB_API_KEY || '';
+}
+async function searchGoogleBooks(query){
+  const box = document.getElementById("gb-results");
+  if(!box) return;
+  const q = (query||"").trim();
+  if(!q){ box.innerHTML = `<div style="padding:8px 2px;font-size:12px;color:var(--muted);">Type a title or author to search.</div>`; return; }
+  const seq = ++gbSearchSeq;
+  box.innerHTML = `<div style="padding:8px 2px;font-size:12px;color:var(--muted);">Searching…</div>`;
+  try{
+    const key = getGbApiKey();
+    const url = "https://www.googleapis.com/books/v1/volumes?maxResults=8&q=" + encodeURIComponent(q) + (key ? "&key="+encodeURIComponent(key) : "");
+    const res = await fetch(url);
+    if(seq !== gbSearchSeq) return; // a newer search superseded this one
+    if(!res.ok){
+      let reason;
+      if(res.status===429) reason = "Google is rate-limiting search traffic right now — try again in a moment.";
+      else if(res.status===403) reason = "Google rejected the request (403).";
+      else reason = "Request failed (status " + res.status + ").";
+      box.innerHTML = `<div style="padding:8px 2px;font-size:12px;color:#A2572B;">${esc(reason)}</div>`;
+      return;
+    }
+    const data = await res.json();
+    const items = (data.items||[]).filter(it=>it.volumeInfo && it.volumeInfo.title);
+    gbResults = items;
+    if(!items.length){
+      box.innerHTML = `<div style="padding:8px 2px;font-size:12px;color:var(--muted);">No matches found. Try a different search, or fill the form in by hand.</div>`;
+      return;
+    }
+    box.innerHTML = items.map((it,i)=>{
+      const v = it.volumeInfo;
+      const thumb = v.imageLinks && (v.imageLinks.thumbnail || v.imageLinks.smallThumbnail);
+      const authors = (v.authors||[]).join(", ");
+      const year = v.publishedDate ? v.publishedDate.slice(0,4) : "";
+      return `
+        <button type="button" class="gb-result" data-action="gb-pick" data-index="${i}">
+          <div class="gb-result-cover">${thumb?`<img src="${esc(thumb.replace('http://','https://'))}" alt="" />`:"📖"}</div>
+          <div class="gb-result-text">
+            <div class="gb-result-title">${esc(v.title)}</div>
+            <div class="gb-result-meta">${esc(authors)}${year?` · ${year}`:""}</div>
+          </div>
+        </button>`;
+    }).join("");
+  }catch(err){
+    if(seq !== gbSearchSeq) return;
+    box.innerHTML = `<div style="padding:8px 2px;font-size:12px;color:#A2572B;">Search failed. Check your internet connection and try again.</div>`;
+  }
+}
+function applyGoogleBooksPick(idx){
+  const it = gbResults[idx];
+  if(!it) return;
+  const v = it.volumeInfo || {};
+  const titleEl = document.getElementById("f-title") || document.getElementById("wf-title");
+  const authorEl = document.getElementById("f-author") || document.getElementById("wf-author");
+  const pagesEl = document.getElementById("f-pages") || document.getElementById("wf-pages");
+  const genreEl = document.getElementById("f-genre");
+  const subGenreEl = document.getElementById("f-subgenre");
+  const coverHidden = document.getElementById("f-cover");
+  const coverUrlEl = document.getElementById("f-cover-url");
+  const coverPreview = document.getElementById("cover-preview");
+
+  if(titleEl) titleEl.value = v.title || titleEl.value;
+  if(authorEl && v.authors && v.authors.length) authorEl.value = v.authors.join(", ");
+  if(pagesEl && v.pageCount && !pagesEl.value.trim()) pagesEl.value = String(v.pageCount);
+  if(v.categories && v.categories.length){
+    const parts = v.categories[0].split("/").map(s=>s.trim()).filter(Boolean);
+    if(genreEl && parts[0] && !genreEl.value.trim()) genreEl.value = parts[0];
+    if(subGenreEl && parts[1] && !subGenreEl.value.trim()) subGenreEl.value = parts[1];
+  }
+  const rawThumb = v.imageLinks && (v.imageLinks.thumbnail || v.imageLinks.smallThumbnail);
+  if(rawThumb){
+    const hiRes = rawThumb.replace("http://","https://").replace("zoom=1","zoom=2");
+    if(coverHidden) coverHidden.value = hiRes;
+    if(coverUrlEl) coverUrlEl.value = hiRes;
+    if(coverPreview){
+      coverPreview.classList.remove("empty");
+      coverPreview.innerHTML = `<img src="${esc(hiRes)}" alt="cover preview" onerror="this.parentElement.classList.add('empty'); this.remove();"/>`;
+    }
+  }
+  refreshSeriesBox();
+  const box = document.getElementById("gb-results");
+  if(box) box.innerHTML = `<div style="padding:8px 2px;font-size:11.5px;color:var(--oxblood-dark);font-weight:600;">✓ Filled in from "${esc(v.title||"")}". Review the fields below and adjust anything you like.</div>`;
 }
 function renderModal(){
   const root = document.getElementById("modal-root");
@@ -2126,15 +2246,17 @@ document.addEventListener("click", (e)=>{
     const prev = document.getElementById("cover-preview");
     if(prev){ prev.classList.add("empty"); prev.innerHTML = "📖"; }
   }
+  else if(action==="gb-search"){
+    const q = (document.getElementById("gb-search-q")?.value || "").trim();
+    searchGoogleBooks(q);
+  }
+  else if(action==="gb-pick"){
+    const idx = Number(el.getAttribute("data-index"));
+    applyGoogleBooksPick(idx);
+  }
   else if(action==="goodreads-search"){
     const t = (document.getElementById("f-title")?.value || "").trim();
     const a = (document.getElementById("f-author")?.value || "").trim();
-    const q = [t,a].filter(Boolean).join(" ");
-    if(q){ window.open("https://www.goodreads.com/search?q=" + encodeURIComponent(q), "_blank", "noopener"); }
-  }
-  else if(action==="goodreads-search-wf"){
-    const t = (document.getElementById("wf-title")?.value || "").trim();
-    const a = (document.getElementById("wf-author")?.value || "").trim();
     const q = [t,a].filter(Boolean).join(" ");
     if(q){ window.open("https://www.goodreads.com/search?q=" + encodeURIComponent(q), "_blank", "noopener"); }
   }
@@ -2226,6 +2348,10 @@ document.addEventListener("keydown", (e)=>{
     e.preventDefault();
     const q = e.target.value.trim();
     if(q) window.open("https://www.goodreads.com/search?q=" + encodeURIComponent(q), "_blank", "noopener");
+  }
+  else if(e.key==="Enter" && e.target && e.target.id==="gb-search-q"){
+    e.preventDefault();
+    searchGoogleBooks(e.target.value.trim());
   }
 });
 document.addEventListener("input", (e)=>{
