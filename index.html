@@ -721,6 +721,8 @@ function renderDashboard(){
   const year = new Date().getFullYear().toString();
   const completed = books.filter(b=>b.status==="done");
   const completedThisYear = completed.filter(b=>yearOf(b.dateFinished)===year);
+  const rereadsThisYear = books.reduce((sum,b)=> sum + (b.rereads||[]).filter(r=>r.endDate && yearOf(r.endDate)===year).length, 0);
+  const totalCountedThisYear = completedThisYear.length + rereadsThisYear;
   const reading = books.filter(b=>b.status==="reading").length;
   const dnfCount = books.filter(b=>b.status==="dnf").length;
   
@@ -739,13 +741,13 @@ function renderDashboard(){
   const goalVal = Number(state.goals[year]) || 0;
   let goalNum, goalPaceHTML = "";
   if(goalVal > 0){
-    goalNum = `${completedThisYear.length}<span style="font-size:16px;color:var(--muted);">/${goalVal}</span>`;
+    goalNum = `${totalCountedThisYear}<span style="font-size:16px;color:var(--muted);">/${goalVal}</span>`;
     const startOfYear = new Date(Number(year), 0, 0);
     const dayOfYear = Math.floor((now - startOfYear) / 86400000);
     const isLeap = (Number(year)%4===0 && Number(year)%100!==0) || Number(year)%400===0;
     const daysInYear = isLeap ? 366 : 365;
     const expectedByNow = goalVal * dayOfYear / daysInYear;
-    const diff = Math.round(completedThisYear.length - expectedByNow);
+    const diff = Math.round(totalCountedThisYear - expectedByNow);
     const paceText = diff > 0 ? `${diff} book${diff===1?"":"s"} ahead of pace`
       : diff < 0 ? `${Math.abs(diff)} book${Math.abs(diff)===1?"":"s"} behind pace`
       : `Right on pace`;
@@ -789,6 +791,7 @@ function renderDashboard(){
   const finished = new Array(12).fill(0);
   books.forEach(b=>{
     if(b.dateFinished && yearOf(b.dateFinished)===year) finished[new Date(b.dateFinished).getMonth()]++;
+    (b.rereads||[]).forEach(r=>{ if(r.endDate && yearOf(r.endDate)===year) finished[new Date(r.endDate).getMonth()]++; });
   });
   const maxVal = Math.max(1, ...finished);
   const bars = monthNames.map((m,i)=>`
@@ -802,7 +805,7 @@ function renderDashboard(){
   return `
     <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px;">
       <div class="stat-card"><div class="num">${books.length}</div><div class="label">Total books</div></div>
-      <div class="stat-card"><div class="num">${completedThisYear.length}</div><div class="label">Read in ${year}</div></div>
+      <div class="stat-card" title="${rereadsThisYear>0?`Includes ${rereadsThisYear} reread${rereadsThisYear===1?"":"s"}`:""}"><div class="num">${totalCountedThisYear}</div><div class="label">Read in ${year}</div></div>
       <div class="stat-card"><div class="num">${reading}</div><div class="label">Currently reading</div></div>
       <div class="stat-card"><div class="num">${completed.length}</div><div class="label">All-time completed</div></div>
       <div class="stat-card"><div class="num">${dnfCount}</div><div class="label">Did not finish</div></div>
@@ -833,18 +836,18 @@ function renderDashboard(){
           ${readingBooks.map(b=>{
             const pct = Math.max(0, Math.min(100, Number(b.progressPercent)||0));
             return `
-            <div class="cr-row" style="flex-direction:row;align-items:center;gap:${rowGap}px;padding:${rowPad}px 0;">
+            <div class="cr-row" data-action="edit-progress" data-id="${b.id}" style="flex-direction:row;align-items:center;gap:${rowGap}px;padding:${rowPad}px 0;cursor:pointer;">
               <div style="width:${coverW}px;flex-shrink:0;">${coverHTML(b, coverH)}</div>
               <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:${innerGap}px;">
                 <div class="cr-row-top">
-                  <div class="cr-title" data-action="edit-progress" data-id="${b.id}" title="${esc(b.title)}" style="font-size:${titleSize}px;">${esc(b.title)}</div>
+                  <div class="cr-title" title="${esc(b.title)}" style="font-size:${titleSize}px;">${esc(b.title)}</div>
                   <div class="cr-controls">
                     ${starsHTML(b.rating,false,null,starSize)}
                   </div>
                 </div>
                 <div class="cr-progress-row">
-                  <div class="cr-progress-bar" data-action="edit-progress" data-id="${b.id}"><div class="cr-progress-fill" style="width:${pct}%"></div></div>
-                  <div class="cr-progress-pct" data-action="edit-progress" data-id="${b.id}">${pct}%</div>
+                  <div class="cr-progress-bar"><div class="cr-progress-fill" style="width:${pct}%"></div></div>
+                  <div class="cr-progress-pct">${pct}%</div>
                 </div>
               </div>
             </div>`;}).join("")}
@@ -1153,8 +1156,17 @@ function renderCalendar(){
 /* ---------------- wishlist ---------------- */
 function renderWishlist(){
   const items = state.wishlist;
+  const toolbar = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;flex-wrap:wrap;">
+      <div style="font-size:12.5px;color:var(--muted);">${items.length} book${items.length===1?"":"s"}</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input class="input" id="quick-goodreads-q" placeholder="Search title or author…" style="width:190px;" />
+        <button class="btn btn-subtle" data-action="quick-goodreads-search" title="Search on Goodreads">🔎</button>
+        <button class="btn btn-primary" data-action="add-wish">+ Add to wishlist</button>
+      </div>
+    </div>`;
   if(items.length===0){
-    return emptyState("Nothing on your wishlist yet. Add books you're eyeing so they never slip your mind.", "+ Add a book", "add-wish");
+    return toolbar + emptyState("Nothing on your wishlist yet. Add books you're eyeing so they never slip your mind.");
   }
   const cards = items.map(w=>`
     <div class="wish-card">
@@ -1189,10 +1201,7 @@ function renderWishlist(){
       </div>
     </div>`).join("");
   return `
-    <div style="display:flex;justify-content:space-between;margin-bottom:14px;">
-      <div style="font-size:12.5px;color:var(--muted);">${items.length} book${items.length===1?"":"s"}</div>
-      <button class="btn btn-primary" data-action="add-wish">+ Add to wishlist</button>
-    </div>
+    ${toolbar}
     <div class="flexwrap">${cards}</div>
   `;
 }
@@ -1399,12 +1408,89 @@ function progressFormHTML(book){
   `;
 }
 
+/* ---------------- rereads ---------------- */
+let formRereads = [];
+function rereadsBoxHTML(){
+  if(!formRereads.length) return `<div style="font-size:12px;color:var(--muted);margin-bottom:6px;">No rereads logged yet.</div>`;
+  return formRereads.map(r=>`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <input type="date" class="input reread-date" data-id="${esc(r.id)}" style="max-width:170px;" value="${esc(r.endDate||'')}" />
+      <button type="button" class="btn-text" style="color:#A2572B;" data-action="remove-reread" data-id="${esc(r.id)}">Remove</button>
+    </div>`).join("");
+}
+
+/* ---------------- series ---------------- */
+function allSeriesNames(){
+  const names = new Set();
+  state.books.forEach(b=>{ if(b.seriesName) names.add(b.seriesName); });
+  state.wishlist.forEach(w=>{ if(w.seriesName) names.add(w.seriesName); });
+  return Array.from(names);
+}
+function findSeriesEntries(seriesName){
+  const target = (seriesName||"").trim().toLowerCase();
+  if(!target) return [];
+  const fromBooks = state.books.filter(b=>(b.seriesName||"").trim().toLowerCase()===target)
+    .map(b=>({kind:"book", id:b.id, title:b.title, author:b.author, number:b.seriesNumber||"", status:b.status}));
+  const fromWish = state.wishlist.filter(w=>(w.seriesName||"").trim().toLowerCase()===target)
+    .map(w=>({kind:"wish", id:w.id, title:w.title, author:w.author, number:w.seriesNumber||""}));
+  return [...fromBooks, ...fromWish].sort((a,b)=>{
+    const na = parseFloat(a.number), nb = parseFloat(b.number);
+    const va = isNaN(na) ? Infinity : na, vb = isNaN(nb) ? Infinity : nb;
+    if(va!==vb) return va-vb;
+    return (a.title||"").localeCompare(b.title||"");
+  });
+}
+function seriesBoxHTML(seriesName, excludeId){
+  const name = (seriesName||"").trim();
+  if(!name) return "";
+  const entries = findSeriesEntries(name);
+  const rows = entries.map(e=>{
+    const isCurrent = e.id===excludeId;
+    const numLabel = e.number ? `#${esc(String(e.number))}` : "—";
+    const badge = e.kind==="book"
+      ? `<span class="pill ${statusPillTone(e.status)}">${esc(STATUS[e.status]||e.status)}</span>`
+      : `<span class="pill">Wishlist</span>`;
+    const addBtn = (e.kind==="wish") ? `<button type="button" class="btn-text" style="color:var(--oxblood);white-space:nowrap;" data-action="series-add-to-library" data-id="${esc(e.id)}">+ Add to library</button>` : "";
+    return `
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:12.5px;">
+        <span style="width:28px;flex-shrink:0;color:var(--muted);font-weight:700;">${numLabel}</span>
+        <span style="flex:1;min-width:0;">
+          <div style="font-weight:700;">${esc(e.title)}${isCurrent?' <span style="color:var(--muted);font-weight:500;">(this book)</span>':''}</div>
+          ${e.author?`<div style="color:var(--muted);font-size:11px;">${esc(e.author)}</div>`:""}
+        </span>
+        ${badge}
+        ${addBtn}
+      </div>`;
+  }).join("");
+  return `
+    <div class="card" style="padding:12px 14px;margin:-4px 0 12px;background:var(--blush);box-shadow:none;">
+      <div class="section-label" style="margin-bottom:6px;">Books in "${esc(name)}"</div>
+      ${rows || `<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">No other books logged in this series yet.</div>`}
+      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;align-items:flex-end;">
+        <label class="field" style="margin:0;flex:1 1 120px;">Title<input class="input" id="series-new-title" placeholder="Book title" /></label>
+        <label class="field" style="margin:0;flex:1 1 100px;">Author<input class="input" id="series-new-author" placeholder="Author" /></label>
+        <label class="field" style="margin:0;width:60px;">#<input class="input" id="series-new-number" placeholder="#" /></label>
+        <button type="button" class="btn btn-subtle" style="padding:8px 12px;" data-action="add-series-entry">+ Add</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);font-weight:500;margin-top:6px;">Adding a book here puts it on your Wishlist, tagged to this series. Use "Add to library" when you're ready to start it.</div>
+    </div>`;
+}
+function refreshSeriesBox(){
+  const box = document.getElementById("series-box");
+  if(!box) return;
+  const nameEl = document.getElementById("f-series-name");
+  const idEl = document.getElementById("f-id") || document.getElementById("wf-id");
+  box.innerHTML = seriesBoxHTML(nameEl ? nameEl.value : "", idEl ? idEl.value : null);
+}
+
 function bookFormHTML(book){
-  const b = book || { id:uid(), title:"", author:"", genre:"", subGenre:"", format:"Physical", source:"Purchased", status:"reading", priority:"Interested", rating:0, dateFinished:"", language:"English", pagesHours:"", review:"", notes:"", recommendedBy:"", coverUrl:"" };
+  const b = book || { id:uid(), title:"", author:"", genre:"", subGenre:"", format:"Physical", source:"Purchased", status:"reading", priority:"Interested", rating:0, dateFinished:"", language:"English", pagesHours:"", review:"", notes:"", recommendedBy:"", coverUrl:"", seriesName:"", seriesNumber:"", rereads:[] };
   const priorityHidden = (b.status==="done" || b.status==="dnf");
+  formRereads = (b.rereads||[]).map(r=>({id:r.id||uid(), endDate:r.endDate||""}));
   
   const allGenres = sortSuggestionsByInput(Array.from(new Set([...DEFAULT_GENRES, ...state.books.map(x=>x.genre).filter(Boolean)])), b.genre);
   const allSubGenres = sortSuggestionsByInput(Array.from(new Set(state.books.map(x=>x.subGenre).filter(Boolean))), b.subGenre);
+  const allSeries = sortSuggestionsByInput(allSeriesNames(), b.seriesName||"");
 
   return `
     <input type="hidden" id="f-id" value="${b.id}" />
@@ -1445,11 +1531,22 @@ function bookFormHTML(book){
       <label class="field">Date finished<input type="date" class="input" id="f-finished" value="${b.dateFinished}" /></label>
       <label class="field">Pages / hours<input class="input" id="f-pages" value="${esc(b.pagesHours)}" placeholder="e.g. 320" /></label>
       <label class="field">Language<select class="input" id="f-language">${selectOptions(LANGUAGES,b.language)}</select></label>
+      <label class="field">Series<input class="input" id="f-series-name" list="series-list" value="${esc(b.seriesName||"")}" placeholder="e.g. Mistborn" />
+        <datalist id="series-list">${allSeries.map(s=>`<option value="${esc(s)}">`).join("")}</datalist>
+      </label>
+      <label class="field"># in series<input class="input" id="f-series-number" value="${esc(b.seriesNumber||"")}" placeholder="e.g. 1" /></label>
     </div>
+    <div id="series-box">${seriesBoxHTML(b.seriesName, b.id)}</div>
     <label class="field">Rating<span style="display:flex;align-items:center;gap:10px;">${starsHTML(b.rating, true, "f-rating", 22)}<input type="number" class="input" id="f-rating-num" min="0" max="5" step="0.25" value="${b.rating||""}" placeholder="0-5" style="width:80px;" /></span><input type="hidden" id="f-rating" value="${b.rating}" /></label>
     <label class="field">Brief review<textarea class="input" id="f-review" placeholder="What did you think?">${esc(b.review)}</textarea></label>
     <label class="field">Notes / thoughts<textarea class="input" id="f-notes" placeholder="Quotes, annotations, anything to remember">${esc(b.notes)}</textarea></label>
     <label class="field">Recommended by<input class="input" id="f-recby" value="${esc(b.recommendedBy)}" placeholder="Optional" /></label>
+    ${book ? `
+    <label class="field">Rereads
+      <div id="rereads-box">${rereadsBoxHTML()}</div>
+      <button type="button" class="btn btn-subtle" style="align-self:flex-start;padding:6px 12px;font-size:12px;" data-action="add-reread">+ Mark as reread</button>
+      <div style="font-size:11px;color:var(--muted);font-weight:500;">Each reread with an end date counts as an extra completed book toward that year's goal.</div>
+    </label>` : ""}
     <div style="display:flex;justify-content:space-between;margin-top:6px;">
       <div>${book ? `<button class="btn-danger" data-action="delete-book" data-id="${b.id}">Remove book</button>` : ""}</div>
       <div style="display:flex;gap:10px;">
@@ -1500,9 +1597,10 @@ function bulkEditFormHTML(count){
   `;
 }
 function wishFormHTML(w){
-  const item = w || { id:uid(), title:"", author:"", priority:"Interested", coverUrl:"", pagesHours:"", genre:"", subGenre:"" };
+  const item = w || { id:uid(), title:"", author:"", priority:"Interested", coverUrl:"", pagesHours:"", genre:"", subGenre:"", seriesName:"", seriesNumber:"" };
   const allGenres = sortSuggestionsByInput(Array.from(new Set([...DEFAULT_GENRES, ...state.books.map(x=>x.genre).filter(Boolean)])), item.genre);
   const allSubGenres = sortSuggestionsByInput(Array.from(new Set(state.books.map(x=>x.subGenre).filter(Boolean))), item.subGenre);
+  const allSeries = sortSuggestionsByInput(allSeriesNames(), item.seriesName||"");
   return `
     <input type="hidden" id="wf-id" value="${item.id}" />
     <input type="hidden" id="f-cover" value="${esc(item.coverUrl||"")}" />
@@ -1522,6 +1620,9 @@ function wishFormHTML(w){
       <label class="field">Title<input class="input" id="wf-title" value="${esc(item.title)}" /></label>
       <label class="field">Author<input class="input" id="wf-author" value="${esc(item.author)}" /></label>
     </div>
+    <div style="margin:-4px 0 12px;">
+      <button type="button" class="btn-text" style="color:var(--oxblood);" data-action="goodreads-search-wf">🔎 Search this book on Goodreads</button>
+    </div>
     <div class="grid2">
       <label class="field">Genre<input class="input" id="f-genre" list="genre-list" value="${esc(item.genre)}" placeholder="e.g. Fantasy" />
         <datalist id="genre-list">${allGenres.map(g=>`<option value="${esc(g)}">`).join("")}</datalist>
@@ -1531,7 +1632,12 @@ function wishFormHTML(w){
       </label>
       <label class="field">Pages<input class="input" id="wf-pages" value="${esc(item.pagesHours)}" placeholder="e.g. 320" /></label>
       <label class="field">Priority<select class="input" id="wf-priority">${selectOptions(PRIORITIES,item.priority)}</select></label>
+      <label class="field">Series<input class="input" id="f-series-name" list="series-list" value="${esc(item.seriesName||"")}" placeholder="e.g. Mistborn" />
+        <datalist id="series-list">${allSeries.map(s=>`<option value="${esc(s)}">`).join("")}</datalist>
+      </label>
+      <label class="field"># in series<input class="input" id="f-series-number" value="${esc(item.seriesNumber||"")}" placeholder="e.g. 1" /></label>
     </div>
+    <div id="series-box">${seriesBoxHTML(item.seriesName, item.id)}</div>
     <div style="display:flex;justify-content:flex-end;gap:10px;">
       <button class="btn btn-ghost" data-action="close-modal">Cancel</button>
       <button class="btn btn-primary" data-action="save-wish">Save</button>
@@ -1728,6 +1834,9 @@ function saveBookFromForm(){
     notes: document.getElementById("f-notes").value.trim(),
     recommendedBy: document.getElementById("f-recby").value.trim(),
     coverUrl: document.getElementById("f-cover").value.trim(),
+    seriesName: (document.getElementById("f-series-name")?.value || "").trim(),
+    seriesNumber: (document.getElementById("f-series-number")?.value || "").trim(),
+    rereads: formRereads.filter(r=>r.endDate).map(r=>({id:r.id, endDate:r.endDate})),
     progressPercent: existing ? (existing.progressPercent || 0) : 0,
     progressMode: existing ? (existing.progressMode || "percent") : "percent",
     progressPage: existing ? (existing.progressPage || "") : "",
@@ -1823,6 +1932,8 @@ function saveWishFromForm(){
     pagesHours: document.getElementById("wf-pages").value.trim(),
     genre: document.getElementById("f-genre").value.trim(),
     subGenre: document.getElementById("f-subgenre").value.trim(),
+    seriesName: (document.getElementById("f-series-name")?.value || "").trim(),
+    seriesNumber: (document.getElementById("f-series-number")?.value || "").trim(),
   };
   if(!w.title) return;
   if(existing) state.wishlist = state.wishlist.map(x=>x.id===id?w:x);
@@ -1853,6 +1964,7 @@ function completeMoveWish(){
     id:uid(), title:w.title, author:w.author, genre:w.genre||"", subGenre:w.subGenre||"",
     format, source, status:"reading", priority:"Interested", rating:0, dateFinished:"",
     language, pagesHours:w.pagesHours||"", review:"", notes, recommendedBy, coverUrl:w.coverUrl||"",
+    seriesName:w.seriesName||"", seriesNumber:w.seriesNumber||"", rereads:[],
     isExample:false, progressPercent:0, progressMode:"percent", progressPage:""
   });
   state.wishlist = state.wishlist.filter(x=>x.id!==id);
@@ -2020,6 +2132,44 @@ document.addEventListener("click", (e)=>{
     const q = [t,a].filter(Boolean).join(" ");
     if(q){ window.open("https://www.goodreads.com/search?q=" + encodeURIComponent(q), "_blank", "noopener"); }
   }
+  else if(action==="goodreads-search-wf"){
+    const t = (document.getElementById("wf-title")?.value || "").trim();
+    const a = (document.getElementById("wf-author")?.value || "").trim();
+    const q = [t,a].filter(Boolean).join(" ");
+    if(q){ window.open("https://www.goodreads.com/search?q=" + encodeURIComponent(q), "_blank", "noopener"); }
+  }
+  else if(action==="quick-goodreads-search"){
+    const q = (document.getElementById("quick-goodreads-q")?.value || "").trim();
+    if(q){ window.open("https://www.goodreads.com/search?q=" + encodeURIComponent(q), "_blank", "noopener"); }
+  }
+  else if(action==="add-reread"){
+    formRereads.push({id:uid(), endDate:new Date().toISOString().slice(0,10)});
+    const box = document.getElementById("rereads-box");
+    if(box) box.innerHTML = rereadsBoxHTML();
+  }
+  else if(action==="remove-reread"){
+    formRereads = formRereads.filter(r=>r.id!==id);
+    const box = document.getElementById("rereads-box");
+    if(box) box.innerHTML = rereadsBoxHTML();
+  }
+  else if(action==="add-series-entry"){
+    const seriesName = (document.getElementById("f-series-name")?.value || "").trim();
+    const title = (document.getElementById("series-new-title")?.value || "").trim();
+    if(!seriesName || !title) return;
+    const author = (document.getElementById("series-new-author")?.value || "").trim();
+    const number = (document.getElementById("series-new-number")?.value || "").trim();
+    state.wishlist.push({
+      id:uid(), isExample:false, title, author, priority:"Interested", coverUrl:"",
+      pagesHours:"", genre:"", subGenre:"", seriesName, seriesNumber:number
+    });
+    persistWishlist();
+    refreshSeriesBox();
+    ["series-new-title","series-new-author","series-new-number"].forEach(fid=>{ const el=document.getElementById(fid); if(el) el.value=""; });
+  }
+  else if(action==="series-add-to-library"){
+    const w = state.wishlist.find(x=>x.id===id);
+    if(w){ state.modal = {type:"move-wish-form", payload:w}; renderModal(); }
+  }
   else if(action==="import-goodreads"){ state.modal = {type:"goodreads-import", payload:null}; renderModal(); }
   else if(action==="do-goodreads-import"){ runGoodreadsImport(); }
   else if(action==="toggle-select"){ toggleSelect(id); render(); }
@@ -2071,6 +2221,13 @@ document.addEventListener("change", (e)=>{
   else if(e.target.id==="gallery-rating"){ ui.galleryRating = e.target.value; render(); }
   else if(e.target.id==="shelf-genre"){ ui.shelfGenre = e.target.value; render(); }
 });
+document.addEventListener("keydown", (e)=>{
+  if(e.key==="Enter" && e.target && e.target.id==="quick-goodreads-q"){
+    e.preventDefault();
+    const q = e.target.value.trim();
+    if(q) window.open("https://www.goodreads.com/search?q=" + encodeURIComponent(q), "_blank", "noopener");
+  }
+});
 document.addEventListener("input", (e)=>{
   if(e.target.id==="gallery-q"){ ui.galleryQuery = e.target.value; render(); document.getElementById("gallery-q") && document.getElementById("gallery-q").focus(); }
   else if(e.target.id==="f-genre"){
@@ -2098,6 +2255,14 @@ document.addEventListener("input", (e)=>{
       if(val){ prev.classList.remove("empty"); prev.innerHTML = `<img src="${esc(val)}" alt="cover preview" onerror="this.parentElement.classList.add('empty'); this.remove();"/>`; }
       else { prev.classList.add("empty"); prev.innerHTML = "📖"; }
     }
+  }
+  else if(e.target.id==="f-series-name"){
+    refreshSeriesBox();
+  }
+  else if(e.target.classList && e.target.classList.contains("reread-date")){
+    const rid = e.target.getAttribute("data-id");
+    const r = formRereads.find(x=>x.id===rid);
+    if(r) r.endDate = e.target.value;
   }
   else if(/-rating-num$/.test(e.target.id)){
     const targetId = e.target.id.replace(/-num$/, "");
