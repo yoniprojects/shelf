@@ -722,7 +722,7 @@ function computeFunFacts(books){
   }
 
   const dnfCount = books.filter(b=>b.status==="dnf").length;
-  if(dnfCount) facts.push({icon:"👋", text:`You've set aside ${dnfCount} book${dnfCount===1?"":"s"} as did-not-finish — no shame in that.`});
+  if(dnfCount) facts.push({icon:"👋", text:`You've set aside ${dnfCount} book${dnfCount===1?"":"s"} as did-not-finish — good riddance!`});
 
   const gmapAll={}; completed.forEach(b=>{ if(b.genre) gmapAll[b.genre]=(gmapAll[b.genre]||0)+1; });
   const topAll = Object.entries(gmapAll).sort((a,b)=>b[1]-a[1])[0];
@@ -784,7 +784,55 @@ function renderDashboard(){
   const formatEntries = Object.entries(formatMap);
   const formatColors = { Physical: COLORS.oxblood, Digital: COLORS.rose, Audio: COLORS.sage };
 
+  function dedupeAdjacentColors(entries, colorFn){
+    const n = entries.length;
+    if(n < 3) return entries;
+    const items = entries.map(([name,val])=>({name,val,color:colorFn(name)}));
+    const groups = {};
+    items.forEach(it=>{ (groups[it.color] = groups[it.color]||[]).push(it); });
+    const groupArr = Object.values(groups).sort((a,b)=>b.length-a.length);
+    const result = new Array(n).fill(null);
+    let idx = 0;
+    groupArr.forEach(group=>{
+      group.forEach(it=>{
+        while(result[idx % n]) idx++;
+        result[idx % n] = it;
+        idx += 2;
+      });
+    });
+    for(let i=0;i<n;i++){
+      if(!result[i]){
+        outer: for(const g of groupArr) for(const it of g){ if(!result.includes(it)){ result[i]=it; break outer; } }
+      }
+    }
+    const colorAt = i => result[(i+n)%n].color;
+    for(let pass=0; pass<n; pass++){
+      let clean = true;
+      for(let i=0;i<n;i++){
+        if(colorAt(i) === colorAt(i+1)){
+          clean = false;
+          for(let j=0;j<n;j++){
+            const iNext = (i+1)%n;
+            if(j===i || j===iNext) continue;
+            const a = result[iNext], b = result[j];
+            if(a.color===b.color) continue;
+            const prevOk = result[i].color !== b.color;
+            const nextOk = result[(i+2)%n].color !== b.color;
+            const jPrevOk = result[(j-1+n)%n].color !== a.color;
+            const jNextOk = result[(j+1)%n].color !== a.color;
+            if(prevOk && nextOk && jPrevOk && jNextOk){
+              result[iNext] = b; result[j] = a;
+              break;
+            }
+          }
+        }
+      }
+      if(clean) break;
+    }
+    return result.map(it=>[it.name,it.val]);
+  }
   function pie(entries, colorFn){
+    entries = dedupeAdjacentColors(entries, colorFn);
     const total = entries.reduce((s,[,v])=>s+v,0) || 1;
     const cx=50, cy=50, rOuter=49, rInner=28;
     function polar(r, angleDeg){
@@ -1031,7 +1079,7 @@ function renderGallery(){
     if(q && !`${b.title} ${b.author}`.toLowerCase().includes(q)) return false;
     if(ui.galleryStatus && b.status!==ui.galleryStatus) return false;
     if(ui.galleryGenre && b.genre!==ui.galleryGenre) return false;
-    if(ui.galleryRating && b.rating < Number(ui.galleryRating)) return false;
+    if(ui.galleryRating){ const n = Number(ui.galleryRating); if(n>=5 ? b.rating!==5 : (b.rating < n || b.rating >= n+1)) return false; }
     return true;
   });
   const cards = filtered.map(b=>`
@@ -1054,7 +1102,7 @@ function renderGallery(){
       </select>
       <select class="input" id="gallery-rating">
         <option value="">Any rating</option>
-        ${[5,4,3,2,1].map(n=>`<option value="${n}" ${ui.galleryRating==String(n)?"selected":""}>${n}+ stars</option>`).join("")}
+        ${[5,4,3,2,1].map(n=>`<option value="${n}" ${ui.galleryRating==String(n)?"selected":""}>${n===5?"5 stars":n+"–"+(n+1)+" stars"}</option>`).join("")}
       </select>
     </div>
     ${filtered.length===0 ? emptyState("No books match those filters. Try clearing one.") : `<div class="flexwrap gallery-grid">${cards}</div>`}
