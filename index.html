@@ -497,6 +497,7 @@ let ui = {
   calPicked: null,
   selected: new Set(),
   mobileMoreOpen: false,
+  dashGenreView: "genre",
 };
 
 // Resume where I left off: mark this page as the last one visited.
@@ -704,7 +705,7 @@ function computeFunFacts(books){
   if(rated) facts.push({icon:"⭐", text:`Your top-rated read is <strong>${esc(rated.title)}</strong> at ${rated.rating}★.`});
 
   const withPages = completed.filter(b=>b.pagesHours && !isNaN(Number(b.pagesHours))).sort((a,b)=>Number(b.pagesHours)-Number(a.pagesHours))[0];
-  if(withPages) facts.push({icon:"📖", text:`Your longest read was <strong>${esc(withPages.title)}</strong> at ${withPages.pagesHours} pages/hours.`});
+  if(withPages) facts.push({icon:"📖", text:`Your longest read was <strong>${esc(withPages.title)}</strong> at ${withPages.pagesHours} pages.`});
 
   const monthMap={};
   completed.forEach(b=>{ const key=b.dateFinished.slice(0,7); monthMap[key]=(monthMap[key]||0)+1; });
@@ -774,6 +775,11 @@ function renderDashboard(){
 
   const genreMap = {}; books.forEach(b=>{ if(b.genre) genreMap[b.genre]=(genreMap[b.genre]||0)+1; });
   const genreEntries = Object.entries(genreMap);
+  const subGenreMap = {}; books.forEach(b=>{ if(b.subGenre) subGenreMap[b.subGenre]=(subGenreMap[b.subGenre]||0)+1; });
+  const subGenreEntries = Object.entries(subGenreMap);
+  const showingSubGenre = ui.dashGenreView === "subgenre";
+  const genreViewEntries = showingSubGenre ? subGenreEntries : genreEntries;
+  const genreViewColorFn = showingSubGenre ? (n=>SPINE_COLORS[hashStr(n)%SPINE_COLORS.length]) : genreColor;
   const formatMap = {}; books.forEach(b=>{ if(b.format) formatMap[b.format]=(formatMap[b.format]||0)+1; });
   const formatEntries = Object.entries(formatMap);
   const formatColors = { Physical: COLORS.oxblood, Digital: COLORS.rose, Audio: COLORS.sage };
@@ -898,8 +904,15 @@ function renderDashboard(){
         ` : `<div style="font-size:12.5px;color:var(--muted);">No books finished this month yet.</div>`}
       </div>
       <div class="card pie-card">
-        <div class="section-label">By genre</div>
-        ${pie(genreEntries, genreColor)}
+        <div class="section-label" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+          <span>By ${showingSubGenre ? "sub-genre" : "genre"}</span>
+          ${subGenreEntries.length ? `
+          <div style="display:flex;gap:4px;">
+            <button type="button" class="btn-text" data-action="dash-genre-view" data-view="genre" style="padding:2px 8px;border-radius:6px;font-size:10.5px;${!showingSubGenre?`background:var(--blush);color:var(--oxblood-dark);`:`color:var(--muted);`}">Genre</button>
+            <button type="button" class="btn-text" data-action="dash-genre-view" data-view="subgenre" style="padding:2px 8px;border-radius:6px;font-size:10.5px;${showingSubGenre?`background:var(--blush);color:var(--oxblood-dark);`:`color:var(--muted);`}">Sub-genre</button>
+          </div>` : ""}
+        </div>
+        ${pie(genreViewEntries, genreViewColorFn)}
       </div>
       <div class="card pie-card">
         <div class="section-label">By format</div>
