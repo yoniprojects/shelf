@@ -357,6 +357,7 @@
 <!-- Firebase (compat SDKs — plain <script> tags, no bundler needed) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
 /* ---------------- firebase setup ---------------- */
 const firebaseConfig = {
@@ -382,6 +383,25 @@ const PROFILES = [
   { id: "tom", name: "Tom", avatar: "https://i.imgur.com/w3NaZpO.png" }
 ];
 const SHARED_DOC = db.collection("shelf-spine").doc(getCurrentUserId());
+// Legacy location: before this app's data lived under "shelf-spine", it was
+// stored under a collection called "library". Some profiles' data never got
+// migrated over, so we check for it once below and copy it forward if found.
+const LEGACY_LIBRARY_DOC = db.collection("library").doc(getCurrentUserId());
+
+// Secondary Firebase project used only by Goals mode's Realtime Database
+// (see goals.html). Initialized here too, under a distinct app name, purely
+// so the full backup export below can pull that data in as well.
+const TBR_WHEEL_CONFIG = {
+  apiKey: "AIzaSyBVrwFO3td4EWA-krxGH-dl6Hw0wwe4nH0",
+  authDomain: "tbr-wheel.firebaseapp.com",
+  databaseURL: "https://tbr-wheel-default-rtdb.firebaseio.com",
+  projectId: "tbr-wheel",
+  storageBucket: "tbr-wheel.firebasestorage.app",
+  messagingSenderId: "357091296526",
+  appId: "1:357091296526:web:f8bd789ea5b5f79650435f"
+};
+const tbrWheelApp = firebase.initializeApp(TBR_WHEEL_CONFIG, "tbrWheelApp");
+const tbrWheelDb = tbrWheelApp.database();
 </script>
 
 <script>
@@ -506,13 +526,42 @@ localStorage.setItem('shelf:lastPage', 'index.html');
 /* ---------------- persistence (Firebase Firestore) ---------------- */
 let firestoreReady = false;
 
+function hasRealData(data){
+  // "Real" = at least one book/wishlist item that isn't leftover seed/example data.
+  if (!data) return false;
+  const books = Array.isArray(data.books) ? data.books : [];
+  const wishlist = Array.isArray(data.wishlist) ? data.wishlist : [];
+  return books.some(b => !b.isExample) || wishlist.some(w => !w.isExample);
+}
+
+async function migrateLegacyLibraryIfNeeded(){
+  try {
+    const newSnap = await SHARED_DOC.get();
+    if (hasRealData(newSnap.exists ? newSnap.data() : null)) return; // real data already here, nothing to do
+    const legacySnap = await LEGACY_LIBRARY_DOC.get();
+    if (legacySnap.exists && hasRealData(legacySnap.data())) {
+      // Overwrite (not merge) so leftover seed books don't linger alongside the real data.
+      await SHARED_DOC.set(legacySnap.data());
+      console.log('Migrated data from legacy "library" collection to "shelf-spine" for user:', getCurrentUserId());
+    }
+  } catch (err) {
+    console.error('Legacy library migration failed:', err);
+  }
+}
+
 async function loadData(){
+  await migrateLegacyLibraryIfNeeded();
   SHARED_DOC.onSnapshot((snap) => {
     if (!snap.exists) {
-      if (!firestoreReady) {
-        SHARED_DOC.set({ books: SEED_BOOKS, wishlist: SEED_WISHLIST })
-          .catch(err => console.error("Failed to seed Firestore:", err));
-      }
+      // SAFETY: no longer auto-writes seed data here. Auto-seeding on an
+      // "empty" snapshot was overwriting real data whenever the first
+      // Firestore read came back empty/stale (e.g. on a flaky connection).
+      // The empty-state UI (see renderDashboard) now handles first-run
+      // instead. If you genuinely want to load the example books, use
+      // the button that calls loadSeedDataManually().
+      console.warn('Firestore doc does not exist yet for user:', getCurrentUserId());
+      state.loaded = true;
+      render();
       return;
     }
     const data = snap.data();
@@ -564,14 +613,75 @@ function switchUser(userId){
 }
 
 /* ---------------- JSON Backup & Restore ---------------- */
-function exportBackupJSON(){
+// Pulls a FRESH, COMPLETE, RAW copy of everything tied to a given profile id,
+// across every collection/project used by this app and its sub-apps —
+// not just the fields index.html happens to keep in `state`. This is
+// deliberately redundant/defensive: if a field exists in Firebase that this
+// app doesn't know about, it still gets captured because we dump whole
+// documents rather than picking named fields off of them.
+async function fetchFullProfileBackup(profileId){
+  const result = { profileId };
+
+  try {
+    const snap = await db.collection("shelf-spine").doc(profileId).get();
+    result["shelf-spine"] = snap.exists ? snap.data() : null;
+  } catch (err) {
+    result["shelf-spine"] = { error: String(err) };
+  }
+
+  try {
+    const snap = await db.collection("library").doc(profileId).get();
+    result["library (legacy)"] = snap.exists ? snap.data() : null;
+  } catch (err) {
+    result["library (legacy)"] = { error: String(err) };
+  }
+
+  try {
+    const snap = await db.collection("bingo-app").doc(profileId).get();
+    result["bingo-app"] = snap.exists ? snap.data() : null;
+  } catch (err) {
+    result["bingo-app"] = { error: String(err) };
+  }
+
+  try {
+    const snap = await db.collection("wrappd-app").doc(profileId).get();
+    result["wrappd-app"] = snap.exists ? snap.data() : null;
+  } catch (err) {
+    result["wrappd-app"] = { error: String(err) };
+  }
+
+  try {
+    const snap = await tbrWheelDb.ref('appData/goalsByUser/' + profileId).once('value');
+    result["tbr-wheel goals (Realtime DB)"] = snap.exists() ? snap.val() : null;
+  } catch (err) {
+    result["tbr-wheel goals (Realtime DB)"] = { error: String(err) };
+  }
+
+  return result;
+}
+
+async function exportBackupJSON(){
+  // Grab the legacy single-document "appData/goals" location too — it's
+  // migrated per-profile on first load, but exporting it directly means
+  // nothing is missed even if that migration hasn't run for some reason.
+  let legacyGoals = null;
+  try {
+    const snap = await tbrWheelDb.ref('appData/goals').once('value');
+    legacyGoals = snap.exists() ? snap.val() : null;
+  } catch (err) {
+    legacyGoals = { error: String(err) };
+  }
+
+  const profileBackups = await Promise.all(PROFILES.map(p => fetchFullProfileBackup(p.id)));
+
   const backupData = {
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
-    books: state.books,
-    wishlist: state.wishlist
+    note: "Full raw export across all profiles, all collections (shelf-spine, legacy library, bingo-app, wrappd-app), and the tbr-wheel Realtime Database goals data used by Goals mode. Each profile's data is under profiles[].",
+    "tbr-wheel legacy goals (appData/goals, pre-per-profile)": legacyGoals,
+    profiles: profileBackups
   };
-  const filename = `shelf-spine-backup-${new Date().toISOString().slice(0,10)}.json`;
+  const filename = `shelf-spine-full-backup-${new Date().toISOString().slice(0,10)}.json`;
   const jsonStr = JSON.stringify(backupData, null, 2);
   const blob = new Blob([jsonStr], { type: "application/json" });
 
@@ -1771,11 +1881,13 @@ function goalFormHTML(payload){
 function backupExportModalHTML(){
   return `
     <div style="font-size:13px;line-height:1.5;margin-bottom:16px;">
-      Export your complete reading data (books, wishlist, ratings, reviews, and images) to a JSON file.
+      Export everything: books, wishlist, and goals for every profile (Yoni &amp; Tom), plus your Bingo board and Wrapped data.
+      This pulls fresh, complete data straight from Firebase — not just what's currently loaded on screen — so nothing gets left out.
+      May take a few seconds.
     </div>
     <div style="display:flex;justify-content:flex-end;gap:10px;">
       <button class="btn btn-ghost" data-action="close-modal">Cancel</button>
-      <button class="btn btn-primary" data-action="do-export-json">Download JSON Backup</button>
+      <button class="btn btn-primary" data-action="do-export-json">Download Full Backup</button>
     </div>
   `;
 }
@@ -2285,6 +2397,8 @@ document.addEventListener("click", (e)=>{
   else if(action==="mark-dnf"){ markDNFFromModal(id); }
   else if(action==="close-modal"){ state.modal = null; goodreadsParsed = null; renderModal(); }
   else if(action==="sort"){ ui.sortKey = el.getAttribute("data-key"); render(); }
+  else if(action==="dash-genre-view"){ ui.dashGenreView = el.getAttribute("data-view"); render(); }
+  else if(action==="dash-genre-view"){ ui.dashGenreView = el.getAttribute("data-view"); render(); }
   else if(action==="clear-examples"){ clearExamples(); }
   else if(action==="cal-prev"){ ui.calMonth = new Date(ui.calMonth.getFullYear(), ui.calMonth.getMonth()-1, 1); ui.calPicked=null; render(); }
   else if(action==="cal-next"){ ui.calMonth = new Date(ui.calMonth.getFullYear(), ui.calMonth.getMonth()+1, 1); ui.calPicked=null; render(); }
@@ -2363,7 +2477,16 @@ document.addEventListener("click", (e)=>{
   else if(action==="save-bulk-edit"){ saveBulkEditFromForm(); }
   else if(action==="open-export"){ state.modal = {type:"backup-export", payload:null}; renderModal(); }
   else if(action==="open-import"){ state.modal = {type:"backup-import", payload:null}; renderModal(); }
-  else if(action==="do-export-json"){ exportBackupJSON(); }
+  else if(action==="do-export-json"){
+    el.disabled = true;
+    el.textContent = "Exporting…";
+    exportBackupJSON().catch(err=>{
+      console.error("Export failed:", err);
+      alert("Export failed: " + err.message);
+      el.disabled = false;
+      el.textContent = "Download Full Backup";
+    });
+  }
   else if(action==="do-import-json"){
     const fileInput = document.getElementById("import-json-file");
     if(fileInput && fileInput.files[0]){
