@@ -2285,6 +2285,8 @@ document.addEventListener("click", (e)=>{
   else if(action==="mark-dnf"){ markDNFFromModal(id); }
   else if(action==="close-modal"){ state.modal = null; goodreadsParsed = null; renderModal(); }
   else if(action==="sort"){ ui.sortKey = el.getAttribute("data-key"); render(); }
+  else if(action==="dash-genre-view"){ ui.dashGenreView = el.getAttribute("data-view"); render(); }
+  else if(action==="dash-genre-view"){ ui.dashGenreView = el.getAttribute("data-view"); render(); }
   else if(action==="clear-examples"){ clearExamples(); }
   else if(action==="cal-prev"){ ui.calMonth = new Date(ui.calMonth.getFullYear(), ui.calMonth.getMonth()-1, 1); ui.calPicked=null; render(); }
   else if(action==="cal-next"){ ui.calMonth = new Date(ui.calMonth.getFullYear(), ui.calMonth.getMonth()+1, 1); ui.calPicked=null; render(); }
