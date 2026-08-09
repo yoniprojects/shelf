@@ -1,0 +1,14 @@
+{
+  "name": "shelf-spine-daily-export",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Daily Firestore export + email for the Shelf & Spine reading tracker",
+  "main": "export-and-email.js",
+  "scripts": {
+    "export": "node export-and-email.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.1.0",
+    "nodemailer": "^6.9.13"
+  }
+}
