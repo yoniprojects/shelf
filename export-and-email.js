@@ -1,12 +1,18 @@
 // export-and-email.js
 //
-// Pulls the "shared" (Yoni) and "tom" profile documents from the same
-// Firestore project your Shelf & Spine app uses, bundles them into one
-// JSON backup file (same shape as the in-app "Export Backup" button
-// produces, just for both profiles), and emails it as an attachment.
+// Produces exactly the same backup as the in-app "Export Backup" button
+// (fetchFullProfileBackup / exportBackupJSON in index.html) — same
+// collections, same per-profile shape, same version — and emails it as
+// an attachment instead of downloading it. Because the shape matches,
+// a file from this daily email can be dropped straight into the app's
+// "Restore Backup" button if you ever need to.
 //
-// Each profile's doc includes books, wishlist, the yearly numeric goal
-// ("goals"), and Goals Mode's per-book milestone data ("goalsMode").
+// For each profile, this pulls the *entire raw document* (not just
+// named fields) from every collection the app uses:
+//   - shelf-spine   (books, wishlist, yearly goal, Goals Mode's goalsMode)
+//   - library       (legacy, pre-shelf-spine data)
+//   - bingo-app
+//   - wrappd-app
 //
 // Required environment variables (set as GitHub Actions secrets — see
 // the accompanying workflow file):
@@ -18,8 +24,29 @@
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
 
-const PROFILE_IDS = ["shared", "tom"];
+const PROFILE_IDS = ["shared", "tom"]; // must match PROFILES in index.html
+const COLLECTIONS = [
+  ["shelf-spine", "shelf-spine"],
+  ["library", "library (legacy)"],
+  ["bingo-app", "bingo-app"],
+  ["wrappd-app", "wrappd-app"],
+];
 const PROJECT_ID = "readingtracker-73e78"; // from firebaseConfig in index.html
+
+async function fetchFullProfileBackup(db, profileId) {
+  const result = { profileId };
+
+  for (const [collectionName, key] of COLLECTIONS) {
+    try {
+      const snap = await db.collection(collectionName).doc(profileId).get();
+      result[key] = snap.exists ? snap.data() : null;
+    } catch (err) {
+      result[key] = { error: String(err) };
+    }
+  }
+
+  return result;
+}
 
 async function main() {
   // ---- 1. Init Firebase Admin ----
@@ -36,30 +63,20 @@ async function main() {
 
   const db = admin.firestore();
 
-  // ---- 2. Pull each profile's document ----
-  const backup = {
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    profiles: {},
-  };
-
-  for (const profileId of PROFILE_IDS) {
-    const snap = await db.collection("shelf-spine").doc(profileId).get();
-    if (!snap.exists) {
-      console.warn(`No document found for profile "${profileId}", skipping.`);
-      continue;
-    }
-    const data = snap.data();
-    backup.profiles[profileId] = {
-      books: Array.isArray(data.books) ? data.books : [],
-      wishlist: Array.isArray(data.wishlist) ? data.wishlist : [],
-      goals: data.goals && typeof data.goals === "object" ? data.goals : {},
-      goalsMode: Array.isArray(data.goalsMode) ? data.goalsMode : [],
-    };
-  }
+  // ---- 2. Pull each profile's full backup (same shape as the in-app button) ----
+  const profileBackups = await Promise.all(
+    PROFILE_IDS.map((profileId) => fetchFullProfileBackup(db, profileId))
+  );
 
   const dateStr = new Date().toISOString().slice(0, 10);
-  const filename = `shelf-spine-backup-${dateStr}.json`;
+  const backup = {
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    note: "Full raw export across all profiles, all collections (shelf-spine — which includes books, wishlist, the yearly goal, and Goals Mode's goalsMode field — legacy library, bingo-app, wrappd-app). Each profile's data is under profiles[].",
+    profiles: profileBackups,
+  };
+
+  const filename = `shelf-spine-full-backup-${dateStr}.json`;
   const jsonStr = JSON.stringify(backup, null, 2);
 
   // ---- 3. Email it ----
@@ -71,16 +88,18 @@ async function main() {
     },
   });
 
-  const totalBooks = Object.values(backup.profiles).reduce(
-    (sum, p) => sum + p.books.length,
-    0
-  );
+  const totalBooks = profileBackups.reduce((sum, p) => {
+    const books = p["shelf-spine"] && Array.isArray(p["shelf-spine"].books)
+      ? p["shelf-spine"].books
+      : [];
+    return sum + books.length;
+  }, 0);
 
   await transporter.sendMail({
     from: process.env.GMAIL_USER,
     to: process.env.RECIPIENT_EMAIL,
     subject: `Shelf & Spine daily backup — ${dateStr}`,
-    text: `Attached is your daily Shelf & Spine backup (${totalBooks} books across ${Object.keys(backup.profiles).length} profile(s)).`,
+    text: `Attached is your daily Shelf & Spine full backup (${totalBooks} books across ${profileBackups.length} profile(s), all collections included — same format as the in-app "Export Backup" button, so it can be restored the same way).`,
     attachments: [
       {
         filename,
