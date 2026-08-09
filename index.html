@@ -235,8 +235,10 @@
   @media (max-width:780px){
     .shell{flex-direction:column;}
     .sidebar{display:none;}
-    .mobile-nav{display:flex;position:sticky;top:0;z-index:20;background:var(--oxblood-dark);align-items:stretch;box-shadow:0 2px 8px rgba(0,0,0,.15);overflow-x:auto;}
+    .mobile-nav{display:flex;position:sticky;top:0;z-index:20;background:var(--oxblood-dark);align-items:stretch;box-shadow:0 2px 8px rgba(0,0,0,.15);}
+    .mobile-nav-scroll{display:flex;align-items:stretch;overflow-x:auto;-webkit-overflow-scrolling:touch;flex:1 1 auto;min-width:0;}
     .mobile-nav-btn{flex:1 0 auto;min-width:54px;border:none;background:transparent;color:rgba(255,255,255,.75);padding:10px 2px 8px;font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;text-align:center;border-bottom:2.5px solid transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .mobile-nav-more{flex:0 0 auto;min-width:60px;}
     .mobile-nav-btn.active{color:#fff;border-bottom-color:var(--gold);}
     .mobile-more-panel{position:absolute;top:100%;right:8px;background:var(--oxblood-dark);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.35);padding:6px;min-width:170px;z-index:21;}
     .mobile-more-panel .nav-btn{width:100%;color:#fff;}
@@ -2127,9 +2129,11 @@ function renderSidebar(){
     : `<a href="${esc(e.href)}" class="mobile-nav-btn" style="text-decoration:none;">${esc(e.label)}</a>`;
 
   document.getElementById("mobile-nav").innerHTML = `
-    ${favForBar.map(favBarBtnHTML).join("")}
-    ${primaryTabs.map(t=>`<button class="mobile-nav-btn ${state.tab===t.key?"active":""}" data-action="set-tab" data-tab="${t.key}">${mobileLabel(t)}</button>`).join("")}
-    <button class="mobile-nav-btn ${moreActive?"active":""}" data-action="toggle-mobile-more">More ${ui.mobileMoreOpen?"▲":"▼"}</button>
+    <div class="mobile-nav-scroll">
+      ${favForBar.map(favBarBtnHTML).join("")}
+      ${primaryTabs.map(t=>`<button class="mobile-nav-btn ${state.tab===t.key?"active":""}" data-action="set-tab" data-tab="${t.key}">${mobileLabel(t)}</button>`).join("")}
+    </div>
+    <button class="mobile-nav-btn mobile-nav-more ${moreActive?"active":""}" data-action="toggle-mobile-more">More ${ui.mobileMoreOpen?"▲":"▼"}</button>
     ${ui.mobileMoreOpen ? `
       <div class="mobile-more-backdrop" data-action="close-mobile-more"></div>
       <div class="mobile-more-panel">
