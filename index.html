@@ -718,28 +718,79 @@ async function exportBackupJSON(){
   renderModal();
 }
 
-function importBackupJSON(file){
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const parsed = JSON.parse(e.target.result);
-      if(parsed && (Array.isArray(parsed.books) || Array.isArray(parsed.wishlist))){
-        if(Array.isArray(parsed.books)) state.books = parsed.books;
-        if(Array.isArray(parsed.wishlist)) state.wishlist = parsed.wishlist;
-        persistBooks();
-        persistWishlist();
-        state.modal = null;
-        render();
-        alert("Backup restored successfully!");
-      } else {
-        alert("Invalid backup file format.");
-      }
-    } catch(err) {
-      alert("Error parsing backup file.");
-    }
+async function restoreFullProfileBackup(profileEntry){
+  const profileId = profileEntry.profileId;
+  if (!profileId) return;
+
+  const writeFirestore = async (collectionName, key) => {
+    const data = profileEntry[key];
+    if (!data || data.error) return; // nothing captured at export time, or that part failed — leave current data alone
+    await db.collection(collectionName).doc(profileId).set(data);
   };
-  reader.readAsText(file);
+
+  await writeFirestore("shelf-spine", "shelf-spine");
+  await writeFirestore("library", "library (legacy)");
+  await writeFirestore("bingo-app", "bingo-app");
+  await writeFirestore("wrappd-app", "wrappd-app");
+
+  const goalsData = profileEntry["tbr-wheel goals (Realtime DB)"];
+  if (goalsData && !goalsData.error) {
+    await tbrWheelDb.ref('appData/goalsByUser/' + profileId).set(goalsData);
+  }
+}
+
+async function importBackupJSON(file){
+  if(!file) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error || new Error("Could not read file"));
+    reader.onload = async (e) => {
+      try {
+        const parsed = JSON.parse(e.target.result);
+
+        if (parsed && parsed.version === 2 && Array.isArray(parsed.profiles)) {
+          // Full multi-profile, multi-app backup produced by the current export.
+          for (const profileEntry of parsed.profiles) {
+            await restoreFullProfileBackup(profileEntry);
+          }
+          const legacyGoals = parsed["tbr-wheel legacy goals (appData/goals, pre-per-profile)"];
+          if (legacyGoals && !legacyGoals.error) {
+            await tbrWheelDb.ref('appData/goals').set(legacyGoals);
+          }
+          state.modal = null;
+          render();
+          alert("Full backup restored across all profiles and sub-apps! If you're on a Bingo, Wrapped, or Goals page, reload that page to see the restored data there.");
+          resolve();
+          // Reload this page so the shelf-spine listener picks up whichever
+          // profile is currently active with a clean, fully-synced state.
+          location.reload();
+          return;
+        }
+
+        // Backward compatibility: older backups only ever contained the
+        // current profile's books/wishlist (and possibly goals).
+        if(parsed && (Array.isArray(parsed.books) || Array.isArray(parsed.wishlist))){
+          if(Array.isArray(parsed.books)) state.books = parsed.books;
+          if(Array.isArray(parsed.wishlist)) state.wishlist = parsed.wishlist;
+          if(parsed.goals && typeof parsed.goals === "object") state.goals = parsed.goals;
+          persistBooks();
+          persistWishlist();
+          if(parsed.goals) persistGoals();
+          state.modal = null;
+          render();
+          alert("Backup restored successfully! (This was an older-format backup covering only books/wishlist/goals for the current profile.)");
+          resolve();
+        } else {
+          alert("Invalid backup file format.");
+          resolve();
+        }
+      } catch(err) {
+        console.error("Restore failed:", err);
+        reject(err);
+      }
+    };
+    reader.readAsText(file);
+  });
 }
 
 /* ---------------- small UI builders ---------------- */
@@ -1894,7 +1945,9 @@ function backupExportModalHTML(){
 function backupImportModalHTML(){
   return `
     <div style="font-size:13px;line-height:1.5;margin-bottom:16px;">
-      Restore your reading tracker state by uploading a previously saved JSON backup file.
+      Restore from a previously saved JSON backup. Works with both the newer full backup (all profiles: books, wishlist, goals, Bingo, Wrapped) and older backups (books/wishlist only for the current profile).
+      <br><br>
+      <b>This overwrites current data</b> for anything present in the backup file — it doesn't merge.
     </div>
     <label class="field">Select JSON file
       <input type="file" accept=".json,application/json" id="import-json-file" class="input" style="padding:6px;" />
@@ -2490,7 +2543,16 @@ document.addEventListener("click", (e)=>{
   else if(action==="do-import-json"){
     const fileInput = document.getElementById("import-json-file");
     if(fileInput && fileInput.files[0]){
-      importBackupJSON(fileInput.files[0]);
+      if(!confirm("This will overwrite current data with what's in the backup file. Continue?")) return;
+      el.disabled = true;
+      el.textContent = "Restoring…";
+      Promise.resolve(importBackupJSON(fileInput.files[0])).catch(err=>{
+        console.error("Restore failed:", err);
+        alert("Restore failed: " + err.message);
+      }).finally(()=>{
+        el.disabled = false;
+        el.textContent = "Restore Data";
+      });
     }
   }
   else if(action==="open-switch-user"){ ui.mobileMoreOpen = false; state.modal = {type:"switch-user", payload:null}; renderModal(); }
