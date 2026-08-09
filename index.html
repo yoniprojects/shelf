@@ -382,7 +382,6 @@ const PROFILES = [
   { id: "tom", name: "Tom", avatar: "https://i.imgur.com/w3NaZpO.png" }
 ];
 const SHARED_DOC = db.collection("shelf-spine").doc(getCurrentUserId());
-alert('DEBUG user id: ' + JSON.stringify(getCurrentUserId()) + ' | raw localStorage: ' + JSON.stringify(localStorage.getItem('shelf:currentUser')));
 </script>
 
 <script>
@@ -510,15 +509,10 @@ let firestoreReady = false;
 async function loadData(){
   SHARED_DOC.onSnapshot((snap) => {
     if (!snap.exists) {
-      // SAFETY: no longer auto-writes seed data here. Auto-seeding on an
-      // "empty" snapshot was overwriting real data whenever the first
-      // Firestore read came back empty/stale (e.g. on a flaky connection).
-      // The empty-state UI (see renderDashboard) now handles first-run
-      // instead. If you genuinely want to load the example books, use
-      // the button that calls loadSeedDataManually().
-      console.warn('Firestore doc does not exist yet for user:', getCurrentUserId());
-      state.loaded = true;
-      render();
+      if (!firestoreReady) {
+        SHARED_DOC.set({ books: SEED_BOOKS, wishlist: SEED_WISHLIST })
+          .catch(err => console.error("Failed to seed Firestore:", err));
+      }
       return;
     }
     const data = snap.data();
@@ -2291,8 +2285,6 @@ document.addEventListener("click", (e)=>{
   else if(action==="mark-dnf"){ markDNFFromModal(id); }
   else if(action==="close-modal"){ state.modal = null; goodreadsParsed = null; renderModal(); }
   else if(action==="sort"){ ui.sortKey = el.getAttribute("data-key"); render(); }
-  else if(action==="dash-genre-view"){ ui.dashGenreView = el.getAttribute("data-view"); render(); }
-  else if(action==="dash-genre-view"){ ui.dashGenreView = el.getAttribute("data-view"); render(); }
   else if(action==="clear-examples"){ clearExamples(); }
   else if(action==="cal-prev"){ ui.calMonth = new Date(ui.calMonth.getFullYear(), ui.calMonth.getMonth()-1, 1); ui.calPicked=null; render(); }
   else if(action==="cal-next"){ ui.calMonth = new Date(ui.calMonth.getFullYear(), ui.calMonth.getMonth()+1, 1); ui.calPicked=null; render(); }
