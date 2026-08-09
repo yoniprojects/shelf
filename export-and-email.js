@@ -5,6 +5,9 @@
 // JSON backup file (same shape as the in-app "Export Backup" button
 // produces, just for both profiles), and emails it as an attachment.
 //
+// Each profile's doc includes books, wishlist, the yearly numeric goal
+// ("goals"), and Goals Mode's per-book milestone data ("goalsMode").
+//
 // Required environment variables (set as GitHub Actions secrets — see
 // the accompanying workflow file):
 //   FIREBASE_SERVICE_ACCOUNT_B64  - base64-encoded Firebase service account JSON
@@ -51,6 +54,7 @@ async function main() {
       books: Array.isArray(data.books) ? data.books : [],
       wishlist: Array.isArray(data.wishlist) ? data.wishlist : [],
       goals: data.goals && typeof data.goals === "object" ? data.goals : {},
+      goalsMode: Array.isArray(data.goalsMode) ? data.goalsMode : [],
     };
   }
 
