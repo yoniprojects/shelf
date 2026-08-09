@@ -51,7 +51,7 @@
   .logo{font-family:'Fraunces',serif;font-weight:600;font-style:italic;font-size:23px;padding:2px 8px 14px;margin-bottom:12px;line-height:1.2;border-bottom:1px solid rgba(255,255,255,.16);}
   .nav-btn{text-align:left;border:none;background:transparent;color:#fff;padding:10px 34px 10px 12px;border-radius:8px;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;width:100%;box-sizing:border-box;}
   .nav-btn.active{background:rgba(255,255,255,.14);}
-  .nav-separator{border:none;border-top:1px dotted rgba(255,255,255,.28);margin:6px 10px;height:0;}
+  .nav-separator{border:none;border-top:1px dotted rgba(255,255,255,.62);margin:6px 10px;height:0;}
   .nav-item{position:relative;}
   .nav-fav-btn{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:#fff;font-size:14px;line-height:1;padding:4px;margin:0;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .15s;}
   .nav-item:hover .nav-fav-btn{opacity:.7;pointer-events:auto;}
@@ -235,8 +235,8 @@
   @media (max-width:780px){
     .shell{flex-direction:column;}
     .sidebar{display:none;}
-    .mobile-nav{display:flex;position:sticky;top:0;z-index:20;background:var(--oxblood-dark);align-items:stretch;box-shadow:0 2px 8px rgba(0,0,0,.15);}
-    .mobile-nav-btn{flex:1;border:none;background:transparent;color:rgba(255,255,255,.75);padding:10px 2px 8px;font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;text-align:center;border-bottom:2.5px solid transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .mobile-nav{display:flex;position:sticky;top:0;z-index:20;background:var(--oxblood-dark);align-items:stretch;box-shadow:0 2px 8px rgba(0,0,0,.15);overflow-x:auto;}
+    .mobile-nav-btn{flex:1 0 auto;min-width:54px;border:none;background:transparent;color:rgba(255,255,255,.75);padding:10px 2px 8px;font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;text-align:center;border-bottom:2.5px solid transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .mobile-nav-btn.active{color:#fff;border-bottom-color:var(--gold);}
     .mobile-more-panel{position:absolute;top:100%;right:8px;background:var(--oxblood-dark);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.35);padding:6px;min-width:170px;z-index:21;}
     .mobile-more-panel .nav-btn{width:100%;color:#fff;}
@@ -2113,7 +2113,21 @@ function renderSidebar(){
   const moreTabs = MOBILE_MORE_KEYS.map(k=>TABS.find(t=>t.key===k));
   const moreActive = moreTabs.some(t=>t.key===state.tab);
   const mobileLabel = (t)=> t.key==="tracker" ? "Tracker" : t.label;
+
+  // Anything favorited that isn't already one of the always-on primary
+  // buttons gets its own button too, inserted before Dashboard — so a
+  // starred item is reachable directly, without opening "More".
+  const favKeys = getFavKeys();
+  const barAllEntries = [...TABS.map(t=>({...t,type:"tab"})), ...EXTERNAL_LINKS.map(l=>({...l,type:"link"}))];
+  const favForBar = favKeys
+    .map(k=>barAllEntries.find(e=>e.key===k))
+    .filter(e=>e && !MOBILE_PRIMARY_KEYS.includes(e.key));
+  const favBarBtnHTML = (e)=> e.type==="tab"
+    ? `<button class="mobile-nav-btn ${state.tab===e.key?"active":""}" data-action="set-tab" data-tab="${e.key}">${esc(e.label)}</button>`
+    : `<a href="${esc(e.href)}" class="mobile-nav-btn" style="text-decoration:none;">${esc(e.label)}</a>`;
+
   document.getElementById("mobile-nav").innerHTML = `
+    ${favForBar.map(favBarBtnHTML).join("")}
     ${primaryTabs.map(t=>`<button class="mobile-nav-btn ${state.tab===t.key?"active":""}" data-action="set-tab" data-tab="${t.key}">${mobileLabel(t)}</button>`).join("")}
     <button class="mobile-nav-btn ${moreActive?"active":""}" data-action="toggle-mobile-more">More ${ui.mobileMoreOpen?"▲":"▼"}</button>
     ${ui.mobileMoreOpen ? `
