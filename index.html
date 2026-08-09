@@ -357,7 +357,6 @@
 <!-- Firebase (compat SDKs — plain <script> tags, no bundler needed) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
 /* ---------------- firebase setup ---------------- */
 const firebaseConfig = {
@@ -387,21 +386,6 @@ const SHARED_DOC = db.collection("shelf-spine").doc(getCurrentUserId());
 // stored under a collection called "library". Some profiles' data never got
 // migrated over, so we check for it once below and copy it forward if found.
 const LEGACY_LIBRARY_DOC = db.collection("library").doc(getCurrentUserId());
-
-// Secondary Firebase project used only by Goals mode's Realtime Database
-// (see goals.html). Initialized here too, under a distinct app name, purely
-// so the full backup export below can pull that data in as well.
-const TBR_WHEEL_CONFIG = {
-  apiKey: "AIzaSyBVrwFO3td4EWA-krxGH-dl6Hw0wwe4nH0",
-  authDomain: "tbr-wheel.firebaseapp.com",
-  databaseURL: "https://tbr-wheel-default-rtdb.firebaseio.com",
-  projectId: "tbr-wheel",
-  storageBucket: "tbr-wheel.firebasestorage.app",
-  messagingSenderId: "357091296526",
-  appId: "1:357091296526:web:f8bd789ea5b5f79650435f"
-};
-const tbrWheelApp = firebase.initializeApp(TBR_WHEEL_CONFIG, "tbrWheelApp");
-const tbrWheelDb = tbrWheelApp.database();
 </script>
 
 <script>
@@ -650,35 +634,16 @@ async function fetchFullProfileBackup(profileId){
     result["wrappd-app"] = { error: String(err) };
   }
 
-  try {
-    const snap = await tbrWheelDb.ref('appData/goalsByUser/' + profileId).once('value');
-    result["tbr-wheel goals (Realtime DB)"] = snap.exists() ? snap.val() : null;
-  } catch (err) {
-    result["tbr-wheel goals (Realtime DB)"] = { error: String(err) };
-  }
-
   return result;
 }
 
 async function exportBackupJSON(){
-  // Grab the legacy single-document "appData/goals" location too — it's
-  // migrated per-profile on first load, but exporting it directly means
-  // nothing is missed even if that migration hasn't run for some reason.
-  let legacyGoals = null;
-  try {
-    const snap = await tbrWheelDb.ref('appData/goals').once('value');
-    legacyGoals = snap.exists() ? snap.val() : null;
-  } catch (err) {
-    legacyGoals = { error: String(err) };
-  }
-
   const profileBackups = await Promise.all(PROFILES.map(p => fetchFullProfileBackup(p.id)));
 
   const backupData = {
     version: 2,
     exportedAt: new Date().toISOString(),
-    note: "Full raw export across all profiles, all collections (shelf-spine, legacy library, bingo-app, wrappd-app), and the tbr-wheel Realtime Database goals data used by Goals mode. Each profile's data is under profiles[].",
-    "tbr-wheel legacy goals (appData/goals, pre-per-profile)": legacyGoals,
+    note: "Full raw export across all profiles, all collections (shelf-spine — which includes books, wishlist, the yearly goal, and Goals Mode's goalsMode field — legacy library, bingo-app, wrappd-app). Each profile's data is under profiles[].",
     profiles: profileBackups
   };
   const filename = `shelf-spine-full-backup-${new Date().toISOString().slice(0,10)}.json`;
@@ -732,11 +697,6 @@ async function restoreFullProfileBackup(profileEntry){
   await writeFirestore("library", "library (legacy)");
   await writeFirestore("bingo-app", "bingo-app");
   await writeFirestore("wrappd-app", "wrappd-app");
-
-  const goalsData = profileEntry["tbr-wheel goals (Realtime DB)"];
-  if (goalsData && !goalsData.error) {
-    await tbrWheelDb.ref('appData/goalsByUser/' + profileId).set(goalsData);
-  }
 }
 
 async function importBackupJSON(file){
@@ -752,10 +712,6 @@ async function importBackupJSON(file){
           // Full multi-profile, multi-app backup produced by the current export.
           for (const profileEntry of parsed.profiles) {
             await restoreFullProfileBackup(profileEntry);
-          }
-          const legacyGoals = parsed["tbr-wheel legacy goals (appData/goals, pre-per-profile)"];
-          if (legacyGoals && !legacyGoals.error) {
-            await tbrWheelDb.ref('appData/goals').set(legacyGoals);
           }
           state.modal = null;
           render();
