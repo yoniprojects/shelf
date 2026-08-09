@@ -482,46 +482,37 @@
     </div>
     <!-- ============ END GOALS MODE PANEL ============ -->
 
-    <!-- Firebase: same project this app's goals data already lives in (kept in sync
-         with the original app, so goals you add here also show up there). -->
+    <!-- Firebase: same project + same per-profile document as the rest of the
+         app (index.html, wheel.html, bingo.html, wrapped.html). Goals Mode data
+         used to live in a separate "tbr-wheel" Realtime Database project; it's
+         now stored right on the shared shelf-spine doc, under the "goalsMode"
+         field, so one export/backup covers everything. -->
     <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
     <script>
         // ============================================================
-        // FIREBASE: goals sync (same Realtime DB project as the full app)
+        // FIREBASE: goals sync (same Firestore project/doc as the full app)
         // ============================================================
         const firebaseConfig = {
-            apiKey: "AIzaSyBVrwFO3td4EWA-krxGH-dl6Hw0wwe4nH0",
-            authDomain: "tbr-wheel.firebaseapp.com",
-            databaseURL: "https://tbr-wheel-default-rtdb.firebaseio.com",
-            projectId: "tbr-wheel",
-            storageBucket: "tbr-wheel.firebasestorage.app",
-            messagingSenderId: "357091296526",
-            appId: "1:357091296526:web:f8bd789ea5b5f79650435f"
+            apiKey: "AIzaSyBqOuK-l7h5Do9sAk1y4MBxwYkFFu2pusY",
+            authDomain: "readingtracker-73e78.firebaseapp.com",
+            projectId: "readingtracker-73e78",
+            storageBucket: "readingtracker-73e78.firebasestorage.app",
+            messagingSenderId: "391536984056",
+            appId: "1:391536984056:web:ec841e6e42dbfd51e8e00d"
         };
         firebase.initializeApp(firebaseConfig);
-        const fbDb = firebase.database();
+        const db = firebase.firestore();
         // Same per-user document scheme as the main Shelf & Spine app.
         function getCurrentUserId(){
           return localStorage.getItem('shelf:currentUser') || 'shared';
         }
         const CURRENT_USER_ID = getCurrentUserId();
-        // Each person's goals live under their own key now. 'appData/goals'
-        // (no sub-key) is the original single-user location; it's migrated
-        // into 'shared' below the first time this runs, so nothing is lost.
-        const goalsRef = fbDb.ref('appData/goalsByUser/' + CURRENT_USER_ID);
-        const legacyGoalsRef = fbDb.ref('appData/goals');
-
-        async function migrateLegacyGoalsIfNeeded(){
-            if (CURRENT_USER_ID !== 'shared') return;
-            try {
-                const [newSnap, legacySnap] = await Promise.all([goalsRef.once('value'), legacyGoalsRef.once('value')]);
-                if (!newSnap.exists() && legacySnap.exists()) {
-                    await goalsRef.set(legacySnap.val());
-                }
-            } catch (err) { console.error('Goals migration failed:', err); }
-        }
+        // Same doc index.html reads/writes books, wishlist, and the yearly
+        // numeric goal to. Goals Mode's milestone data lives in its own
+        // "goalsMode" field on that doc so it doesn't collide with the
+        // "goals" field (the yearly reading-count goal from index.html).
+        const SHARED_DOC = db.collection("shelf-spine").doc(CURRENT_USER_ID);
 
         let applyingRemoteGoals = false;
         let fbGoalsSyncTimer = null;
@@ -530,60 +521,47 @@
             if (applyingRemoteGoals) return;
             clearTimeout(fbGoalsSyncTimer);
             fbGoalsSyncTimer = setTimeout(() => {
-                goalsRef.set(goalsData).catch(err => console.error('Goals sync failed:', err));
+                SHARED_DOC.set({ goalsMode: goalsData }, { merge: true })
+                    .catch(err => console.error('Goals sync failed:', err));
             }, 400);
         }
 
-        function initGoalsFirebaseSync() {
+        // ============================================================
+        // FIREBASE: shared doc sync — Goals Mode data + "Currently Reading"
+        // books (for the book picker in the Add/Edit Goal modal)
+        // ============================================================
+        let currentlyReadingBooks = [];
+
+        function initSharedDocSync() {
             let firstSnapshot = true;
-            goalsRef.on('value', snapshot => {
-                const data = snapshot.val();
+            SHARED_DOC.onSnapshot(snap => {
+                const data = snap.exists ? snap.data() : {};
+                const books = Array.isArray(data.books) ? data.books : [];
+                currentlyReadingBooks = books.filter(b => b.status === 'reading');
+
+                const remoteGoalsMode = Array.isArray(data.goalsMode) ? data.goalsMode : null;
                 if (firstSnapshot) {
                     firstSnapshot = false;
-                    if (data) {
+                    if (remoteGoalsMode) {
                         applyingRemoteGoals = true;
-                        goalsData = data;
+                        goalsData = remoteGoalsMode;
                         saveGoalsLocal();
                         renderGoals();
                         applyingRemoteGoals = false;
                     } else if (goalsData.length > 0) {
-                        // Firebase is empty but we have local data (e.g. offline cache) — push it up.
+                        // Nothing in Firestore yet but we have local data (e.g. offline
+                        // cache) — push it up.
                         scheduleGoalsFirebaseSync();
                     }
-                    return;
+                } else if (remoteGoalsMode) {
+                    applyingRemoteGoals = true;
+                    goalsData = remoteGoalsMode;
+                    saveGoalsLocal();
+                    renderGoals();
+                    applyingRemoteGoals = false;
                 }
-                applyingRemoteGoals = true;
-                goalsData = Array.isArray(data) ? data : (data ? Object.values(data) : []);
-                saveGoalsLocal();
-                renderGoals();
-                applyingRemoteGoals = false;
-            }, err => console.error('Goals listener error:', err));
-        }
 
-        // ============================================================
-        // FIREBASE: read "Currently Reading" books from the LW app
-        // ============================================================
-        const lwFirebaseConfig = {
-            apiKey: "AIzaSyBqOuK-l7h5Do9sAk1y4MBxwYkFFu2pusY",
-            authDomain: "readingtracker-73e78.firebaseapp.com",
-            projectId: "readingtracker-73e78",
-            storageBucket: "readingtracker-73e78.firebasestorage.app",
-            messagingSenderId: "391536984056",
-            appId: "1:391536984056:web:ec841e6e42dbfd51e8e00d"
-        };
-        const lwApp = firebase.initializeApp(lwFirebaseConfig, "lwApp");
-        const lwDb = lwApp.firestore();
-        const LW_SHARED_DOC = lwDb.collection("shelf-spine").doc(CURRENT_USER_ID);
-
-        let currentlyReadingBooks = [];
-
-        function initCurrentlyReadingSync() {
-            LW_SHARED_DOC.onSnapshot(snap => {
-                if (!snap.exists) { currentlyReadingBooks = []; return; }
-                const data = snap.data();
-                const books = Array.isArray(data.books) ? data.books : [];
-                currentlyReadingBooks = books.filter(b => b.status === 'reading');
-                // If the Add/Edit Goal modal is open with no book yet chosen, refresh its list.
+                // If the Add/Edit Goal modal is open, refresh its book list.
                 const modalOpen = document.getElementById('goals-modal-overlay').classList.contains('active');
                 if (modalOpen) {
                     const sel = document.getElementById('goal-book-select');
@@ -591,7 +569,7 @@
                     populateBookSelect('goal-book-select', current);
                 }
             }, err => {
-                console.error('Could not load Currently Reading books from LW:', err);
+                console.error('Shared doc sync error:', err);
             });
         }
     </script>
@@ -1217,9 +1195,7 @@
             loadGoalsLocal();
             applyRandomGoalsBackground();
             renderGoals();
-            await migrateLegacyGoalsIfNeeded();
-            initGoalsFirebaseSync();
-            initCurrentlyReadingSync();
+            initSharedDocSync();
         }
 
         window.onload = init;
