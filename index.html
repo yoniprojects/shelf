@@ -49,8 +49,14 @@
   .shell{display:flex;min-height:100vh;}
   .sidebar{width:210px;flex-shrink:0;background:var(--oxblood-dark);color:#fff;display:flex;flex-direction:column;padding:22px 14px;gap:4px;}
   .logo{font-family:'Fraunces',serif;font-weight:600;font-style:italic;font-size:23px;padding:2px 8px 14px;margin-bottom:12px;line-height:1.2;border-bottom:1px solid rgba(255,255,255,.16);}
-  .nav-btn{text-align:left;border:none;background:transparent;color:#fff;padding:10px 12px;border-radius:8px;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;}
+  .nav-btn{text-align:left;border:none;background:transparent;color:#fff;padding:10px 34px 10px 12px;border-radius:8px;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;width:100%;box-sizing:border-box;}
   .nav-btn.active{background:rgba(255,255,255,.14);}
+  .nav-separator{border:none;border-top:1px dotted rgba(255,255,255,.28);margin:6px 10px;height:0;}
+  .nav-item{position:relative;}
+  .nav-fav-btn{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:#fff;font-size:14px;line-height:1;padding:4px;margin:0;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .15s;}
+  .nav-item:hover .nav-fav-btn{opacity:.7;pointer-events:auto;}
+  .nav-item.show-fav .nav-fav-btn{opacity:.7;pointer-events:auto;}
+  .nav-fav-btn.is-fav{opacity:1;pointer-events:auto;}
   .mobile-nav{display:none;}
   .main{flex:1;padding:28px 32px;min-width:0;}
   .page-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:22px;flex-wrap:wrap;gap:10px;padding-bottom:14px;border-bottom:2px solid var(--blush);position:relative;}
@@ -416,6 +422,12 @@ const TABS = [
 ];
 const MOBILE_PRIMARY_KEYS = ["dashboard","tracker","gallery","shelf"];
 const MOBILE_MORE_KEYS = ["calendar","wishlist"];
+const EXTERNAL_LINKS = [
+  {key:"bingo", label:"Bingo", href:"bingo.html"},
+  {key:"wrapped", label:"Monthly wrap", href:"wrapped.html"},
+  {key:"wheel", label:"Random wheel", href:"wheel.html"},
+  {key:"goals", label:"Goals", href:"goals.html"},
+];
 const TAB_SUBTITLES = {
   dashboard:"An overview of your reading life",
   tracker:"Every book, logged and organized",
@@ -2042,15 +2054,57 @@ function renderModal(){
     </div>`;
 }
 
+/* ---------------- nav favorites ---------------- */
+// Favorited nav items (tabs or the external sub-apps) are stored by key in
+// localStorage and float to the top of both the desktop sidebar and the
+// mobile "More" panel, ahead of a dotted separator. Toggled via the small
+// star button on each nav item: revealed on hover on desktop, and on a
+// ~500ms long-press on touch devices (which have no hover state).
+function getFavKeys(){
+  try{ return JSON.parse(localStorage.getItem("shelf:favNav")||"[]"); } catch(e){ return []; }
+}
+function toggleFavNav(key){
+  let favs = getFavKeys();
+  favs = favs.includes(key) ? favs.filter(k=>k!==key) : [...favs, key];
+  localStorage.setItem("shelf:favNav", JSON.stringify(favs));
+  render();
+}
+function tabBtnHTML(t){
+  return `<button class="nav-btn ${state.tab===t.key?"active":""}" data-action="set-tab" data-tab="${t.key}">${esc(t.label)}</button>`;
+}
+function linkBtnHTML(l){
+  return `<a href="${esc(l.href)}" class="nav-btn" style="text-decoration:none;display:block;">${esc(l.label)}</a>`;
+}
+function navItemHTML(key, innerHtml){
+  const isFav = getFavKeys().includes(key);
+  return `<div class="nav-item">
+    ${innerHtml}
+    <button type="button" class="nav-fav-btn${isFav?" is-fav":""}" data-action="toggle-fav" data-id="${esc(key)}" title="${isFav?"Remove from favorites":"Add to favorites"}" aria-label="Favorite">${isFav?"★":"☆"}</button>
+  </div>`;
+}
+// Renders a group of nav entries (tabs/links) as favorites-first, then the
+// rest, with a dotted separator between the two groups when both are non-empty.
+function navGroupHTML(tabs, links){
+  const favKeys = getFavKeys();
+  const allEntries = [...tabs.map(t=>({...t,type:"tab"})), ...links.map(l=>({...l,type:"link"}))];
+  const favEntries = favKeys.map(k=>allEntries.find(e=>e.key===k)).filter(Boolean);
+  const restTabs = tabs.filter(t=>!favKeys.includes(t.key));
+  const restLinks = links.filter(l=>!favKeys.includes(l.key));
+  const entryHTML = (e)=> navItemHTML(e.key, e.type==="tab" ? tabBtnHTML(e) : linkBtnHTML(e));
+  return `
+    ${favEntries.map(entryHTML).join("")}
+    ${favEntries.length ? '<hr class="nav-separator" />' : ""}
+    ${restTabs.map(entryHTML).join("")}
+    ${(restTabs.length && restLinks.length) ? '<hr class="nav-separator" />' : ""}
+    ${restLinks.map(entryHTML).join("")}
+  `;
+}
+
 /* ---------------- main render ---------------- */
 function renderSidebar(){
   document.getElementById("sidebar").innerHTML = `
     <div class="logo">Shelf &amp; Spine</div>
-    ${TABS.map(t=>`<button class="nav-btn ${state.tab===t.key?"active":""}" data-action="set-tab" data-tab="${t.key}">${t.label}</button>`).join("")}
-    <a href="bingo.html" class="nav-btn" style="text-decoration:none;display:block;">Bingo</a>
-    <a href="wrapped.html" class="nav-btn" style="text-decoration:none;display:block;">Monthly wrap</a>
-    <a href="wheel.html" class="nav-btn" style="text-decoration:none;display:block;">Random wheel</a>
-    <a href="goals.html" class="nav-btn" style="text-decoration:none;display:block;">Goals</a>
+    ${navGroupHTML(TABS, EXTERNAL_LINKS)}
     <div style="margin-top:auto;"></div>
     <button class="nav-btn" style="text-align:left;display:flex;align-items:center;gap:8px;" data-action="open-switch-user"><img src="${esc(getCurrentUserAvatar())}" alt="" style="width:23px;height:23px;display:block;flex-shrink:0;" />${esc(getCurrentUserName())}</button>
   `;
@@ -2065,11 +2119,7 @@ function renderSidebar(){
     ${ui.mobileMoreOpen ? `
       <div class="mobile-more-backdrop" data-action="close-mobile-more"></div>
       <div class="mobile-more-panel">
-        ${moreTabs.map(t=>`<button class="nav-btn ${state.tab===t.key?"active":""}" data-action="set-tab" data-tab="${t.key}">${t.label}</button>`).join("")}
-        <a href="bingo.html" class="nav-btn" style="text-decoration:none;display:block;">Bingo</a>
-        <a href="wrapped.html" class="nav-btn" style="text-decoration:none;display:block;">Monthly wrap</a>
-        <a href="wheel.html" class="nav-btn" style="text-decoration:none;display:block;">Random wheel</a>
-        <a href="goals.html" class="nav-btn" style="text-decoration:none;display:block;">Goals</a>
+        ${navGroupHTML(moreTabs, EXTERNAL_LINKS)}
       </div>
     ` : ""}
   `;
@@ -2315,6 +2365,38 @@ function clearExamples(){
   render();
 }
 
+/* ---------------- nav favorite star: long-press reveal (touch) ---------------- */
+// Desktop reveals the star on :hover (pure CSS). Touch devices have no hover,
+// so a ~500ms press-and-hold on a nav item reveals its star instead; lifting
+// the finger after a completed long-press suppresses the click that would
+// otherwise navigate/switch tabs, so the user can then tap the star.
+(function(){
+  let holdTimer = null;
+  let holdFired = false;
+  document.addEventListener("touchstart", (e)=>{
+    const item = e.target.closest(".nav-item");
+    holdFired = false;
+    if(!item) return;
+    holdTimer = setTimeout(()=>{
+      item.classList.add("show-fav");
+      holdFired = true;
+      if(navigator.vibrate) navigator.vibrate(15);
+    }, 500);
+  }, {passive:true});
+  document.addEventListener("touchend", (e)=>{
+    if(holdTimer){ clearTimeout(holdTimer); holdTimer = null; }
+    if(holdFired){ e.preventDefault(); holdFired = false; }
+  }, {passive:false});
+  document.addEventListener("touchmove", ()=>{
+    if(holdTimer){ clearTimeout(holdTimer); holdTimer = null; }
+  }, {passive:true});
+  // Tapping/clicking elsewhere hides any revealed stars again.
+  document.addEventListener("click", (e)=>{
+    if(e.target.closest(".nav-item")) return;
+    document.querySelectorAll(".nav-item.show-fav").forEach(el=>el.classList.remove("show-fav"));
+  });
+})();
+
 /* ---------------- pie chart hover / tap highlight ---------------- */
 const PIE_HOVER_CAPABLE = !!(window.matchMedia && window.matchMedia("(hover:hover) and (pointer:fine)").matches);
 function setPieActive(wrap, idx){
@@ -2384,6 +2466,7 @@ document.addEventListener("click", (e)=>{
   const id = el.getAttribute("data-id");
 
   if(action==="set-tab"){ state.tab = el.getAttribute("data-tab"); localStorage.setItem('shelf:lastTab', state.tab); ui.mobileMoreOpen = false; render(); }
+  else if(action==="toggle-fav"){ toggleFavNav(id); }
   else if(action==="toggle-mobile-more"){ ui.mobileMoreOpen = !ui.mobileMoreOpen; render(); }
   else if(action==="close-mobile-more"){ ui.mobileMoreOpen = false; render(); }
   else if(action==="add-book"){ state.modal = {type:"book-form", payload:null}; renderModal(); }
