@@ -382,6 +382,7 @@ const PROFILES = [
   { id: "tom", name: "Tom", avatar: "https://i.imgur.com/w3NaZpO.png" }
 ];
 const SHARED_DOC = db.collection("shelf-spine").doc(getCurrentUserId());
+alert('DEBUG user id: ' + JSON.stringify(getCurrentUserId()) + ' | raw localStorage: ' + JSON.stringify(localStorage.getItem('shelf:currentUser')));
 </script>
 
 <script>
@@ -509,10 +510,15 @@ let firestoreReady = false;
 async function loadData(){
   SHARED_DOC.onSnapshot((snap) => {
     if (!snap.exists) {
-      if (!firestoreReady) {
-        SHARED_DOC.set({ books: SEED_BOOKS, wishlist: SEED_WISHLIST })
-          .catch(err => console.error("Failed to seed Firestore:", err));
-      }
+      // SAFETY: no longer auto-writes seed data here. Auto-seeding on an
+      // "empty" snapshot was overwriting real data whenever the first
+      // Firestore read came back empty/stale (e.g. on a flaky connection).
+      // The empty-state UI (see renderDashboard) now handles first-run
+      // instead. If you genuinely want to load the example books, use
+      // the button that calls loadSeedDataManually().
+      console.warn('Firestore doc does not exist yet for user:', getCurrentUserId());
+      state.loaded = true;
+      render();
       return;
     }
     const data = snap.data();
