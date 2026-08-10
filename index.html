@@ -9,16 +9,29 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Shelf & Spine" />
 <script>
-  // Resume where I left off: if the last page visited wasn't the dashboard,
-  // jump straight there before anything renders.
-  // Exception: if we got here via an explicit "back to shelf" link (?home=1),
-  // the user is deliberately choosing the dashboard, so skip the auto-resume.
+  // Resume where I left off: if the app was freshly launched (e.g. from a
+  // home-screen icon/bookmark, no referrer) and the last page visited wasn't
+  // the dashboard, jump straight there before anything renders.
+  // Exceptions: an explicit "back to shelf" link (?home=1) means the user is
+  // deliberately choosing the dashboard; and any navigation that has a
+  // same-site referrer means the user just clicked a menu link on purpose,
+  // so it should never be overridden.
   (function(){
-    if (new URLSearchParams(location.search).has('home')) return;
-    var last = localStorage.getItem('shelf:lastPage');
-    if (last && last !== 'index.html') {
-      location.replace(last);
-    }
+    try{
+      if (new URLSearchParams(location.search).has('home')) return;
+      if (document.referrer && document.referrer.indexOf(location.origin) === 0) return;
+      // Only ever redirect once per browser session (true fresh launch).
+      // Without this, some mobile browsers/PWAs report no referrer on an
+      // ordinary reload too, which could bounce you back to a stale
+      // sub-app page (or the dashboard) every time you're just navigating
+      // around inside the app.
+      if (sessionStorage.getItem('shelf:sessionStarted')) return;
+      sessionStorage.setItem('shelf:sessionStarted', '1');
+      var last = localStorage.getItem('shelf:lastPage');
+      if (last && last !== 'index.html') {
+        location.replace(last);
+      }
+    } catch(e){ /* storage unavailable — just load normally */ }
   })();
 </script>
 <style>
@@ -244,6 +257,7 @@
     .mobile-more-panel .nav-btn{width:100%;color:#fff;}
     .mobile-more-panel .nav-btn.active{background:rgba(255,255,255,.14);}
     .mobile-more-backdrop{position:fixed;inset:0;z-index:19;}
+    .nav-fav-btn{display:none !important;}
     .grid2{grid-template-columns:1fr;}
     .dash-grid{grid-template-columns:1fr !important;}
     .book-detail-grid{grid-template-columns:120px 1fr !important;gap:14px !important;}
@@ -378,12 +392,17 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
+/* ---------------- safe localStorage (never throws, e.g. private browsing / blocked storage) ---------------- */
+function lsGet(key){ try{ return localStorage.getItem(key); } catch(e){ return null; } }
+function lsSet(key, val){ try{ localStorage.setItem(key, val); return true; } catch(e){ console.warn("localStorage unavailable, continuing without persistence:", e); return false; } }
+
+
 // ---------------- multi-user profiles ----------------
 // Each profile's data lives in its own Firestore document, keyed by profile id.
 // 'shared' is the original single-user document, so anyone upgrading keeps
 // their existing data automatically as the default profile.
 function getCurrentUserId(){
-  return localStorage.getItem('shelf:currentUser') || 'shared';
+  return lsGet('shelf:currentUser') || 'shared';
 }
 const PROFILES = [
   { id: "shared", name: "Yoni", avatar: "https://i.imgur.com/Cj4RtGU.png" },
@@ -499,7 +518,7 @@ const SEED_WISHLIST = [
 
 /* ---------------- state ---------------- */
 let state = {
-  tab: localStorage.getItem('shelf:lastTab') || "dashboard",
+  tab: lsGet('shelf:lastTab') || "dashboard",
   books: [],
   wishlist: [],
   goals: {},
@@ -519,7 +538,7 @@ let ui = {
 };
 
 // Resume where I left off: mark this page as the last one visited.
-localStorage.setItem('shelf:lastPage', 'index.html');
+lsSet('shelf:lastPage', 'index.html');
 
 /* ---------------- persistence (Firebase Firestore) ---------------- */
 let firestoreReady = false;
@@ -606,7 +625,7 @@ function getCurrentUserAvatar(){
 }
 function switchUser(userId){
   if (userId === getCurrentUserId()) { state.modal = null; renderModal(); return; }
-  localStorage.setItem('shelf:currentUser', userId);
+  lsSet('shelf:currentUser', userId);
   location.reload();
 }
 
@@ -1509,7 +1528,7 @@ function runGoodreadsImport(){
   goodreadsParsed = null;
   state.modal = null;
   state.tab = "tracker";
-  localStorage.setItem('shelf:lastTab', state.tab);
+  lsSet('shelf:lastTab', state.tab);
   render();
 }
 function goodreadsImportHTML(){
@@ -2063,12 +2082,12 @@ function renderModal(){
 // star button on each nav item: revealed on hover on desktop, and on a
 // ~500ms long-press on touch devices (which have no hover state).
 function getFavKeys(){
-  try{ return JSON.parse(localStorage.getItem("shelf:favNav")||"[]"); } catch(e){ return []; }
+  try{ return JSON.parse(lsGet("shelf:favNav")||"[]"); } catch(e){ return []; }
 }
 function toggleFavNav(key){
   let favs = getFavKeys();
   favs = favs.includes(key) ? favs.filter(k=>k!==key) : [...favs, key];
-  localStorage.setItem("shelf:favNav", JSON.stringify(favs));
+  lsSet("shelf:favNav", JSON.stringify(favs));
   render();
 }
 function tabBtnHTML(t){
@@ -2090,8 +2109,8 @@ function navGroupHTML(tabs, links){
   const favKeys = getFavKeys();
   const allEntries = [...tabs.map(t=>({...t,type:"tab"})), ...links.map(l=>({...l,type:"link"}))];
   const favEntries = favKeys.map(k=>allEntries.find(e=>e.key===k)).filter(Boolean);
-  const restTabs = tabs.filter(t=>!favKeys.includes(t.key));
-  const restLinks = links.filter(l=>!favKeys.includes(l.key));
+  const restTabs = tabs.map(t=>({...t,type:"tab"})).filter(t=>!favKeys.includes(t.key));
+  const restLinks = links.map(l=>({...l,type:"link"})).filter(l=>!favKeys.includes(l.key));
   const entryHTML = (e)=> navItemHTML(e.key, e.type==="tab" ? tabBtnHTML(e) : linkBtnHTML(e));
   return `
     ${favEntries.map(entryHTML).join("")}
@@ -2166,12 +2185,17 @@ function render(){
   document.getElementById("page-actions").innerHTML = backupBtns + importBtn + clearBtn;
   
   const content = document.getElementById("content");
-  if(state.tab==="dashboard") content.innerHTML = renderDashboard();
-  else if(state.tab==="tracker") content.innerHTML = renderTracker();
-  else if(state.tab==="gallery") content.innerHTML = renderGallery();
-  else if(state.tab==="shelf") content.innerHTML = renderShelf();
-  else if(state.tab==="calendar") content.innerHTML = renderCalendar();
-  else if(state.tab==="wishlist") content.innerHTML = renderWishlist();
+  try{
+    if(state.tab==="dashboard") content.innerHTML = renderDashboard();
+    else if(state.tab==="tracker") content.innerHTML = renderTracker();
+    else if(state.tab==="gallery") content.innerHTML = renderGallery();
+    else if(state.tab==="shelf") content.innerHTML = renderShelf();
+    else if(state.tab==="calendar") content.innerHTML = renderCalendar();
+    else if(state.tab==="wishlist") content.innerHTML = renderWishlist();
+  } catch(err){
+    console.error("Render error on tab:", state.tab, err);
+    content.innerHTML = `<div class="empty-state"><p>Something went wrong loading this page (see console for details). Try switching tabs again or refreshing.</p></div>`;
+  }
   renderModal();
   if(state.tab==="dashboard") scheduleFunFactsFit();
 }
@@ -2341,7 +2365,7 @@ function completeMoveWish(){
   persistBooks(); persistWishlist();
   state.modal = null;
   state.tab = "tracker";
-  localStorage.setItem('shelf:lastTab', state.tab);
+  lsSet('shelf:lastTab', state.tab);
   render();
 }
 function toggleSelect(id){ if(ui.selected.has(id)) ui.selected.delete(id); else ui.selected.add(id); }
@@ -2483,7 +2507,7 @@ document.addEventListener("click", (e)=>{
   const action = el.getAttribute("data-action");
   const id = el.getAttribute("data-id");
 
-  if(action==="set-tab"){ state.tab = el.getAttribute("data-tab"); localStorage.setItem('shelf:lastTab', state.tab); ui.mobileMoreOpen = false; render(); }
+  if(action==="set-tab"){ state.tab = el.getAttribute("data-tab"); lsSet('shelf:lastTab', state.tab); ui.mobileMoreOpen = false; render(); }
   else if(action==="toggle-fav"){ toggleFavNav(id); }
   else if(action==="toggle-mobile-more"){ ui.mobileMoreOpen = !ui.mobileMoreOpen; render(); }
   else if(action==="close-mobile-more"){ ui.mobileMoreOpen = false; render(); }
