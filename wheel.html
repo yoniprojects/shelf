@@ -159,6 +159,79 @@
         border-color: var(--primary-color);
     }
 
+    /* Collapsible Filters Panel */
+    .filter-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        padding: 10px 12px;
+        background-color: rgba(255, 255, 255, 0.7);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        margin-bottom: 12px;
+        box-sizing: border-box;
+        user-select: none;
+    }
+
+    .filter-toggle:hover {
+        background-color: rgba(255, 255, 255, 0.9);
+    }
+
+    .filter-toggle-arrow {
+        transition: transform 0.2s ease;
+        font-size: 10px;
+    }
+
+    .filter-toggle-arrow.open {
+        transform: rotate(180deg);
+    }
+
+    .filters-panel {
+        width: 100%;
+        display: none;
+        flex-direction: column;
+        margin-bottom: 5px;
+    }
+
+    .filters-panel.open {
+        display: flex;
+    }
+
+    .checkbox-list {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        max-height: 130px;
+        overflow-y: auto;
+        background-color: #ffffff;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 8px 10px;
+        box-sizing: border-box;
+    }
+
+    .checkbox-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--text-color);
+        cursor: pointer;
+    }
+
+    .checkbox-item input[type="checkbox"] {
+        margin: 0;
+        cursor: pointer;
+        accent-color: var(--primary-color);
+    }
+
     /* Wheel Styling */
     .wheel-wrapper {
         position: relative;
@@ -496,11 +569,19 @@
                 <button type="button" id="mode-tbr-btn" onclick="setWheelMode('tbr')">TBR</button>
             </div>
 
-            <div class="filter-group">
-                <label for="filter-genre">Genre</label>
-                <select id="filter-genre" onchange="applyFilters()">
-                    <option value="All Genres" selected>All Genres</option>
-                </select>
+            <div class="filter-toggle" onclick="toggleFiltersPanel()">
+                <span>Filters</span>
+                <span id="filter-toggle-arrow" class="filter-toggle-arrow">▾</span>
+            </div>
+            <div id="filters-panel" class="filters-panel">
+                <div class="filter-group">
+                    <label>Genre</label>
+                    <div id="filter-genre-options" class="checkbox-list"></div>
+                </div>
+                <div class="filter-group">
+                    <label>Format</label>
+                    <div id="filter-format-options" class="checkbox-list"></div>
+                </div>
             </div>
             
             <div id="books-container" class="books-list">
@@ -553,11 +634,16 @@
           return localStorage.getItem('shelf:currentUser') || 'shared';
         }
         const SHARED_DOC = db.collection("shelf-spine").doc(getCurrentUserId());
+        // Spin counter state lives in its own collection, keyed per-profile,
+        // so it syncs across any device logged into the same profile
+        // (Yoni's "shared" profile and Tom's "tom" profile stay separate).
+        const WHEEL_DOC = db.collection("wheel-app").doc(getCurrentUserId());
 
         let currentRotation = 0;
         let smallWheelRotation = 0;
         let currentSpins = 0;
         let isSpinning = false;
+        let suppressNextSpinsSave = false;
         
         let allBooks = [];
         let filteredBooks = [];
@@ -565,18 +651,57 @@
         let tbrBooks = [];
         let wheelMode = localStorage.getItem('shelf:wheelMode') === 'tbr' ? 'tbr' : 'reading';
 
-        function updateGenreDropdown() {
-            const select = document.getElementById('filter-genre');
-            const currentSelected = select.value || 'All Genres';
-            
-            const genres = Array.from(new Set(allBooks.map(b => b.genre).filter(Boolean)));
-            genres.sort();
+        // Tracks which checkbox-filter values are unchecked. Empty set = everything shown.
+        let deselectedGenres = new Set();
+        let deselectedFormats = new Set();
 
-            let html = `<option value="All Genres">All Genres</option>`;
-            genres.forEach(g => {
-                html += `<option value="${g}" ${g === currentSelected ? 'selected' : ''}>${g}</option>`;
+        function toggleFiltersPanel() {
+            const panel = document.getElementById('filters-panel');
+            const arrow = document.getElementById('filter-toggle-arrow');
+            panel.classList.toggle('open');
+            arrow.classList.toggle('open');
+        }
+
+        function updateFilterOptions() {
+            updateCheckboxGroup('genre', 'filter-genre-options', deselectedGenres);
+            updateCheckboxGroup('format', 'filter-format-options', deselectedFormats);
+        }
+
+        function updateCheckboxGroup(field, containerId, deselectedSet) {
+            const container = document.getElementById(containerId);
+            const values = Array.from(new Set(allBooks.map(b => b[field]).filter(Boolean))).sort();
+            const hasBlank = allBooks.some(b => !b[field]);
+            if (hasBlank) values.push('__none__');
+
+            if (values.length === 0) {
+                container.innerHTML = `<div class="empty-state" style="margin-top:0;padding:4px 0;">No options yet.</div>`;
+                return;
+            }
+
+            let html = '';
+            values.forEach((v, i) => {
+                const label = v === '__none__' ? '(None)' : v;
+                const id = `${containerId}-${i}`;
+                const checked = !deselectedSet.has(v);
+                html += `
+                    <label class="checkbox-item" for="${id}">
+                        <input type="checkbox" id="${id}" data-field="${field}" data-value="${v.replace(/"/g, '&quot;')}" ${checked ? 'checked' : ''} onchange="onFilterCheckboxChange(event)">
+                        ${label}
+                    </label>`;
             });
-            select.innerHTML = html;
+            container.innerHTML = html;
+        }
+
+        function onFilterCheckboxChange(e) {
+            const field = e.target.getAttribute('data-field');
+            const value = e.target.getAttribute('data-value');
+            const set = field === 'genre' ? deselectedGenres : deselectedFormats;
+            if (e.target.checked) {
+                set.delete(value);
+            } else {
+                set.add(value);
+            }
+            applyFilters();
         }
 
         // Real-time synchronization with Index app.
@@ -588,7 +713,7 @@
                 readingBooks = Array.isArray(data.books) ? data.books.filter(book => book.status === 'reading') : [];
                 tbrBooks = Array.isArray(data.wishlist) ? data.wishlist : [];
                 allBooks = wheelMode === 'tbr' ? tbrBooks : readingBooks;
-                updateGenreDropdown();
+                updateFilterOptions();
                 applyFilters();
             }
         });
@@ -600,16 +725,17 @@
             document.getElementById('mode-reading-btn').classList.toggle('active', mode === 'reading');
             document.getElementById('mode-tbr-btn').classList.toggle('active', mode === 'tbr');
             allBooks = mode === 'tbr' ? tbrBooks : readingBooks;
-            document.getElementById('filter-genre').value = 'All Genres';
-            updateGenreDropdown();
+            deselectedGenres.clear();
+            deselectedFormats.clear();
+            updateFilterOptions();
             applyFilters();
         }
 
         function applyFilters() {
-            const genre = document.getElementById('filter-genre').value;
-
             filteredBooks = allBooks.filter(book => {
-                return (genre === 'All Genres' || book.genre === genre);
+                const genreVal = book.genre || '__none__';
+                const formatVal = book.format || '__none__';
+                return !deselectedGenres.has(genreVal) && !deselectedFormats.has(formatVal);
             });
 
             updateBooksListUI();
@@ -836,9 +962,8 @@
 
             setTimeout(() => {
                 currentSpins = result;
-                document.getElementById('small-wheel-result').innerText = `Spins left: ${currentSpins}`;
-                document.getElementById('done-btn').style.display = 'inline-block';
-                updateOneDownButtonVisibility();
+                updateSpinsUI();
+                saveSpinsToFirebase();
             }, 1500);
         }
 
@@ -848,8 +973,8 @@
                 if (currentSpins === 0) {
                     completeSmallWheel();
                 } else {
-                    document.getElementById('small-wheel-result').innerText = `Spins left: ${currentSpins}`;
-                    updateOneDownButtonVisibility();
+                    updateSpinsUI();
+                    saveSpinsToFirebase();
                 }
             }
         }
@@ -857,6 +982,81 @@
         function updateOneDownButtonVisibility() {
             const oneDownBtn = document.getElementById('one-down-btn');
             oneDownBtn.style.display = currentSpins > 1 ? 'inline-block' : 'none';
+        }
+
+        // Reflects currentSpins in the UI. Shared by every path that changes
+        // currentSpins (spin result, decrease, manual edit, cross-device sync)
+        // so the "spins left" text and buttons never drift out of sync.
+        function updateSpinsUI() {
+            const resultElem = document.getElementById('small-wheel-result');
+            const doneBtn = document.getElementById('done-btn');
+            if (currentSpins > 0) {
+                resultElem.innerText = `Spins left: ${currentSpins}`;
+                doneBtn.style.display = 'inline-block';
+                updateOneDownButtonVisibility();
+            } else {
+                resultElem.innerText = '';
+                doneBtn.style.display = 'none';
+                document.getElementById('one-down-btn').style.display = 'none';
+            }
+        }
+
+        // Persists currentSpins to Firestore, keyed per-profile, so any
+        // device signed into the same profile picks up right where it left off.
+        function saveSpinsToFirebase() {
+            if (suppressNextSpinsSave) {
+                suppressNextSpinsSave = false;
+                return;
+            }
+            WHEEL_DOC.set({ currentSpins }, { merge: true }).catch(err => console.error("Wheel spins save failed", err));
+        }
+
+        // Cross-device sync: whenever the stored spin count changes (e.g. set
+        // from another device/profile session), reflect it here too.
+        WHEEL_DOC.onSnapshot((snap) => {
+            if (snap.exists) {
+                const data = snap.data();
+                if (typeof data.currentSpins === 'number' && data.currentSpins !== currentSpins) {
+                    suppressNextSpinsSave = true;
+                    currentSpins = data.currentSpins;
+                    updateSpinsUI();
+                }
+            }
+        });
+
+        // Triple-click on the "Spins left" text to manually edit the count.
+        // Intentionally no visual hint that this is possible.
+        let spinsResultClickCount = 0;
+        let spinsResultClickTimer = null;
+        function handleSpinsResultClick() {
+            spinsResultClickCount++;
+            clearTimeout(spinsResultClickTimer);
+            spinsResultClickTimer = setTimeout(() => { spinsResultClickCount = 0; }, 500);
+            if (spinsResultClickCount === 3) {
+                spinsResultClickCount = 0;
+                enableManualSpinsEdit();
+            }
+        }
+
+        function enableManualSpinsEdit() {
+            const el = document.getElementById('small-wheel-result');
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.value = currentSpins;
+            input.style.cssText = 'width:60px;text-align:center;font:inherit;font-weight:inherit;color:inherit;background:transparent;border:none;outline:none;padding:0;margin:0;';
+            input.addEventListener('blur', commitManualSpinsEdit);
+            input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
+            el.innerHTML = '';
+            el.appendChild(input);
+            input.focus();
+            input.select();
+        }
+
+        function commitManualSpinsEdit(e) {
+            const val = parseInt(e.target.value, 10);
+            currentSpins = (isNaN(val) || val < 0) ? 0 : val;
+            updateSpinsUI();
+            saveSpinsToFirebase();
         }
 
         const spinsCompleteMessages = [
@@ -871,9 +1071,8 @@
 
         function completeSmallWheel() {
             currentSpins = 0;
-            document.getElementById('small-wheel-result').innerText = '';
-            document.getElementById('done-btn').style.display = 'none';
-            document.getElementById('one-down-btn').style.display = 'none';
+            updateSpinsUI();
+            saveSpinsToFirebase();
             showSpinsCongrats();
         }
 
@@ -922,9 +1121,10 @@
         window.onload = () => {
             document.getElementById('mode-reading-btn').classList.toggle('active', wheelMode === 'reading');
             document.getElementById('mode-tbr-btn').classList.toggle('active', wheelMode === 'tbr');
-            updateGenreDropdown();
+            updateFilterOptions();
             applyFilters();
             drawSmallWheel();
+            document.getElementById('small-wheel-result').addEventListener('click', handleSpinsResultClick);
         };
     </script>
 </body>
