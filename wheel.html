@@ -660,6 +660,10 @@
         // so it syncs across any device logged into the same profile
         // (Yoni's "shared" profile and Tom's "tom" profile stay separate).
         const WHEEL_DOC = db.collection("wheel-app").doc(getCurrentUserId());
+        // Local fallback so the counter shows instantly on load instead of
+        // waiting on a Firestore round trip (and doesn't blank out if that
+        // round trip fails silently). Scoped per-profile like the Firestore doc.
+        const SPINS_CACHE_KEY = `shelf:wheelSpins:${getCurrentUserId()}`;
 
         let currentRotation = 0;
         let smallWheelRotation = 0;
@@ -1071,11 +1075,34 @@
         // Persists currentSpins to Firestore, keyed per-profile, so any
         // device signed into the same profile picks up right where it left off.
         function saveSpinsToFirebase() {
+            // Always mirror to localStorage, even if this particular change
+            // originated from a remote snapshot, so the cache never drifts
+            // from the last known-good value.
+            try {
+                localStorage.setItem(SPINS_CACHE_KEY, String(currentSpins));
+            } catch (err) {
+                console.error("Wheel spins local cache write failed", err);
+            }
+
             if (suppressNextSpinsSave) {
                 suppressNextSpinsSave = false;
                 return;
             }
             WHEEL_DOC.set({ currentSpins }, { merge: true }).catch(err => console.error("Wheel spins save failed", err));
+        }
+
+        // Reads the last locally-cached spin count, if any. Returns null if
+        // nothing has been cached yet for this profile.
+        function loadCachedSpins() {
+            try {
+                const raw = localStorage.getItem(SPINS_CACHE_KEY);
+                if (raw === null) return null;
+                const val = parseInt(raw, 10);
+                return isNaN(val) ? null : val;
+            } catch (err) {
+                console.error("Wheel spins local cache read failed", err);
+                return null;
+            }
         }
 
         // Cross-device sync: whenever the stored spin count changes (e.g. set
@@ -1087,8 +1114,18 @@
                     suppressNextSpinsSave = true;
                     currentSpins = data.currentSpins;
                     updateSpinsUI();
+                    try {
+                        localStorage.setItem(SPINS_CACHE_KEY, String(currentSpins));
+                    } catch (err) {
+                        console.error("Wheel spins local cache write failed", err);
+                    }
                 }
             }
+        }, (err) => {
+            // Firestore read failed (offline, blocked, permissions, etc).
+            // Don't fail silently - at least the local cache in window.onload
+            // will have already restored the last known count.
+            console.error("Wheel spins listener failed:", err);
         });
 
         // Triple-click on the "Spins left" text to manually edit the count.
@@ -1191,6 +1228,16 @@
             updateFilterOptions();
             applyFilters();
             drawSmallWheel();
+
+            // Show the last known spin count right away instead of leaving
+            // the panel blank while Firestore's onSnapshot round trip is
+            // still in flight (or failing silently).
+            const cachedSpins = loadCachedSpins();
+            if (cachedSpins !== null) {
+                currentSpins = cachedSpins;
+                updateSpinsUI();
+            }
+
             document.getElementById('small-wheel-result').addEventListener('click', handleSpinsResultClick);
         };
     </script>
