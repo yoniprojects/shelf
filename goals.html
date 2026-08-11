@@ -113,6 +113,24 @@
 
     .goals-add-btn:hover { opacity: 0.9; transform: scale(1.02); }
 
+    .goal-match-due-btn {
+        background: none;
+        border: 1px dashed var(--border-color);
+        color: var(--text-muted);
+        padding: 5px 10px;
+        font-size: 11px;
+        border-radius: 6px;
+        cursor: pointer;
+        margin-top: 6px;
+        transition: all 0.15s ease;
+    }
+
+    .goal-match-due-btn:hover {
+        color: var(--text-color);
+        border-color: var(--text-muted);
+        background: rgba(0,0,0,0.03);
+    }
+
     .goals-top-bar-actions {
         display: flex;
         align-items: center;
@@ -393,7 +411,7 @@
 
             <div class="form-group">
                 <label>Book</label>
-                <select id="goal-book-select"></select>
+                <select id="goal-book-select" onchange="updateMatchDueBtnVisibility()"></select>
             </div>
 
             <div class="form-group">
@@ -403,6 +421,13 @@
                     <span style="font-size:13px; color:var(--text-muted); white-space:nowrap;">to</span>
                     <input type="date" id="goal-date-to-input" style="flex:1;">
                 </div>
+                <button type="button"
+                        id="goal-match-due-btn"
+                        class="goal-match-due-btn"
+                        style="display:none;"
+                        onclick="matchGoalEndToDueDate()">
+                  📅 Match due date
+                </button>
                 <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Milestones will be split evenly across the days in this range. Use the same date for both fields for a single day.</div>
             </div>
 
@@ -567,6 +592,7 @@
                     const sel = document.getElementById('goal-book-select');
                     const current = sel.value;
                     populateBookSelect('goal-book-select', current);
+                    updateMatchDueBtnVisibility();
                 }
             }, err => {
                 console.error('Shared doc sync error:', err);
@@ -699,11 +725,22 @@
         // ---- helpers ----
 
         function getAllBooksForGoals() {
-            return currentlyReadingBooks.map(b => ({ title: b.title }));
+            return currentlyReadingBooks.map(b => ({
+                title: b.title,
+                source: b.source,
+                dueDate: b.dueDate || ""
+            }));
         }
+
+        // title -> { source, dueDate }, kept in sync with populateBookSelect
+        // so the modal can cheaply check "does this book have a due date?"
+        let goalBookLookup = {};
 
         function populateBookSelect(selectId, selectedTitle) {
             const allBooks = getAllBooksForGoals();
+            goalBookLookup = {};
+            allBooks.forEach(b => { goalBookLookup[b.title] = { source: b.source, dueDate: b.dueDate }; });
+
             const sel = document.getElementById(selectId);
             sel.innerHTML = '';
             if (allBooks.length === 0) {
@@ -722,6 +759,36 @@
             }
         }
 
+        function updateMatchDueBtnVisibility() {
+            const btn = document.getElementById('goal-match-due-btn');
+            if (!btn) return;
+            const sel = document.getElementById('goal-book-select');
+            const book = sel ? goalBookLookup[sel.value] : null;
+
+            if (book && book.source === 'Borrowed' && book.dueDate) {
+                btn.style.display = '';
+                const dt = new Date(book.dueDate + 'T00:00:00');
+                const label = isNaN(dt) ? book.dueDate : dt.toLocaleDateString();
+                btn.title = `Set to ${label}`;
+            } else {
+                btn.style.display = 'none';
+                btn.removeAttribute('title');
+            }
+        }
+
+        function matchGoalEndToDueDate() {
+            const sel = document.getElementById('goal-book-select');
+            const book = sel ? goalBookLookup[sel.value] : null;
+            if (!book || !book.dueDate) return;
+
+            document.getElementById('goal-date-to-input').value = book.dueDate;
+
+            const fromInput = document.getElementById('goal-date-from-input');
+            if (fromInput.value && book.dueDate < fromInput.value) {
+                fromInput.value = toLocalDateStr(new Date());
+            }
+        }
+
         // ---- Add Goal Modal ----
 
         function openGoalModal() {
@@ -731,6 +798,7 @@
             editingGoalId = null;
 
             populateBookSelect('goal-book-select', null);
+            updateMatchDueBtnVisibility();
             const today = new Date();
             const todayStr = toLocalDateStr(today);
             document.getElementById('goal-date-from-input').value = todayStr;
@@ -940,6 +1008,7 @@
             document.getElementById('goals-modal-save-btn').onclick = saveGoal;
 
             populateBookSelect('goal-book-select', goal.bookTitle);
+            updateMatchDueBtnVisibility();
 
             const dates = goal.milestones.map(m => m.date).filter(Boolean).sort();
             const todayStr = toLocalDateStr(new Date());
