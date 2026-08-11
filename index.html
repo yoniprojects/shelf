@@ -459,6 +459,19 @@ const TAB_SUBTITLES = {
 };
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+/* ---------------- borrowed-book due dates ---------------- */
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function addDaysISO(iso, days){
+  const d = new Date((iso||todayISO())+"T00:00:00");
+  d.setDate(d.getDate()+days);
+  return d.toISOString().slice(0,10);
+}
+// Yoni's profile is stored under the legacy id "shared"; Tom's is "tom".
+function formatDueDate(iso){
+  if(!iso) return "";
+  const [y,m,d] = iso.split("-");
+  return getCurrentUserId()==="tom" ? `${m}/${d}` : `${d}/${m}`;
+}
 function hashStr(s){ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h; }
 function fmtRating(r){ r = Number(r)||0; return Number.isInteger(r) ? String(r) : String(Math.round(r*100)/100); }
 function genreColor(g){ if(!g) return SPINE_COLORS[0]; return SPINE_COLORS[hashStr(g)%SPINE_COLORS.length]; }
@@ -1062,6 +1075,7 @@ function renderDashboard(){
                 <div class="cr-row-top">
                   <div class="cr-title" title="${esc(b.title)}" style="font-size:${titleSize}px;">${esc(b.title)}</div>
                   <div class="cr-controls">
+                    ${b.source==="Borrowed" && b.dueDate ? `<span class="cr-due" style="font-size:${Math.max(10,Math.round(11*scale))}px;color:var(--muted);font-weight:600;white-space:nowrap;">Due by: ${formatDueDate(b.dueDate)}</span>` : ""}
                     ${starsHTML(b.rating,false,null,starSize)}
                   </div>
                 </div>
@@ -1625,6 +1639,11 @@ function progressFormHTML(book){
       </span>
       <input type="hidden" id="pf-rating" value="${book.rating||0}" />
     </label>
+    ${book.source==="Borrowed" ? `
+    <label class="field">Due by <span style="color:var(--muted);font-weight:500;">(borrowed — ${formatDueDate(book.dueDate)||"not set"})</span>
+      <input type="date" class="input" id="pf-duedate" value="${book.dueDate||''}" />
+    </label>
+    ` : ''}
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;">
       <button class="btn" style="background:#2E7D32;color:#fff;" data-action="mark-completed" data-id="${book.id}">Complete ✓</button>
       <div style="display:flex;gap:10px;">
@@ -1711,7 +1730,7 @@ function refreshSeriesBox(){
 }
 
 function bookFormHTML(book){
-  const b = book || { id:uid(), title:"", author:"", genre:"", subGenre:"", format:"Physical", source:"Purchased", status:"reading", priority:"Interested", rating:0, dateFinished:"", language:"English", pagesHours:"", review:"", notes:"", recommendedBy:"", coverUrl:"", seriesName:"", seriesNumber:"", rereads:[] };
+  const b = book || { id:uid(), title:"", author:"", genre:"", subGenre:"", format:"Physical", source:"Purchased", status:"reading", priority:"Interested", rating:0, dateFinished:"", language:"English", pagesHours:"", review:"", notes:"", recommendedBy:"", coverUrl:"", seriesName:"", seriesNumber:"", rereads:[], dueDate:"" };
   const priorityHidden = (b.status==="done" || b.status==="dnf");
   formRereads = (b.rereads||[]).map(r=>({id:r.id||uid(), endDate:r.endDate||""}));
   
@@ -2234,7 +2253,16 @@ function saveBookFromForm(){
     progressPercent: existing ? (existing.progressPercent || 0) : 0,
     progressMode: existing ? (existing.progressMode || "percent") : "percent",
     progressPage: existing ? (existing.progressPage || "") : "",
+    dueDate: existing ? (existing.dueDate || "") : "",
   };
+  const wasReading = existing && existing.status === "reading";
+  if(b.status === "reading" && b.source === "Borrowed"){
+    // Auto-suggest a due date the moment a borrowed book starts being read;
+    // don't overwrite a date the user already set/edited.
+    if(!wasReading && !b.dueDate) b.dueDate = addDaysISO(todayISO(), 14);
+  } else {
+    b.dueDate = "";
+  }
   if(!b.title) return;
   if(existing) state.books = state.books.map(x=>x.id===id?b:x);
   else state.books.push(b);
@@ -2261,7 +2289,9 @@ function saveProgressFromForm(){
   }
   const ratingEl = document.getElementById("pf-rating");
   const rating = ratingEl ? Math.max(0, Math.min(5, Number(ratingEl.value)||0)) : (book.rating||0);
-  state.books = state.books.map(b => b.id===id ? { ...b, progressPercent: percent, progressMode: mode, progressPage: progressPage, rating: rating } : b);
+  const dueDateEl = document.getElementById("pf-duedate");
+  const dueDate = dueDateEl ? dueDateEl.value : (book.dueDate || "");
+  state.books = state.books.map(b => b.id===id ? { ...b, progressPercent: percent, progressMode: mode, progressPage: progressPage, rating: rating, dueDate: dueDate } : b);
   persistBooks();
   state.modal = null;
   render();
@@ -2283,7 +2313,8 @@ function saveCompleteBookFromModal(){
         status: "done",
         dateFinished: dateFinished,
         rating: rating,
-        priority: ""
+        priority: "",
+        dueDate: ""
       };
     }
     return b;
@@ -2299,7 +2330,8 @@ function markDNFFromModal(id){
         ...b,
         status: "dnf",
         rating: 0,
-        priority: ""
+        priority: "",
+        dueDate: ""
       };
     }
     return b;
@@ -2359,7 +2391,8 @@ function completeMoveWish(){
     format, source, status:"reading", priority:"Interested", rating:0, dateFinished:"",
     language, pagesHours:w.pagesHours||"", review:"", notes, recommendedBy, coverUrl:w.coverUrl||"",
     seriesName:w.seriesName||"", seriesNumber:w.seriesNumber||"", rereads:[],
-    isExample:false, progressPercent:0, progressMode:"percent", progressPage:""
+    isExample:false, progressPercent:0, progressMode:"percent", progressPage:"",
+    dueDate: source==="Borrowed" ? addDaysISO(todayISO(), 14) : ""
   });
   state.wishlist = state.wishlist.filter(x=>x.id!==id);
   persistBooks(); persistWishlist();
@@ -2388,9 +2421,15 @@ function saveBulkEditFromForm(){
   if(Object.keys(changes).length>0){
     state.books = state.books.map(b=> {
       if(!ui.selected.has(b.id)) return b;
+      const wasReading = b.status === "reading";
       const updated = {...b, ...changes};
       if(updated.status === "done" || updated.status === "dnf"){
         updated.priority = "";
+        updated.dueDate = "";
+      } else if(updated.status === "reading" && updated.source === "Borrowed"){
+        if(!wasReading && !updated.dueDate) updated.dueDate = addDaysISO(todayISO(), 14);
+      } else if(updated.source && updated.source !== "Borrowed"){
+        updated.dueDate = "";
       }
       return updated;
     });
