@@ -567,6 +567,7 @@
             <button onclick="spinSmallWheel()" style="padding: 10px 20px; font-size: 14px; margin-top: 5px;">Spin Amount</button>
             
             <div id="small-wheel-result" style="margin: 15px 0 5px 0; font-size: 15px; font-weight: bold; min-height: 22px; color: #444e37;"></div>
+            <div id="spins-sync-status" style="font-size: 11px; font-weight: 600; min-height: 14px; color: var(--text-muted); margin-bottom: -5px;"></div>
             
             <div style="display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: 10px; width: 100%;">
                 <button id="one-down-btn" onclick="decreaseSpins()" style="display: none; background-color: #ffb3ba; color: #5e3a3a; padding: 8px 14px; font-size: 13px; margin-top: 0;">1 down</button>
@@ -1072,6 +1073,22 @@
             }
         }
 
+        // Reflects whether the count is actually synced to Firestore (so
+        // other devices on the same profile will see it) or only cached on
+        // this device because the last write/read failed.
+        function setSyncStatus(state) {
+            const el = document.getElementById('spins-sync-status');
+            if (!el) return;
+            clearTimeout(setSyncStatus._fadeTimer);
+            if (state === 'offline') {
+                el.textContent = '⚠ Saved on this device only — will retry sync';
+                el.style.color = '#c97b7b';
+            } else {
+                // 'saving' and 'synced' are the happy path - stay silent.
+                el.textContent = '';
+            }
+        }
+
         // Persists currentSpins to Firestore, keyed per-profile, so any
         // device signed into the same profile picks up right where it left off.
         function saveSpinsToFirebase() {
@@ -1088,7 +1105,28 @@
                 suppressNextSpinsSave = false;
                 return;
             }
-            WHEEL_DOC.set({ currentSpins }, { merge: true }).catch(err => console.error("Wheel spins save failed", err));
+
+            setSyncStatus('saving');
+            WHEEL_DOC.set({ currentSpins }, { merge: true })
+                .then(() => setSyncStatus('synced'))
+                .catch(err => {
+                    console.error("Wheel spins save failed", err);
+                    setSyncStatus('offline');
+                    retrySpinsSaveWhenOnline();
+                });
+        }
+
+        // If a save fails (e.g. device briefly offline), retry once the
+        // browser reports it's back online, so other devices still end up
+        // with the right count without the user having to do anything.
+        let retrySpinsSaveListenerAttached = false;
+        function retrySpinsSaveWhenOnline() {
+            if (retrySpinsSaveListenerAttached) return;
+            retrySpinsSaveListenerAttached = true;
+            window.addEventListener('online', () => {
+                retrySpinsSaveListenerAttached = false;
+                saveSpinsToFirebase();
+            }, { once: true });
         }
 
         // Reads the last locally-cached spin count, if any. Returns null if
@@ -1120,12 +1158,16 @@
                         console.error("Wheel spins local cache write failed", err);
                     }
                 }
+                // A snapshot successfully arrived at all, whether or not the
+                // value changed, so we know Firestore is reachable right now.
+                setSyncStatus('synced');
             }
         }, (err) => {
             // Firestore read failed (offline, blocked, permissions, etc).
             // Don't fail silently - at least the local cache in window.onload
             // will have already restored the last known count.
             console.error("Wheel spins listener failed:", err);
+            setSyncStatus('offline');
         });
 
         // Triple-click on the "Spins left" text to manually edit the count.
