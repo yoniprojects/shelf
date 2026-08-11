@@ -125,111 +125,134 @@
         padding-bottom: 12px;
     }
 
-    /* Genre Filter inside Right Panel */
-    .filter-group {
+    /* Filters: a single select-style dropdown, minimalist black-on-white with checkboxes */
+    .filters-row {
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 14px;
         width: 100%;
-        margin-bottom: 15px;
+        margin-bottom: 18px;
     }
 
-    .filter-group label {
+    .select-filter {
+        position: relative;
+        width: 100%;
+    }
+
+    .select-filter-label {
+        display: block;
         font-size: 11px;
         font-weight: 700;
         letter-spacing: 0.8px;
         color: var(--text-muted);
         text-transform: uppercase;
+        margin-bottom: 6px;
     }
 
-    .filter-group select {
-        padding: 8px 10px;
-        border-radius: 8px;
-        border: 1px solid var(--border-color);
-        background-color: #ffffff;
-        font-size: 13px;
-        color: var(--text-color);
-        outline: none;
-        transition: border-color 0.2s;
-        width: 100%;
-        box-sizing: border-box;
-    }
-
-    .filter-group select:focus {
-        border-color: var(--primary-color);
-    }
-
-    /* Collapsible Filters Panel */
-    .filter-toggle {
+    .select-filter-trigger {
         display: flex;
         align-items: center;
         justify-content: space-between;
+        gap: 8px;
         width: 100%;
-        padding: 10px 12px;
-        background-color: rgba(255, 255, 255, 0.7);
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 12px;
-        font-weight: 700;
-        letter-spacing: 0.6px;
-        text-transform: uppercase;
-        color: var(--text-muted);
-        margin-bottom: 12px;
         box-sizing: border-box;
-        user-select: none;
+        padding: 10px 12px;
+        background-color: #ffffff;
+        color: #1a1a1a;
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 600;
+        text-align: left;
+        cursor: pointer;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
+        transition: border-color 0.2s ease;
     }
 
-    .filter-toggle:hover {
-        background-color: rgba(255, 255, 255, 0.9);
+    .select-filter-trigger span:first-child {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
-    .filter-toggle-arrow {
-        transition: transform 0.2s ease;
+    .select-filter-trigger:hover {
+        border-color: #1a1a1a;
+    }
+
+    .select-filter.open .select-filter-trigger {
+        border-color: #1a1a1a;
+        border-radius: 10px 10px 0 0;
+    }
+
+    .select-filter-arrow {
         font-size: 10px;
+        color: var(--text-muted);
+        transition: transform 0.2s ease;
+        flex-shrink: 0;
     }
 
-    .filter-toggle-arrow.open {
+    .select-filter.open .select-filter-arrow {
         transform: rotate(180deg);
     }
 
-    .filters-panel {
-        width: 100%;
+    .select-filter-panel {
         display: none;
-        flex-direction: column;
-        margin-bottom: 5px;
-    }
-
-    .filters-panel.open {
-        display: flex;
-    }
-
-    .checkbox-list {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        max-height: 130px;
-        overflow-y: auto;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
         background-color: #ffffff;
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        padding: 8px 10px;
+        border: 1px solid #1a1a1a;
+        border-top: none;
+        border-radius: 0 0 10px 10px;
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+        max-height: 280px;
+        overflow-y: auto;
+        z-index: 30;
         box-sizing: border-box;
     }
 
-    .checkbox-item {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 13px;
-        color: var(--text-color);
-        cursor: pointer;
+    .select-filter.open .select-filter-panel {
+        display: block;
     }
 
-    .checkbox-item input[type="checkbox"] {
+    .select-filter-section-heading {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        padding: 8px 12px 6px;
+        background-color: #fafafa;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .select-filter-option {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        font-size: 13px;
+        color: #1a1a1a;
+        cursor: pointer;
+        border-bottom: 1px solid var(--border-color);
+        background-color: #ffffff;
+        transition: background-color 0.15s ease;
+    }
+
+    .select-filter-option:last-child {
+        border-bottom: none;
+    }
+
+    .select-filter-option:hover {
+        background-color: #f5f5f5;
+    }
+
+    .select-filter-option input[type="checkbox"] {
         margin: 0;
         cursor: pointer;
-        accent-color: var(--primary-color);
+        accent-color: #1a1a1a;
+        flex-shrink: 0;
     }
 
     /* Wheel Styling */
@@ -282,19 +305,22 @@
 
     .mode-toggle {
         display: flex;
-        background-color: rgba(255, 255, 255, 0.7);
-        border-radius: 8px;
-        padding: 3px;
+        background-color: #ffffff;
+        border-radius: 999px;
+        padding: 4px;
         border: 1px solid var(--border-color);
         gap: 3px;
-        margin-bottom: 15px;
+        margin-bottom: 18px;
         width: 100%;
         box-sizing: border-box;
     }
     .mode-toggle button { 
         margin: 0; 
-        padding: 6px 4px; 
+        padding: 8px 4px; 
         font-size: 11px; 
+        font-weight: 700;
+        letter-spacing: 0.3px;
+        border-radius: 999px;
         background-color: transparent; 
         color: var(--text-muted); 
         box-shadow: none; 
@@ -569,18 +595,14 @@
                 <button type="button" id="mode-tbr-btn" onclick="setWheelMode('tbr')">TBR</button>
             </div>
 
-            <div class="filter-toggle" onclick="toggleFiltersPanel()">
-                <span>Filters</span>
-                <span id="filter-toggle-arrow" class="filter-toggle-arrow">▾</span>
-            </div>
-            <div id="filters-panel" class="filters-panel">
-                <div class="filter-group">
-                    <label>Genre</label>
-                    <div id="filter-genre-options" class="checkbox-list"></div>
-                </div>
-                <div class="filter-group">
-                    <label>Format</label>
-                    <div id="filter-format-options" class="checkbox-list"></div>
+            <div class="filters-row">
+                <div class="select-filter" id="filters-filter">
+                    <label class="select-filter-label">Filters</label>
+                    <button type="button" class="select-filter-trigger" onclick="toggleSelectFilter('filters')">
+                        <span id="filters-filter-summary">All Filters</span>
+                        <span class="select-filter-arrow">▾</span>
+                    </button>
+                    <div id="filter-combined-options" class="select-filter-panel"></div>
                 </div>
             </div>
             
@@ -655,41 +677,85 @@
         let deselectedGenres = new Set();
         let deselectedFormats = new Set();
 
-        function toggleFiltersPanel() {
-            const panel = document.getElementById('filters-panel');
-            const arrow = document.getElementById('filter-toggle-arrow');
-            panel.classList.toggle('open');
-            arrow.classList.toggle('open');
+        function toggleSelectFilter(field) {
+            const target = document.getElementById(`${field}-filter`);
+            const isOpen = target.classList.contains('open');
+            document.querySelectorAll('.select-filter.open').forEach(el => el.classList.remove('open'));
+            if (!isOpen) target.classList.add('open');
         }
+
+        // Close any open filter dropdown when clicking outside it.
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.select-filter')) {
+                document.querySelectorAll('.select-filter.open').forEach(el => el.classList.remove('open'));
+            }
+        });
 
         function updateFilterOptions() {
-            updateCheckboxGroup('genre', 'filter-genre-options', deselectedGenres);
-            updateCheckboxGroup('format', 'filter-format-options', deselectedFormats);
+            renderCombinedFilters();
         }
 
-        function updateCheckboxGroup(field, containerId, deselectedSet) {
-            const container = document.getElementById(containerId);
+        // Builds the list of distinct values (plus a "(None)" entry for blanks)
+        // for a given book field, e.g. 'genre' or 'format'.
+        function getFieldValues(field) {
             const values = Array.from(new Set(allBooks.map(b => b[field]).filter(Boolean))).sort();
-            const hasBlank = allBooks.some(b => !b[field]);
-            if (hasBlank) values.push('__none__');
+            if (allBooks.some(b => !b[field])) values.push('__none__');
+            return values;
+        }
 
-            if (values.length === 0) {
-                container.innerHTML = `<div class="empty-state" style="margin-top:0;padding:4px 0;">No options yet.</div>`;
-                return;
-            }
+        function renderCombinedFilters() {
+            const container = document.getElementById('filter-combined-options');
+            const summaryEl = document.getElementById('filters-filter-summary');
+            const includeFormat = wheelMode !== 'tbr';
+
+            const genreValues = getFieldValues('genre');
+            const formatValues = includeFormat ? getFieldValues('format') : [];
 
             let html = '';
+            html += buildFilterSectionHtml('genre', 'Genre', genreValues, deselectedGenres);
+            if (includeFormat) {
+                html += buildFilterSectionHtml('format', 'Format', formatValues, deselectedFormats);
+            }
+
+            if (!html) {
+                html = `<div class="empty-state" style="margin-top:0;padding:10px 12px;">No options yet.</div>`;
+            }
+            container.innerHTML = html;
+
+            const summaryParts = [];
+            const genreSummary = fieldSummaryText(genreValues, deselectedGenres, 'Genres');
+            if (genreSummary) summaryParts.push(genreSummary);
+            if (includeFormat) {
+                const formatSummary = fieldSummaryText(formatValues, deselectedFormats, 'Formats');
+                if (formatSummary) summaryParts.push(formatSummary);
+            }
+            summaryEl.textContent = summaryParts.length ? summaryParts.join(', ') : 'All Filters';
+        }
+
+        function buildFilterSectionHtml(field, sectionLabel, values, deselectedSet) {
+            if (values.length === 0) return '';
+            let html = `<div class="select-filter-section-heading">${sectionLabel}</div>`;
             values.forEach((v, i) => {
                 const label = v === '__none__' ? '(None)' : v;
-                const id = `${containerId}-${i}`;
+                const id = `filter-${field}-${i}`;
                 const checked = !deselectedSet.has(v);
                 html += `
-                    <label class="checkbox-item" for="${id}">
+                    <label class="select-filter-option" for="${id}">
                         <input type="checkbox" id="${id}" data-field="${field}" data-value="${v.replace(/"/g, '&quot;')}" ${checked ? 'checked' : ''} onchange="onFilterCheckboxChange(event)">
                         ${label}
                     </label>`;
             });
-            container.innerHTML = html;
+            return html;
+        }
+
+        // Returns a short summary fragment for a field, or null if everything
+        // in it is selected (the default "no filtering" state).
+        function fieldSummaryText(values, deselectedSet, pluralLabel) {
+            if (values.length === 0) return null;
+            const selectedCount = values.length - deselectedSet.size;
+            if (selectedCount === values.length) return null;
+            if (selectedCount === 0) return `No ${pluralLabel}`;
+            return `${selectedCount}/${values.length} ${pluralLabel}`;
         }
 
         function onFilterCheckboxChange(e) {
@@ -701,6 +767,7 @@
             } else {
                 set.add(value);
             }
+            renderCombinedFilters();
             applyFilters();
         }
 
