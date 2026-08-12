@@ -367,6 +367,24 @@
         color: var(--text-muted);
     }
 
+    /* Goals-mode cards can be split into sub-goals via double-click */
+    .book-item-card.has-subgoals {
+        cursor: pointer;
+        border-color: var(--edit-color);
+    }
+
+    .book-item-subgoal-badge {
+        display: inline-block;
+        margin-top: 2px;
+        font-size: 11px;
+        font-weight: 700;
+        color: #444e37;
+        background: var(--edit-color);
+        padding: 2px 8px;
+        border-radius: 10px;
+        width: fit-content;
+    }
+
     .empty-state {
         color: var(--text-muted);
         font-size: 14px;
@@ -448,6 +466,17 @@
         margin-bottom: 15px;
     }
 
+    .winner-goal {
+        font-size: 15px;
+        color: #444e37;
+        font-weight: 700;
+        background: var(--primary-color);
+        padding: 6px 16px;
+        border-radius: 20px;
+        margin-top: -8px;
+        margin-bottom: 5px;
+    }
+
     /* Spins Complete Congrats Modal */
     #congrats-modal {
         position: fixed;
@@ -519,6 +548,167 @@
         margin-bottom: 10px;
     }
 
+    /* Sub-Goals Editor Modal (Goals mode only) */
+    #subgoal-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: rgba(0, 0, 0, 0.65);
+        backdrop-filter: blur(6px);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 99999;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+    }
+
+    #subgoal-modal.active {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .subgoal-card {
+        background: rgba(255, 255, 255, 0.97);
+        padding: 30px 35px;
+        border-radius: 20px;
+        border: 2px solid var(--border-color);
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+        max-width: 460px;
+        width: 90%;
+        max-height: 85vh;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        transform: scale(0.9);
+        transition: transform 0.3s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+    }
+
+    #subgoal-modal.active .subgoal-card {
+        transform: scale(1);
+    }
+
+    .subgoal-badge {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: #444e37;
+        background: var(--edit-color);
+        padding: 6px 14px;
+        border-radius: 20px;
+        width: fit-content;
+    }
+
+    .subgoal-parent-label {
+        font-size: 18px;
+        font-weight: 800;
+        color: var(--text-color);
+        line-height: 1.3;
+    }
+
+    .subgoal-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        max-height: 220px;
+        overflow-y: auto;
+        margin: 5px 0;
+        padding-right: 2px;
+    }
+
+    .subgoal-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: #f7f6f2;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 8px 10px;
+    }
+
+    .subgoal-row.completed .subgoal-row-text {
+        text-decoration: line-through;
+        color: var(--text-muted);
+    }
+
+    .subgoal-row.up-next {
+        border-color: var(--primary-color);
+        background: #f2f8e8;
+    }
+
+    .subgoal-row-text {
+        flex: 1;
+        font-size: 14px;
+        color: var(--text-color);
+        word-break: break-word;
+    }
+
+    .subgoal-row-next-tag {
+        font-size: 10px;
+        font-weight: 700;
+        color: #444e37;
+        background: var(--primary-color);
+        padding: 2px 6px;
+        border-radius: 8px;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+    }
+
+    .subgoal-row-delete {
+        background: none;
+        border: none;
+        color: #c97b7b;
+        font-size: 16px;
+        font-weight: 700;
+        cursor: pointer;
+        padding: 0 2px;
+        line-height: 1;
+    }
+
+    .subgoal-empty-hint {
+        font-size: 13px;
+        color: var(--text-muted);
+        text-align: center;
+        padding: 10px 0;
+    }
+
+    #subgoal-textarea {
+        width: 100%;
+        box-sizing: border-box;
+        min-height: 80px;
+        resize: vertical;
+        font-family: inherit;
+        font-size: 13px;
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        margin-top: 4px;
+    }
+
+    .subgoal-hint-text {
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-top: -4px;
+    }
+
+    .subgoal-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 6px;
+        flex-wrap: wrap;
+    }
+
+    .subgoal-actions button {
+        flex: 1;
+        padding: 10px 14px;
+        font-size: 13px;
+    }
+
     /* Confetti */
     .confetti-piece {
         position: fixed;
@@ -584,7 +774,10 @@
                 <canvas id="wheel" width="340" height="340"></canvas>
             </div>
 
-            <button onclick="spinWheel()" style="margin-top: 20px; width: 100%;">Spin Wheel for Next Read!</button>
+            <div id="spin-buttons-row" style="display: flex; gap: 10px; width: 100%; margin-top: 20px;">
+                <button id="spin-wheel-btn" onclick="spinWheel()" style="flex: 1; margin-top: 0;">Spin Wheel for Next Read!</button>
+                <button id="spin-use-spin-btn" onclick="spinWheelUseSpin()" style="display: none; flex: 1; margin-top: 0; background-color: #ffb3ba; color: #5e3a3a;">Spin & 1 down</button>
+            </div>
         </div>
 
         <!-- Right Panel: Books on Wheel with Genre Filter -->
@@ -592,7 +785,8 @@
             <div class="panel-title" id="books-count-title">Books on Wheel (0)</div>
 
             <div class="mode-toggle" id="wheel-mode-toggle">
-                <button type="button" id="mode-reading-btn" class="active" onclick="setWheelMode('reading')">CURRENTLY READING</button>
+                <button type="button" id="mode-reading-btn" class="active" onclick="setWheelMode('reading')">CURRENT</button>
+                <button type="button" id="mode-goals-btn" onclick="setWheelMode('goals')">TODAY'S GOALS</button>
                 <button type="button" id="mode-tbr-btn" onclick="setWheelMode('tbr')">TBR</button>
             </div>
 
@@ -620,7 +814,25 @@
             <div class="winner-badge">Selected Next Read!</div>
             <div id="winner-title" class="winner-title">Book Title</div>
             <div id="winner-author" class="winner-author">Author Name</div>
+            <div id="winner-goal" class="winner-goal" style="display:none;"></div>
+            <button id="winner-subgoal-done-btn" onclick="markWinnerSubGoalDone()" style="display:none; padding: 10px 24px; font-size: 14px; background-color: var(--edit-color); color: #333e5c;">✓ Mark Sub-Goal Done</button>
             <button onclick="closeWinnerModal()" style="margin-top: 10px; padding: 12px 30px; font-size: 15px; background-color: var(--accent-yellow); color: #5c572b;">Close</button>
+        </div>
+    </div>
+
+    <!-- Sub-Goals Editor Modal (double-click a goal card in Goals mode) -->
+    <div id="subgoal-modal">
+        <div class="subgoal-card">
+            <div class="subgoal-badge">Split Into Sub-Goals</div>
+            <div id="subgoal-parent-label" class="subgoal-parent-label">Book: Goal</div>
+            <div id="subgoal-list" class="subgoal-list"></div>
+            <label for="subgoal-textarea" class="subgoal-hint-text">Add sub-goals, one per line — free text, percentages, or page numbers (e.g. "the confrontation scene", "50%", "p.145")</label>
+            <textarea id="subgoal-textarea" placeholder="e.g.&#10;the setup&#10;the confrontation scene&#10;the aftermath"></textarea>
+            <div class="subgoal-actions">
+                <button type="button" onclick="addSubGoalLines()" style="background-color: var(--edit-color); color: #333e5c;">Add to List</button>
+                <button type="button" onclick="closeSubGoalEditor()" style="background-color: var(--accent-yellow); color: #5c572b;">Done</button>
+            </div>
+            <button type="button" onclick="clearSubGoalList()" style="background: none; border: none; color: #c97b7b; font-size: 12px; cursor: pointer; padding: 4px 0; text-decoration: underline;">Clear entire list</button>
         </div>
     </div>
 
@@ -676,7 +888,22 @@
         let filteredBooks = [];
         let readingBooks = [];
         let tbrBooks = [];
-        let wheelMode = localStorage.getItem('shelf:wheelMode') === 'tbr' ? 'tbr' : 'reading';
+        let goalsModeData = [];
+
+        // Sub-goals: a Goals-mode-only breakdown of a single goal (e.g. a
+        // milestone like "Chapter 9") into a sequential list of smaller
+        // sub-goals. Lives entirely on WHEEL_DOC (never written back to
+        // SHARED_DOC / goals.html) so it stays wheel-only, but still syncs
+        // across devices on the same profile via Firestore.
+        // Shape: { [subGoalKey]: { parentLabel, bookTitle, items: [{id, text, completed}] } }
+        let subGoalsMap = {};
+        let editingSubGoalKey = null;
+        let editingSubGoalBookTitle = '';
+        let editingSubGoalParentLabel = '';
+        let currentWinnerSubGoal = null; // { key, id } for the "Mark Sub-Goal Done" button
+        let wheelMode = ['reading', 'tbr', 'goals'].includes(localStorage.getItem('shelf:wheelMode'))
+            ? localStorage.getItem('shelf:wheelMode')
+            : 'reading';
 
         // Tracks which checkbox-filter values are unchecked. Empty set = everything shown.
         let deselectedGenres = new Set();
@@ -776,27 +1003,285 @@
             applyFilters();
         }
 
+        // Same local-date formatting goals.html uses, so "today" lines up
+        // with whatever day the milestone was scheduled for.
+        function todayLocalDateStr() {
+            const d = new Date();
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        // For each currently-reading book, find its goal entry/entries (matched
+        // by bookTitle, same as goals.html's book picker) and pick the first
+        // not-yet-completed milestone dated today, in the milestones' original
+        // order. Books with no such milestone (nothing scheduled today, or
+        // today's milestones are all already checked off) are left out
+        // entirely — that's what gives the "swap to next milestone" / "book
+        // disappears" behavior for free, recomputed fresh on every snapshot.
+        function computeGoalsBooks() {
+            const todayStr = todayLocalDateStr();
+            const result = [];
+            readingBooks.forEach(book => {
+                const matchingGoals = goalsModeData.filter(g => g.bookTitle === book.title);
+                let todayMilestone = null;
+                for (const goal of matchingGoals) {
+                    const found = (goal.milestones || []).find(ms => ms.date === todayStr && !ms.completed);
+                    if (found) { todayMilestone = found; break; }
+                }
+                if (todayMilestone) {
+                    result.push({ ...book, goalLabel: todayMilestone.label });
+                }
+            });
+            return result;
+        }
+
+        function computeAllBooksForMode(mode) {
+            if (mode === 'tbr') return tbrBooks;
+            if (mode === 'goals') return computeGoalsBooks();
+            return readingBooks;
+        }
+
+        // ---- Sub-Goals (Goals mode only) ----------------------------------
+
+        // Identifies a single goal instance (today's milestone for a given
+        // book) so its sub-goal breakdown can be looked up/saved. Stable for
+        // as long as that milestone label stays "today's" milestone; once
+        // goals.html moves on to a new milestone, that's treated as a new
+        // goal with its own (empty) sub-goal list.
+        function subGoalKey(book) {
+            return `${book.title || ''}|||${book.goalLabel || ''}`;
+        }
+
+        function getSubGoalEntry(book) {
+            return subGoalsMap[subGoalKey(book)];
+        }
+
+        // Returns what should actually be shown on the wheel/list/winner
+        // modal for this goal: the first not-yet-completed sub-goal if any
+        // are defined, otherwise the original goal label.
+        function getEffectiveGoalDisplay(book) {
+            const entry = getSubGoalEntry(book);
+            const items = entry && Array.isArray(entry.items) ? entry.items : [];
+            if (items.length === 0) {
+                return { text: book.goalLabel, isSubGoal: false };
+            }
+            const nextIndex = items.findIndex(i => !i.completed);
+            if (nextIndex === -1) {
+                return { text: book.goalLabel, isSubGoal: false, allDone: true };
+            }
+            const next = items[nextIndex];
+            return {
+                text: next.text,
+                isSubGoal: true,
+                subGoalId: next.id,
+                key: subGoalKey(book),
+                position: `${nextIndex + 1}/${items.length}`
+            };
+        }
+
+        function openSubGoalEditor(book) {
+            if (wheelMode !== 'goals') return;
+            editingSubGoalKey = subGoalKey(book);
+            editingSubGoalBookTitle = book.title || 'Untitled';
+            editingSubGoalParentLabel = book.goalLabel || '';
+            document.getElementById('subgoal-parent-label').textContent =
+                `${editingSubGoalBookTitle}: ${editingSubGoalParentLabel}`;
+            document.getElementById('subgoal-textarea').value = '';
+            renderSubGoalEditorBody();
+            document.getElementById('subgoal-modal').classList.add('active');
+        }
+
+        function closeSubGoalEditor() {
+            document.getElementById('subgoal-modal').classList.remove('active');
+            editingSubGoalKey = null;
+        }
+
+        function renderSubGoalEditorBody() {
+            if (!editingSubGoalKey) return;
+            const listEl = document.getElementById('subgoal-list');
+            const entry = subGoalsMap[editingSubGoalKey];
+            const items = entry && Array.isArray(entry.items) ? entry.items : [];
+            listEl.innerHTML = '';
+
+            if (items.length === 0) {
+                const hint = document.createElement('div');
+                hint.className = 'subgoal-empty-hint';
+                hint.textContent = 'No sub-goals yet — add some below and the wheel will hand them out one at a time.';
+                listEl.appendChild(hint);
+                return;
+            }
+
+            const nextIndex = items.findIndex(i => !i.completed);
+            items.forEach((item, idx) => {
+                const row = document.createElement('div');
+                row.className = 'subgoal-row' + (item.completed ? ' completed' : '') + (idx === nextIndex ? ' up-next' : '');
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = !!item.completed;
+                checkbox.addEventListener('change', () => toggleSubGoalItem(item.id));
+                row.appendChild(checkbox);
+
+                const text = document.createElement('div');
+                text.className = 'subgoal-row-text';
+                text.textContent = item.text;
+                row.appendChild(text);
+
+                if (idx === nextIndex) {
+                    const tag = document.createElement('span');
+                    tag.className = 'subgoal-row-next-tag';
+                    tag.textContent = 'Up next';
+                    row.appendChild(tag);
+                }
+
+                const del = document.createElement('button');
+                del.type = 'button';
+                del.className = 'subgoal-row-delete';
+                del.textContent = '×';
+                del.title = 'Delete';
+                del.addEventListener('click', () => deleteSubGoalItem(item.id));
+                row.appendChild(del);
+
+                listEl.appendChild(row);
+            });
+        }
+
+        function ensureEditingEntry() {
+            if (!subGoalsMap[editingSubGoalKey]) {
+                subGoalsMap[editingSubGoalKey] = {
+                    parentLabel: editingSubGoalParentLabel,
+                    bookTitle: editingSubGoalBookTitle,
+                    items: []
+                };
+            }
+            return subGoalsMap[editingSubGoalKey];
+        }
+
+        function addSubGoalLines() {
+            if (!editingSubGoalKey) return;
+            const textarea = document.getElementById('subgoal-textarea');
+            const lines = textarea.value.split('\n').map(l => l.trim()).filter(Boolean);
+            if (lines.length === 0) return;
+
+            const entry = ensureEditingEntry();
+            lines.forEach(line => {
+                entry.items.push({
+                    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                    text: line,
+                    completed: false
+                });
+            });
+
+            textarea.value = '';
+            renderSubGoalEditorBody();
+            saveSubGoalsToFirebase();
+        }
+
+        function toggleSubGoalItem(id) {
+            const entry = subGoalsMap[editingSubGoalKey];
+            if (!entry) return;
+            const item = entry.items.find(i => i.id === id);
+            if (!item) return;
+            item.completed = !item.completed;
+            renderSubGoalEditorBody();
+            saveSubGoalsToFirebase();
+        }
+
+        function deleteSubGoalItem(id) {
+            const entry = subGoalsMap[editingSubGoalKey];
+            if (!entry) return;
+            entry.items = entry.items.filter(i => i.id !== id);
+            renderSubGoalEditorBody();
+            saveSubGoalsToFirebase();
+        }
+
+        function clearSubGoalList() {
+            if (!editingSubGoalKey || !subGoalsMap[editingSubGoalKey]) return;
+            if (!confirm('Clear the entire sub-goal list for this goal?')) return;
+            subGoalsMap[editingSubGoalKey].items = [];
+            renderSubGoalEditorBody();
+            saveSubGoalsToFirebase();
+        }
+
+        // Persists the whole sub-goals map to WHEEL_DOC (never SHARED_DOC),
+        // so goals.html never sees this data, but any device signed into
+        // this same profile picks it up via the WHEEL_DOC listener above.
+        let retrySubGoalsSaveListenerAttached = false;
+        function retrySubGoalsSaveWhenOnline() {
+            if (retrySubGoalsSaveListenerAttached) return;
+            retrySubGoalsSaveListenerAttached = true;
+            window.addEventListener('online', () => {
+                retrySubGoalsSaveListenerAttached = false;
+                saveSubGoalsToFirebase();
+            }, { once: true });
+        }
+
+        function saveSubGoalsToFirebase() {
+            WHEEL_DOC.set({ subGoals: subGoalsMap }, { merge: true })
+                .then(() => setSyncStatus('synced'))
+                .catch(err => {
+                    console.error("Sub-goals save failed", err);
+                    setSyncStatus('offline');
+                    retrySubGoalsSaveWhenOnline();
+                });
+            if (wheelMode === 'goals') applyFilters();
+        }
+
+        // Called from the "✓ Mark Sub-Goal Done" button on the winner modal.
+        // Marks the sub-goal that was just spun as completed and advances
+        // the on-screen label to whatever's next (mirrors how checking off a
+        // milestone in goals.html moves you to the next one).
+        function markWinnerSubGoalDone() {
+            if (!currentWinnerSubGoal) return;
+            const entry = subGoalsMap[currentWinnerSubGoal.key];
+            if (!entry) return;
+            const item = entry.items.find(i => i.id === currentWinnerSubGoal.id);
+            if (!item) return;
+            item.completed = true;
+            saveSubGoalsToFirebase();
+
+            const nextItem = entry.items.find(i => !i.completed);
+            const goalEl = document.getElementById('winner-goal');
+            const doneBtn = document.getElementById('winner-subgoal-done-btn');
+            if (nextItem) {
+                goalEl.innerText = nextItem.text;
+                currentWinnerSubGoal = { key: currentWinnerSubGoal.key, id: nextItem.id };
+            } else {
+                goalEl.innerText = `${entry.parentLabel} — all sub-goals complete! 🎉`;
+                doneBtn.style.display = 'none';
+                currentWinnerSubGoal = null;
+            }
+        }
+
         // Real-time synchronization with Index app.
-        // Keeps both "Currently reading" books and the Wishlist (TBR) in sync,
-        // and switches between them based on wheelMode.
+        // Keeps "Currently reading" books, the Wishlist (TBR), and Goals
+        // Mode's milestone data (data.goalsMode, written by goals.html) all
+        // in sync, and switches the active list based on wheelMode. Because
+        // goalsMode lives on this same shared doc, a milestone checked off in
+        // goals.html — on this device or another — pushes a live update here
+        // too, with no separate listener needed.
         SHARED_DOC.onSnapshot((snap) => {
             if (snap.exists) {
                 const data = snap.data();
                 readingBooks = Array.isArray(data.books) ? data.books.filter(book => book.status === 'reading') : [];
                 tbrBooks = Array.isArray(data.wishlist) ? data.wishlist : [];
-                allBooks = wheelMode === 'tbr' ? tbrBooks : readingBooks;
+                goalsModeData = Array.isArray(data.goalsMode) ? data.goalsMode : [];
+                allBooks = computeAllBooksForMode(wheelMode);
                 updateFilterOptions();
                 applyFilters();
             }
         });
 
         function setWheelMode(mode) {
-            if (mode !== 'reading' && mode !== 'tbr') return;
+            if (mode !== 'reading' && mode !== 'tbr' && mode !== 'goals') return;
             wheelMode = mode;
             localStorage.setItem('shelf:wheelMode', mode);
             document.getElementById('mode-reading-btn').classList.toggle('active', mode === 'reading');
+            document.getElementById('mode-goals-btn').classList.toggle('active', mode === 'goals');
             document.getElementById('mode-tbr-btn').classList.toggle('active', mode === 'tbr');
-            allBooks = mode === 'tbr' ? tbrBooks : readingBooks;
+            allBooks = computeAllBooksForMode(mode);
             deselectedGenres.clear();
             deselectedFormats.clear();
             updateFilterOptions();
@@ -817,11 +1302,13 @@
         function updateBooksListUI() {
             const container = document.getElementById('books-container');
             const titleElem = document.getElementById('books-count-title');
-            const modeLabel = wheelMode === 'tbr' ? 'TBR Books' : 'Currently Reading';
+            const modeLabel = wheelMode === 'tbr' ? 'TBR Books' : wheelMode === 'goals' ? "Today's Goals" : 'Currently Reading';
             titleElem.innerText = `${modeLabel} on Wheel (${filteredBooks.length})`;
 
             if (filteredBooks.length === 0) {
-                container.innerHTML = `<div class="empty-state">No books match your current filters.</div>`;
+                container.innerHTML = wheelMode === 'goals'
+                    ? `<div class="empty-state">No goal milestones scheduled for today.</div>`
+                    : `<div class="empty-state">No books match your current filters.</div>`;
                 return;
             }
 
@@ -829,10 +1316,46 @@
             filteredBooks.forEach(book => {
                 const card = document.createElement('div');
                 card.className = 'book-item-card';
-                card.innerHTML = `
-                    <div class="book-item-title">${book.title || 'Untitled'}</div>
-                    <div class="book-item-author">${book.author || 'Unknown Author'}</div>
-                `;
+
+                let titleText = book.title || 'Untitled';
+                let subGoalBadgeText = null;
+                if (wheelMode === 'goals' && book.goalLabel) {
+                    const display = getEffectiveGoalDisplay(book);
+                    titleText = `${book.title || 'Untitled'}: ${display.text}`;
+                    if (display.isSubGoal) {
+                        subGoalBadgeText = `Sub-goal ${display.position}`;
+                        card.classList.add('has-subgoals');
+                    } else if (display.allDone) {
+                        subGoalBadgeText = 'All sub-goals done 🎉';
+                        card.classList.add('has-subgoals');
+                    }
+                }
+
+                const titleEl = document.createElement('div');
+                titleEl.className = 'book-item-title';
+                titleEl.textContent = titleText;
+                card.appendChild(titleEl);
+
+                const authorEl = document.createElement('div');
+                authorEl.className = 'book-item-author';
+                authorEl.textContent = book.author || 'Unknown Author';
+                card.appendChild(authorEl);
+
+                if (subGoalBadgeText) {
+                    const badgeEl = document.createElement('div');
+                    badgeEl.className = 'book-item-subgoal-badge';
+                    badgeEl.textContent = subGoalBadgeText;
+                    card.appendChild(badgeEl);
+                }
+
+                // Goals mode only: double-click a goal to split it into a
+                // sequential list of sub-goals. Never wired up in
+                // reading/TBR mode.
+                if (wheelMode === 'goals' && book.goalLabel) {
+                    card.title = 'Double-click to split into sub-goals';
+                    card.addEventListener('dblclick', () => openSubGoalEditor(book));
+                }
+
                 container.appendChild(card);
             });
         }
@@ -881,7 +1404,9 @@
                 ctx.fillStyle = '#444e37'; 
                 ctx.font = 'bold 11px sans-serif';
                 
-                let displayText = book.title || 'Untitled';
+                let displayText = (wheelMode === 'goals' && book.goalLabel)
+                    ? `${book.title || 'Untitled'}: ${getEffectiveGoalDisplay(book).text}`
+                    : (book.title || 'Untitled');
                 if (displayText.length > 22) displayText = displayText.substring(0, 20) + '...';
                 ctx.fillText(displayText, radius - 15, 4);
                 ctx.restore();
@@ -913,15 +1438,42 @@
             }, 4000);
         }
 
+        // Same as spinWheel(), but also counts as one of the "spins left"
+        // from the small wheel's spin count, decreasing it by one.
+        function spinWheelUseSpin() {
+            if (currentSpins <= 0) return;
+            spinWheel();
+            decreaseSpins();
+        }
+
         function showWinningBook(book) {
             document.getElementById('winner-title').innerText = book.title || 'Untitled';
             document.getElementById('winner-author').innerText = book.author || 'Unknown Author';
+            const goalEl = document.getElementById('winner-goal');
+            const doneBtn = document.getElementById('winner-subgoal-done-btn');
+            currentWinnerSubGoal = null;
+            if (wheelMode === 'goals' && book.goalLabel) {
+                const display = getEffectiveGoalDisplay(book);
+                goalEl.innerText = display.text;
+                goalEl.style.display = '';
+                if (display.isSubGoal) {
+                    currentWinnerSubGoal = { key: display.key, id: display.subGoalId };
+                    doneBtn.style.display = '';
+                } else {
+                    doneBtn.style.display = 'none';
+                }
+            } else {
+                goalEl.style.display = 'none';
+                doneBtn.style.display = 'none';
+            }
             document.getElementById('winner-modal').classList.add('active');
             fireConfetti();
         }
 
         function closeWinnerModal() {
             document.getElementById('winner-modal').classList.remove('active');
+            document.getElementById('winner-subgoal-done-btn').style.display = 'none';
+            currentWinnerSubGoal = null;
         }
 
         function drawSmallWheel() {
@@ -1071,6 +1623,9 @@
                 doneBtn.style.display = 'none';
                 document.getElementById('one-down-btn').style.display = 'none';
             }
+            document.getElementById('spin-use-spin-btn').style.display = currentSpins > 0 ? 'inline-block' : 'none';
+            document.getElementById('spin-wheel-btn').innerText = currentSpins > 0 ? 'Spin Wheel' : 'Spin Wheel for Next Read!';
+            document.getElementById('spin-use-spin-btn').innerText = 'Spin & 1 down';
         }
 
         // Reflects whether the count is actually synced to Firestore (so
@@ -1158,6 +1713,18 @@
                         console.error("Wheel spins local cache write failed", err);
                     }
                 }
+
+                // Sub-goals live on this same doc so they sync cross-device
+                // without ever touching SHARED_DOC (goals.html stays unaware
+                // of them). Pick up remote edits (e.g. marked done on phone).
+                subGoalsMap = (data.subGoals && typeof data.subGoals === 'object') ? data.subGoals : {};
+                if (wheelMode === 'goals') {
+                    applyFilters();
+                }
+                if (document.getElementById('subgoal-modal').classList.contains('active')) {
+                    renderSubGoalEditorBody();
+                }
+
                 // A snapshot successfully arrived at all, whether or not the
                 // value changed, so we know Firestore is reachable right now.
                 setSyncStatus('synced');
@@ -1266,6 +1833,7 @@
 
         window.onload = () => {
             document.getElementById('mode-reading-btn').classList.toggle('active', wheelMode === 'reading');
+            document.getElementById('mode-goals-btn').classList.toggle('active', wheelMode === 'goals');
             document.getElementById('mode-tbr-btn').classList.toggle('active', wheelMode === 'tbr');
             updateFilterOptions();
             applyFilters();
