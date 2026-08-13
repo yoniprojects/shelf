@@ -972,6 +972,7 @@ CODENOW
                 <button type="button" onclick="requestCloseSubGoalEditor()" style="background-color: var(--danger-color); color: #6b2b2b;">Cancel</button>
                 <button type="button" onclick="handleAddSubGoals()" style="background-color: var(--accent-yellow); color: #5c572b;">Add</button>
             </div>
+            <button type="button" onclick="markEntireGoalComplete()" style="width: 100%; margin-top: 8px; background-color: var(--edit-color); color: #333e5c; padding: 10px; font-size: 13px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer;">✓ Mark Entire Goal Complete</button>
             <button type="button" onclick="clearSubGoalList()" style="background: none; border: none; color: #c97b7b; font-size: 12px; cursor: pointer; padding: 4px 0; text-decoration: underline;">Clear entire list</button>
         </div>
     </div>
@@ -1539,6 +1540,43 @@ CODENOW
             subGoalsMap[editingSubGoalKey].items = [];
             renderSubGoalEditorBody();
             saveSubGoalsToFirebase();
+        }
+
+        // Marks the whole parent goal (not just a sub-goal piece of it) as
+        // done. This writes straight to SHARED_DOC — the same doc/field
+        // goals.html itself uses (data.goalsMode) — so the milestone shows
+        // as completed there too, exactly as if it had been checked off in
+        // goals.html directly. Any leftover sub-goals for it are cleared
+        // since there's nothing left to hand out from the wheel.
+        function markEntireGoalComplete() {
+            if (!editingSubGoalKey) return;
+            const viewDate = effectiveGoalsDate();
+            const goal = goalsModeData.find(g => g.bookTitle === editingSubGoalBookTitle &&
+                (g.milestones || []).some(ms => ms.label === editingSubGoalParentLabel && ms.date === viewDate && !ms.completed));
+            if (!goal) {
+                alert("Couldn't find this goal to mark complete — it may have already been finished elsewhere.");
+                closeSubGoalEditor();
+                return;
+            }
+            if (!confirm(`Mark "${editingSubGoalParentLabel}" as complete? This will also mark it done in goals.html.`)) return;
+
+            const ms = goal.milestones.find(m => m.label === editingSubGoalParentLabel && m.date === viewDate && !m.completed);
+            if (ms) ms.completed = true;
+
+            SHARED_DOC.set({ goalsMode: goalsModeData }, { merge: true })
+                .then(() => setSyncStatus('synced'))
+                .catch(err => {
+                    console.error("Mark goal complete failed", err);
+                    setSyncStatus('offline');
+                });
+
+            // Clear any sub-goal breakdown for this now-finished goal.
+            delete subGoalsMap[editingSubGoalKey];
+            saveSubGoalsToFirebase();
+
+            closeSubGoalEditor();
+            allBooks = computeAllBooksForMode('goals');
+            applyFilters();
         }
 
         // Persists the whole sub-goals map to WHEEL_DOC (never SHARED_DOC),
