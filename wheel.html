@@ -1,3 +1,4 @@
+CODENOW
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -303,6 +304,42 @@
 
     button:hover { opacity: 0.9; transform: scale(1.02); }
 
+    #goals-viewing-date-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-secondary, #6b6b5c);
+        margin: -6px 0 8px;
+    }
+
+    .goals-next-day-bar {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        background: rgba(203, 219, 168, 0.25);
+        border: 1px dashed var(--primary-color, #cbdba8);
+        border-radius: 10px;
+        padding: 10px 14px;
+        margin: 4px 0 12px;
+        font-size: 13px;
+    }
+
+    .goals-next-day-btn {
+        background-color: var(--primary-color, #cbdba8);
+        color: #444e37;
+        border: none;
+        padding: 8px 16px;
+        font-size: 13px;
+        font-weight: bold;
+        border-radius: 8px;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 0.2s ease;
+    }
+
+    .goals-next-day-btn:hover { opacity: 0.9; transform: scale(1.02); }
+
     .mode-toggle {
         display: flex;
         background-color: #ffffff;
@@ -475,6 +512,15 @@
         border-radius: 20px;
         margin-top: -8px;
         margin-bottom: 5px;
+    }
+
+    .winner-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        margin-top: 10px;
     }
 
     /* Spins Complete Congrats Modal */
@@ -696,6 +742,70 @@
         margin-top: -4px;
     }
 
+    /* Split-mode toggle (Pages / Percentages / Portions) */
+    .subgoal-mode-toggle {
+        display: flex;
+        gap: 6px;
+        width: 100%;
+        margin-top: 2px;
+    }
+
+    .subgoal-mode-btn {
+        flex: 1;
+        padding: 8px 6px;
+        font-size: 12px;
+        font-weight: 600;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        background-color: #f7f6f2;
+        color: var(--text-muted);
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .subgoal-mode-btn:hover {
+        border-color: #1a1a1a;
+    }
+
+    .subgoal-mode-btn.active {
+        background-color: var(--edit-color);
+        color: #333e5c;
+        border-color: var(--edit-color);
+    }
+
+    .subgoal-split-inputs {
+        display: flex;
+        gap: 10px;
+        width: 100%;
+        margin-top: 4px;
+    }
+
+    .subgoal-split-inputs label {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        color: var(--text-muted);
+        text-transform: uppercase;
+    }
+
+    .subgoal-split-inputs input[type="number"] {
+        box-sizing: border-box;
+        width: 100%;
+        padding: 8px 10px;
+        font-family: inherit;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-color);
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        text-transform: none;
+        letter-spacing: normal;
+    }
+
     .subgoal-actions {
         display: flex;
         gap: 8px;
@@ -783,6 +893,7 @@
         <!-- Right Panel: Books on Wheel with Genre Filter -->
         <div class="panel" style="align-items: flex-start;">
             <div class="panel-title" id="books-count-title">Books on Wheel (0)</div>
+            <div id="goals-viewing-date-label" style="display:none;"></div>
 
             <div class="mode-toggle" id="wheel-mode-toggle">
                 <button type="button" id="mode-reading-btn" class="active" onclick="setWheelMode('reading')">CURRENT</button>
@@ -801,6 +912,8 @@
                 </div>
             </div>
             
+            <div id="goals-next-day-bar" style="display:none;"></div>
+
             <div id="books-container" class="books-list">
                 <div class="empty-state">No books match your current filters.</div>
             </div>
@@ -815,8 +928,10 @@
             <div id="winner-title" class="winner-title">Book Title</div>
             <div id="winner-author" class="winner-author">Author Name</div>
             <div id="winner-goal" class="winner-goal" style="display:none;"></div>
-            <button id="winner-subgoal-done-btn" onclick="markWinnerSubGoalDone()" style="display:none; padding: 10px 24px; font-size: 14px; background-color: var(--edit-color); color: #333e5c;">✓ Mark Sub-Goal Done</button>
-            <button onclick="closeWinnerModal()" style="margin-top: 10px; padding: 12px 30px; font-size: 15px; background-color: var(--accent-yellow); color: #5c572b;">Close</button>
+            <div class="winner-actions">
+                <button id="winner-subgoal-done-btn" onclick="markWinnerSubGoalDone()" style="display:none; padding: 10px 24px; font-size: 14px; background-color: var(--edit-color); color: #333e5c;">✓ Mark Sub-Goal Done</button>
+                <button onclick="closeWinnerModal()" style="padding: 12px 30px; font-size: 15px; background-color: var(--accent-yellow); color: #5c572b;">Close</button>
+            </div>
         </div>
     </div>
 
@@ -825,12 +940,37 @@
         <div class="subgoal-card">
             <div class="subgoal-badge">Split Into Sub-Goals</div>
             <div id="subgoal-parent-label" class="subgoal-parent-label">Book: Goal</div>
+            <div id="subgoal-detected-info" class="subgoal-hint-text" style="margin:-4px 0 10px;"></div>
             <div id="subgoal-list" class="subgoal-list"></div>
-            <label for="subgoal-textarea" class="subgoal-hint-text">Add sub-goals, one per line — free text, percentages, or page numbers (e.g. "the confrontation scene", "50%", "p.145")</label>
-            <textarea id="subgoal-textarea" placeholder="e.g.&#10;the setup&#10;the confrontation scene&#10;the aftermath"></textarea>
+
+            <div id="subgoal-range-inputs" class="subgoal-split-inputs">
+                <label>Split into
+                    <input type="number" id="subgoal-range-parts" min="2" step="1" placeholder="e.g. 4">
+                </label>
+            </div>
+
+            <div id="subgoal-chapter-inputs" class="subgoal-split-inputs" style="flex-direction: column; align-items: stretch; gap: 10px;">
+                <div style="display: flex; gap: 10px;">
+                    <label style="flex: 1;">Start page
+                        <input type="number" id="subgoal-chapter-start" min="1" step="1" placeholder="e.g. 120" oninput="updateSubGoalChapterPageCount()">
+                    </label>
+                    <label style="flex: 1;">End page
+                        <input type="number" id="subgoal-chapter-end" min="1" step="1" placeholder="e.g. 138" oninput="updateSubGoalChapterPageCount()">
+                    </label>
+                </div>
+                <div id="subgoal-chapter-pagecount" class="subgoal-hint-text"></div>
+                <label>Split into
+                    <input type="number" id="subgoal-chapter-parts" min="2" step="1" placeholder="e.g. 3">
+                </label>
+            </div>
+
+            <div id="subgoal-portions-inputs" style="display: none;">
+                <textarea id="subgoal-textarea" style="display:none;"></textarea>
+            </div>
+
             <div class="subgoal-actions">
-                <button type="button" onclick="addSubGoalLines()" style="background-color: var(--edit-color); color: #333e5c;">Add to List</button>
-                <button type="button" onclick="closeSubGoalEditor()" style="background-color: var(--accent-yellow); color: #5c572b;">Done</button>
+                <button type="button" onclick="requestCloseSubGoalEditor()" style="background-color: var(--danger-color); color: #6b2b2b;">Cancel</button>
+                <button type="button" onclick="handleAddSubGoals()" style="background-color: var(--accent-yellow); color: #5c572b;">Add</button>
             </div>
             <button type="button" onclick="clearSubGoalList()" style="background: none; border: none; color: #c97b7b; font-size: 12px; cursor: pointer; padding: 4px 0; text-decoration: underline;">Clear entire list</button>
         </div>
@@ -1020,14 +1160,65 @@
         // today's milestones are all already checked off) are left out
         // entirely — that's what gives the "swap to next milestone" / "book
         // disappears" behavior for free, recomputed fresh on every snapshot.
-        function computeGoalsBooks() {
+        // "Move to next day" — a wheel-only override of which date's
+        // milestones are being shown in Goals mode. Lives on WHEEL_DOC (never
+        // SHARED_DOC / goals.html), synced the same way sub-goals are, so
+        // choosing to move on from one device carries over to any other
+        // device signed into the same profile. Null = just use the real
+        // calendar date.
+        let goalsViewDateOverride = null;
+
+        // Real calendar date always wins once it catches up to (or passes)
+        // the override, so this can't get stuck showing a stale future date
+        // forever — it only ever lets you look *ahead*, never behind.
+        function effectiveGoalsDate() {
             const todayStr = todayLocalDateStr();
+            if (goalsViewDateOverride && goalsViewDateOverride > todayStr) {
+                return goalsViewDateOverride;
+            }
+            return todayStr;
+        }
+
+        // Earliest date after `afterDate` that still has an incomplete
+        // milestone somewhere, or null if nothing is scheduled beyond it.
+        function findNextGoalsDate(afterDate) {
+            const candidates = new Set();
+            goalsModeData.forEach(g => (g.milestones || []).forEach(ms => {
+                if (!ms.completed && ms.date && ms.date > afterDate) candidates.add(ms.date);
+            }));
+            if (candidates.size === 0) return null;
+            return Array.from(candidates).sort()[0];
+        }
+
+        function saveGoalsViewDateToFirebase() {
+            WHEEL_DOC.set({ goalsViewDate: goalsViewDateOverride }, { merge: true })
+                .then(() => setSyncStatus('synced'))
+                .catch(err => {
+                    console.error("Goals view-date save failed", err);
+                    setSyncStatus('offline');
+                });
+        }
+
+        // Called from the "Move to Next Day" button. Only ever advances
+        // forward, skipping ahead to whatever date next has something
+        // scheduled (so it doesn't stop on empty in-between days).
+        function advanceGoalsDay() {
+            const next = findNextGoalsDate(effectiveGoalsDate());
+            if (!next) return;
+            goalsViewDateOverride = next;
+            saveGoalsViewDateToFirebase();
+            allBooks = computeAllBooksForMode('goals');
+            applyFilters();
+        }
+
+        function computeGoalsBooks() {
+            const viewDate = effectiveGoalsDate();
             const result = [];
             readingBooks.forEach(book => {
                 const matchingGoals = goalsModeData.filter(g => g.bookTitle === book.title);
                 let todayMilestone = null;
                 for (const goal of matchingGoals) {
-                    const found = (goal.milestones || []).find(ms => ms.date === todayStr && !ms.completed);
+                    const found = (goal.milestones || []).find(ms => ms.date === viewDate && !ms.completed);
                     if (found) { todayMilestone = found; break; }
                 }
                 if (todayMilestone) {
@@ -1089,13 +1280,131 @@
             document.getElementById('subgoal-parent-label').textContent =
                 `${editingSubGoalBookTitle}: ${editingSubGoalParentLabel}`;
             document.getElementById('subgoal-textarea').value = '';
+            document.getElementById('subgoal-range-parts').value = '';
+            document.getElementById('subgoal-chapter-start').value = '';
+            document.getElementById('subgoal-chapter-end').value = '';
+            document.getElementById('subgoal-chapter-parts').value = '';
+            updateSubGoalChapterPageCount();
+            subGoalDetected = parseGoalLabelForSplit(editingSubGoalParentLabel);
+            applySubGoalDetectedUI();
             renderSubGoalEditorBody();
             document.getElementById('subgoal-modal').classList.add('active');
+        }
+
+        // ---- Smart goal-type detection ----
+        //
+        // goals.html always writes milestone labels in one of a few fixed
+        // formats depending on how the goal was created there:
+        //   "Page 12-16"        -> a page range (exact numbers, no input needed)
+        //   "Percentage 20-40%" -> a percentage range (exact numbers, no input needed)
+        //   "Chapter 9", or any free-text chapter name -> a chapter. Chapters
+        //     (numbered or named) don't carry page numbers in their label, so
+        //     both are treated identically: the user tells us the chapter's
+        //     start/end page once, and we split by page from there.
+        // We parse today's milestone label back into its exact numbers so the
+        // sub-goal editor can skip asking for anything except what's actually
+        // missing, and produce sub-ranges that add up perfectly to the
+        // original goal (e.g. "Page 1-4" split 2 ways -> "Page 1-2" + "Page 3-4").
+        let subGoalDetected = { type: 'chapter' };
+
+        function parseGoalLabelForSplit(label) {
+            if (!label) return { type: 'chapter' };
+            let m = label.match(/^Page (\d+)-(\d+)$/);
+            if (m) return { type: 'page', from: parseInt(m[1], 10), to: parseInt(m[2], 10) };
+            m = label.match(/^Percentage (\d+)-(\d+)%$/);
+            if (m) return { type: 'percent', from: parseInt(m[1], 10), to: parseInt(m[2], 10) };
+            return { type: 'chapter' }; // covers "Chapter 9" and any free-text chapter name
+        }
+
+        // Splits the inclusive range [from, to] into `parts` contiguous,
+        // (near-)equal-sized chunks (earlier chunks absorb the remainder),
+        // formatting each chunk with fmt(start, end).
+        function splitRangeIntoLabels(from, to, parts, fmt) {
+            const total = to - from + 1;
+            parts = Math.max(1, Math.min(parts, total));
+            const base = Math.floor(total / parts);
+            const remainder = total % parts;
+            const labels = [];
+            let cursor = from;
+            for (let i = 0; i < parts; i++) {
+                const size = base + (i < remainder ? 1 : 0);
+                const start = cursor;
+                const end = cursor + size - 1;
+                labels.push(fmt(start, end));
+                cursor = end + 1;
+            }
+            return labels;
+        }
+
+        // Live "X pages in this chapter" hint as the user fills in the
+        // chapter's start/end page fields.
+        function updateSubGoalChapterPageCount() {
+            const start = parseInt(document.getElementById('subgoal-chapter-start').value, 10);
+            const end = parseInt(document.getElementById('subgoal-chapter-end').value, 10);
+            const el = document.getElementById('subgoal-chapter-pagecount');
+            if (start && end && end >= start) {
+                const count = end - start + 1;
+                el.textContent = `${count} page${count === 1 ? '' : 's'} in this chapter.`;
+            } else {
+                el.textContent = '';
+            }
+        }
+
+        // Shows/hides the right inputs and explains what was auto-detected.
+        function applySubGoalDetectedUI() {
+            const rangeWrap = document.getElementById('subgoal-range-inputs');
+            const chapterWrap = document.getElementById('subgoal-chapter-inputs');
+            const portionsWrap = document.getElementById('subgoal-portions-inputs');
+            const infoEl = document.getElementById('subgoal-detected-info');
+            const partsInput = document.getElementById('subgoal-range-parts');
+
+            rangeWrap.style.display = 'none';
+            chapterWrap.style.display = 'none';
+            portionsWrap.style.display = 'none';
+
+            if (subGoalDetected.type === 'page') {
+                rangeWrap.style.display = 'flex';
+                const span = subGoalDetected.to - subGoalDetected.from + 1;
+                infoEl.textContent = `Detected pages ${subGoalDetected.from}-${subGoalDetected.to} (${span} pages). Just say how many pieces to split it into.`;
+                partsInput.max = String(span);
+            } else if (subGoalDetected.type === 'percent') {
+                rangeWrap.style.display = 'flex';
+                const span = subGoalDetected.to - subGoalDetected.from + 1;
+                infoEl.textContent = `Detected ${subGoalDetected.from}-${subGoalDetected.to}%. Just say how many pieces to split it into.`;
+                partsInput.max = String(span);
+            } else {
+                chapterWrap.style.display = 'flex';
+                infoEl.textContent = `Chapter goal — enter its start and end page, then how many pieces to split it into.`;
+            }
         }
 
         function closeSubGoalEditor() {
             document.getElementById('subgoal-modal').classList.remove('active');
             editingSubGoalKey = null;
+        }
+
+        // Intercepts clicks on the Cancel button or outside the editor to check for unsaved input
+        function requestCloseSubGoalEditor() {
+            if (hasUnsavedSubGoalInput()) {
+                if (!confirm('You have unsaved sub-goals or inputs in progress. Are you sure you want to cancel?')) {
+                    return;
+                }
+            }
+            closeSubGoalEditor();
+        }
+
+        // Checks if the user has typed or entered sub-goal data in the current form that hasn't been added yet
+        function hasUnsavedSubGoalInput() {
+            if (subGoalDetected.type === 'page' || subGoalDetected.type === 'percent') {
+                const parts = document.getElementById('subgoal-range-parts').value.trim();
+                if (parts !== '') return true;
+            } else {
+                const start = document.getElementById('subgoal-chapter-start').value.trim();
+                const end = document.getElementById('subgoal-chapter-end').value.trim();
+                const parts = document.getElementById('subgoal-chapter-parts').value.trim();
+                if (start !== '' || end !== '' || parts !== '') return true;
+            }
+            return false;
         }
 
         function renderSubGoalEditorBody() {
@@ -1159,24 +1468,51 @@
             return subGoalsMap[editingSubGoalKey];
         }
 
-        function addSubGoalLines() {
-            if (!editingSubGoalKey) return;
-            const textarea = document.getElementById('subgoal-textarea');
-            const lines = textarea.value.split('\n').map(l => l.trim()).filter(Boolean);
-            if (lines.length === 0) return;
+        // Builds the sub-goal text checkpoints for whichever split mode is
+        // currently selected. 'pages'/'percent' auto-generate evenly spaced
+        // checkpoints; 'portions' just reads the free-text textarea.
+        function generateSubGoalTextsForCurrentMode() {
+            const info = subGoalDetected;
 
-            const entry = ensureEditingEntry();
-            lines.forEach(line => {
-                entry.items.push({
-                    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-                    text: line,
-                    completed: false
+            if (info.type === 'page') {
+                const parts = parseInt(document.getElementById('subgoal-range-parts').value, 10);
+                if (!parts || parts < 1) return [];
+                return splitRangeIntoLabels(info.from, info.to, parts,
+                    (s, e) => s === e ? `Page ${s}` : `Page ${s}-${e}`);
+            }
+            if (info.type === 'percent') {
+                const parts = parseInt(document.getElementById('subgoal-range-parts').value, 10);
+                if (!parts || parts < 1) return [];
+                return splitRangeIntoLabels(info.from, info.to, parts,
+                    (s, e) => s === e ? `${s}%` : `${s}-${e}%`);
+            }
+            // Chapter (numbered or named): split by the page range the user gave us.
+            const start = parseInt(document.getElementById('subgoal-chapter-start').value, 10);
+            const end = parseInt(document.getElementById('subgoal-chapter-end').value, 10);
+            const parts = parseInt(document.getElementById('subgoal-chapter-parts').value, 10);
+            if (!start || !end || end < start || !parts || parts < 1) return [];
+            return splitRangeIntoLabels(start, end, parts,
+                (s, e) => s === e ? `Page ${s}` : `Page ${s}-${e}`);
+        }
+
+        // Called from the "Add" button: generates the sub-goals for the
+        // current split mode, adds them to the list, saves, then closes
+        // the popup.
+        function handleAddSubGoals() {
+            if (!editingSubGoalKey) { closeSubGoalEditor(); return; }
+            const texts = generateSubGoalTextsForCurrentMode();
+            if (texts.length > 0) {
+                const entry = ensureEditingEntry();
+                texts.forEach(text => {
+                    entry.items.push({
+                        id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                        text,
+                        completed: false
+                    });
                 });
-            });
-
-            textarea.value = '';
-            renderSubGoalEditorBody();
-            saveSubGoalsToFirebase();
+                saveSubGoalsToFirebase();
+            }
+            closeSubGoalEditor();
         }
 
         function toggleSubGoalItem(id) {
@@ -1230,29 +1566,17 @@
         }
 
         // Called from the "✓ Mark Sub-Goal Done" button on the winner modal.
-        // Marks the sub-goal that was just spun as completed and advances
-        // the on-screen label to whatever's next (mirrors how checking off a
-        // milestone in goals.html moves you to the next one).
+        // Marks the sub-goal that was just spun as completed, saves it, and
+        // closes the popup.
         function markWinnerSubGoalDone() {
-            if (!currentWinnerSubGoal) return;
+            if (!currentWinnerSubGoal) { closeWinnerModal(); return; }
             const entry = subGoalsMap[currentWinnerSubGoal.key];
-            if (!entry) return;
-            const item = entry.items.find(i => i.id === currentWinnerSubGoal.id);
-            if (!item) return;
-            item.completed = true;
-            saveSubGoalsToFirebase();
-
-            const nextItem = entry.items.find(i => !i.completed);
-            const goalEl = document.getElementById('winner-goal');
-            const doneBtn = document.getElementById('winner-subgoal-done-btn');
-            if (nextItem) {
-                goalEl.innerText = nextItem.text;
-                currentWinnerSubGoal = { key: currentWinnerSubGoal.key, id: nextItem.id };
-            } else {
-                goalEl.innerText = `${entry.parentLabel} — all sub-goals complete! 🎉`;
-                doneBtn.style.display = 'none';
-                currentWinnerSubGoal = null;
+            const item = entry && entry.items.find(i => i.id === currentWinnerSubGoal.id);
+            if (item) {
+                item.completed = true;
+                saveSubGoalsToFirebase();
             }
+            closeWinnerModal();
         }
 
         // Real-time synchronization with Index app.
@@ -1288,6 +1612,58 @@
             applyFilters();
         }
 
+        // Shows/hides the "Move to Next Day" bar above the goals list. Only
+        // relevant in Goals mode, and only actionable once every goal
+        // scheduled for the day currently being viewed is done (or there was
+        // nothing scheduled for it at all) *and* there's a future date with
+        // something still incomplete to move on to.
+        function updateGoalsNextDayBar() {
+            const bar = document.getElementById('goals-next-day-bar');
+            if (wheelMode !== 'goals') {
+                bar.style.display = 'none';
+                bar.innerHTML = '';
+                return;
+            }
+
+            const viewDate = effectiveGoalsDate();
+            const dayIsClear = allBooks.length === 0; // computeGoalsBooks() already excludes done/no-milestone books
+            const next = findNextGoalsDate(viewDate);
+
+            if (!dayIsClear || !next) {
+                bar.style.display = 'none';
+                bar.innerHTML = '';
+                return;
+            }
+
+            const nextLabel = formatShortDate(next);
+            bar.style.display = 'flex';
+            bar.className = 'goals-next-day-bar';
+            bar.innerHTML = `
+                <span>🎉 All done${viewDate === todayLocalDateStr() ? ' for today' : ''} — ready to move on?</span>
+                <button type="button" class="goals-next-day-btn" onclick="advanceGoalsDay()">Move to ${nextLabel} →</button>
+            `;
+        }
+
+        function formatShortDate(dateStr) {
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const date = new Date(y, m - 1, d);
+            const todayStr = todayLocalDateStr();
+            if (dateStr === todayStr) return 'Today';
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            if (dateStr === toLocalDateStr_(tomorrow)) return 'Tomorrow';
+            return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        }
+
+        // Local helper (same logic as todayLocalDateStr but for an arbitrary
+        // Date object) used only by formatShortDate's "Tomorrow" check.
+        function toLocalDateStr_(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
         function applyFilters() {
             filteredBooks = allBooks.filter(book => {
                 const genreVal = book.genre || '__none__';
@@ -1302,12 +1678,27 @@
         function updateBooksListUI() {
             const container = document.getElementById('books-container');
             const titleElem = document.getElementById('books-count-title');
+            const viewingLabel = document.getElementById('goals-viewing-date-label');
             const modeLabel = wheelMode === 'tbr' ? 'TBR Books' : wheelMode === 'goals' ? "Today's Goals" : 'Currently Reading';
             titleElem.innerText = `${modeLabel} on Wheel (${filteredBooks.length})`;
 
+            if (wheelMode === 'goals') {
+                const viewDate = effectiveGoalsDate();
+                if (viewDate !== todayLocalDateStr()) {
+                    viewingLabel.textContent = `📅 Viewing: ${formatShortDate(viewDate)}`;
+                    viewingLabel.style.display = 'block';
+                } else {
+                    viewingLabel.style.display = 'none';
+                }
+            } else {
+                viewingLabel.style.display = 'none';
+            }
+
+            updateGoalsNextDayBar();
+
             if (filteredBooks.length === 0) {
                 container.innerHTML = wheelMode === 'goals'
-                    ? `<div class="empty-state">No goal milestones scheduled for today.</div>`
+                    ? `<div class="empty-state">No goal milestones scheduled for ${effectiveGoalsDate() === todayLocalDateStr() ? 'today' : 'this day'}.</div>`
                     : `<div class="empty-state">No books match your current filters.</div>`;
                 return;
             }
@@ -1718,7 +2109,13 @@
                 // without ever touching SHARED_DOC (goals.html stays unaware
                 // of them). Pick up remote edits (e.g. marked done on phone).
                 subGoalsMap = (data.subGoals && typeof data.subGoals === 'object') ? data.subGoals : {};
+
+                // "Move to next day" override — also wheel-only, same reason:
+                // pick up a device-to-device change (e.g. advanced on phone).
+                goalsViewDateOverride = typeof data.goalsViewDate === 'string' ? data.goalsViewDate : null;
+
                 if (wheelMode === 'goals') {
+                    allBooks = computeAllBooksForMode('goals');
                     applyFilters();
                 }
                 if (document.getElementById('subgoal-modal').classList.contains('active')) {
