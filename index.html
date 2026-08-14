@@ -4,8 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Shelf & Spine — Reading Tracker</title>
-<link rel="icon" type="image/png" href="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT3mBiNx3NoAoJiRfsX4M5gVBVgbO82ha4SLtbwyYs-yw&s" />
-<link rel="apple-touch-icon" href="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT3mBiNx3NoAoJiRfsX4M5gVBVgbO82ha4SLtbwyYs-yw&s" />
+<link rel="icon" type="image/png" href="https://i.imgur.com/htlhPe9.png" />
+<link rel="apple-touch-icon" href="https://i.imgur.com/htlhPe9.png" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Shelf & Spine" />
 <script>
@@ -91,7 +91,11 @@
   .tracker-group-head{display:flex;align-items:baseline;gap:8px;padding:12px 16px 10px;}
   table.tracker td.chk, table.tracker th.chk{width:34px;padding-left:14px;}
   table.tracker tr.selected-row{outline:2px solid var(--gold);outline-offset:-2px;}
-  .fact-list{display:flex;flex-direction:column;gap:16px;font-size:14.5px;}
+  .fact-list{position:relative;overflow:hidden;}
+  .fact-track{display:flex;flex-direction:column;gap:16px;font-size:14.5px;}
+  .fact-refresh-btn{border:none;background:none;padding:2px 4px;font-size:14px;line-height:1;cursor:pointer;border-radius:6px;opacity:.75;}
+  .fact-refresh-btn:hover{opacity:1;background:var(--blush);}
+  .fact-refresh-btn:active{transform:scale(.92);}
   .fact-row{display:flex;gap:11px;align-items:flex-start;font-size:1em;line-height:1.55;}
   .fact-row .fact-icon{font-size:1.15em;flex-shrink:0;}
   .rating-shimmer{
@@ -849,9 +853,35 @@ function emptyState(text, ctaLabel, ctaAction){
 }
 
 /* ---------------- fun facts ---------------- */
-function computeFunFacts(books){
+const FUN_FACTS_VISIBLE = 7;           // how many facts show at once
+let funFactsPool = [];
+let funFactsSignature = null;   // signature of the data last used to build funFactsPool
+// The facts actually shown are picked once when the app opens (see
+// pickFunFactsSelection below) and then held fixed — re-renders, data
+// changes, and Firestore syncs never reshuffle them. They only change when
+// the person taps the 🔄 refresh button. Since this lives in a plain JS
+// variable (not persisted to storage), a full reload naturally counts as
+// "the app opening from scratch" and clears it.
+let funFactsSelection = null;
+
+function inPeriod(dateStr, period, now){
+  if(!dateStr) return false;
+  const d = new Date(dateStr+"T00:00:00");
+  if(isNaN(d)) return false;
+  if(period==="year") return d.getFullYear()===now.getFullYear();
+  if(period==="month") return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth();
+  if(period==="week"){
+    const cutoff = new Date(now); cutoff.setDate(cutoff.getDate()-7);
+    return d>=cutoff && d<=now;
+  }
+  return false;
+}
+const PERIOD_LABEL = {year:"this year", month:"this month", week:"this week"};
+
+function computeFunFacts(books, wishlist){
   const facts = [];
   const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const DOW = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
   const completed = books.filter(b=>b.status==="done" && b.dateFinished);
   const now = new Date();
   const cutoff = new Date(now); cutoff.setDate(cutoff.getDate()-30);
@@ -891,7 +921,173 @@ function computeFunFacts(books){
   const topAll = Object.entries(gmapAll).sort((a,b)=>b[1]-a[1])[0];
   if(topAll) facts.push({icon:"🏆", text:`All-time, your most-read genre is <strong>${esc(topAll[0])}</strong> with ${topAll[1]} book${topAll[1]===1?"":"s"} finished.`});
 
+  // ---- most-read author ----
+  const authorMap={}; completed.forEach(b=>{ if(b.author) authorMap[b.author]=(authorMap[b.author]||0)+1; });
+  const topAuthor = Object.entries(authorMap).sort((a,b)=>b[1]-a[1])[0];
+  if(topAuthor && topAuthor[1]>1) facts.push({icon:"🔁", text:`You've read the most books by <strong>${esc(topAuthor[0])}</strong> — ${topAuthor[1]} so far.`});
+
+  // ---- new-to-you author streak (year/month/week) ----
+  const authorFirstFinish = {};
+  completed.forEach(b=>{
+    if(!b.author) return;
+    if(!authorFirstFinish[b.author] || b.dateFinished < authorFirstFinish[b.author]) authorFirstFinish[b.author] = b.dateFinished;
+  });
+  ["year","month","week"].forEach(period=>{
+    const count = Object.values(authorFirstFinish).filter(d=>inPeriod(d,period,now)).length;
+    if(count>0) facts.push({icon:"🆕", text:`You discovered ${count} new author${count===1?"":"s"} ${PERIOD_LABEL[period]}.`});
+  });
+
+  // ---- favorite format (year/month/week) ----
+  ["year","month","week"].forEach(period=>{
+    const inP = completed.filter(b=>inPeriod(b.dateFinished,period,now));
+    if(!inP.length) return;
+    const fmap={}; inP.forEach(b=>{ if(b.format) fmap[b.format]=(fmap[b.format]||0)+1; });
+    const top = Object.entries(fmap).sort((a,b)=>b[1]-a[1])[0];
+    if(top){
+      const pct = Math.round(top[1]/inP.length*100);
+      facts.push({icon:"🎧", text:`Most of your reading happens in <strong>${esc(top[0])}</strong> format — ${pct}% of finished books ${PERIOD_LABEL[period]}.`});
+    }
+  });
+
+  // ---- language preference (year/month/week) ----
+  ["year","month","week"].forEach(period=>{
+    const inP = completed.filter(b=>inPeriod(b.dateFinished,period,now));
+    if(!inP.length) return;
+    const lmap={}; inP.forEach(b=>{ if(b.language) lmap[b.language]=(lmap[b.language]||0)+1; });
+    const parts = LANGUAGES.filter(l=>lmap[l]).map(l=>`${lmap[l]} book${lmap[l]===1?"":"s"} in ${l}`);
+    if(parts.length) facts.push({icon:"🌍", text:`You've read ${parts.join(", ")} ${PERIOD_LABEL[period]}.`});
+  });
+
+  // ---- digital vs physical split ----
+  const digitalCount = completed.filter(b=>b.format==="Digital").length;
+  const physicalCount = completed.filter(b=>b.format==="Physical").length;
+  if(digitalCount+physicalCount>0) facts.push({icon:"📱", text:`You're currently ${digitalCount} digital / ${physicalCount} physical for finished books.`});
+
+  // ---- reading streak (consecutive months) ----
+  const monthSet = new Set(completed.map(b=>b.dateFinished.slice(0,7)));
+  let streak=0;
+  const cursor = new Date(now.getFullYear(), now.getMonth(), 1);
+  while(true){
+    const key = `${cursor.getFullYear()}-${String(cursor.getMonth()+1).padStart(2,"0")}`;
+    if(monthSet.has(key)){ streak++; cursor.setMonth(cursor.getMonth()-1); }
+    else break;
+  }
+  if(streak>=2) facts.push({icon:"📅", text:`You've finished a book in ${streak} consecutive months.`});
+
+  // ---- perfect scores ----
+  const perfectCount = completed.filter(b=>Number(b.rating)===5).length;
+  if(perfectCount>0) facts.push({icon:"💯", text:`You've given ${perfectCount} book${perfectCount===1?"":"s"} a perfect 5★ rating.`});
+
+  // ---- harshest critique ----
+  const lowestRated = completed.filter(b=>b.rating>0).sort((a,b)=>a.rating-b.rating)[0];
+  if(lowestRated) facts.push({icon:"📉", text:`Your lowest-rated finish was <strong>${esc(lowestRated.title)}</strong> at ${lowestRated.rating}★.`});
+
+  // ---- genre with best ratings ----
+  const genreRatingMap={};
+  completed.filter(b=>b.rating>0 && b.genre).forEach(b=>{
+    if(!genreRatingMap[b.genre]) genreRatingMap[b.genre] = {sum:0,count:0};
+    genreRatingMap[b.genre].sum += Number(b.rating);
+    genreRatingMap[b.genre].count++;
+  });
+  const genreAvgs = Object.entries(genreRatingMap).map(([g,v])=>[g, v.sum/v.count]).sort((a,b)=>b[1]-a[1]);
+  if(genreAvgs.length) facts.push({icon:"🎯", text:`Your highest-rated genre is <strong>${esc(genreAvgs[0][0])}</strong>, averaging ${genreAvgs[0][1].toFixed(1)}★.`});
+
+  // ---- total pages ----
+  const totalPages = completed.reduce((s,b)=> s + (Number(b.pagesHours)||0), 0);
+  if(totalPages>0) facts.push({icon:"📄", text:`You've read roughly ${totalPages.toLocaleString()} pages all-time.`});
+
+  // ---- round-number milestone ----
+  const milestoneSteps=[10,25,50,75,100,150,200,250,300,400,500,750,1000];
+  let lastMilestone = null;
+  milestoneSteps.forEach(m=>{ if(completed.length>=m) lastMilestone=m; });
+  if(lastMilestone && completed.length - lastMilestone <= 3) facts.push({icon:"🎉", text:`You just crossed ${lastMilestone} books finished — congrats!`});
+
+  // ---- source breakdown ----
+  const sourceMap={}; books.forEach(b=>{ if(b.source) sourceMap[b.source]=(sourceMap[b.source]||0)+1; });
+  const topSource = Object.entries(sourceMap).sort((a,b)=>b[1]-a[1])[0];
+  if(topSource) facts.push({icon:"🎁", text:`Most of your books are <strong>${esc(topSource[0].toLowerCase())}</strong> — ${topSource[1]} of your library.`});
+
+  // ---- TBR size ----
+  if(wishlist && wishlist.length) facts.push({icon:"📝", text:`You have ${wishlist.length} book${wishlist.length===1?"":"s"} waiting on your wishlist.`});
+
+  // ---- overdue borrowed books ----
+  const soon = new Date(now); soon.setDate(soon.getDate()+7);
+  const overdueCount = books.filter(b=>b.status==="reading" && b.source==="Borrowed" && b.dueDate).filter(b=>{
+    const d = new Date(b.dueDate+"T00:00:00");
+    return !isNaN(d) && d<=soon;
+  }).length;
+  if(overdueCount>0) facts.push({icon:"⏳", text:`${overdueCount} borrowed book${overdueCount===1?"":"s"} ${overdueCount===1?"is":"are"} getting close to ${overdueCount===1?"its":"their"} due date!`});
+
+  // ---- day-of-week habit ----
+  const dowMap={};
+  completed.forEach(b=>{ const d=new Date(b.dateFinished+"T00:00:00"); if(!isNaN(d)) dowMap[d.getDay()]=(dowMap[d.getDay()]||0)+1; });
+  const topDow = Object.entries(dowMap).sort((a,b)=>b[1]-a[1])[0];
+  if(topDow && topDow[1]>1) facts.push({icon:"📆", text:`You finish the most books on <strong>${DOW[Number(topDow[0])]}s</strong>.`});
+
+  // ---- anniversary read ----
+  const anniversaryKey = `${now.getFullYear()-1}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+  const annivBook = completed.find(b=>b.dateFinished===anniversaryKey);
+  if(annivBook) facts.push({icon:"🎂", text:`A year ago today you finished <strong>${esc(annivBook.title)}</strong>.`});
+
+  // ---- shortest read ----
+  const shortest = completed.filter(b=>b.pagesHours && !isNaN(Number(b.pagesHours)) && Number(b.pagesHours)>0).sort((a,b)=>Number(a.pagesHours)-Number(b.pagesHours))[0];
+  if(shortest) facts.push({icon:"🥇", text:`Your quickest read was <strong>${esc(shortest.title)}</strong> at just ${shortest.pagesHours} pages.`});
+
+  // ---- genre diversity (this year) ----
+  const genresThisYear = new Set(completed.filter(b=>yearOf(b.dateFinished)===String(now.getFullYear()) && b.genre).map(b=>b.genre));
+  if(genresThisYear.size>0) facts.push({icon:"⚖️", text:`You've explored ${genresThisYear.size} different genre${genresThisYear.size===1?"":"s"} this year.`});
+
+  // ---- genre switch-up (last 5 finishes) ----
+  const last5 = completed.slice().sort((a,b)=>b.dateFinished.localeCompare(a.dateFinished)).slice(0,5);
+  const distinctGenres = new Set(last5.map(b=>b.genre).filter(Boolean));
+  if(last5.length>=2 && distinctGenres.size>1) facts.push({icon:"🔄", text:`You've bounced between ${distinctGenres.size} different genres in your last ${last5.length}.`});
+
+  // ---- Fisher-Yates Shuffle ----
+  for (let i = facts.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [facts[i], facts[j]] = [facts[j], facts[i]];
+  }
+
   return facts;
+}
+
+// Signature of only the fields computeFunFacts() actually reads. As long as this
+// string stays the same across renders, the underlying data hasn't changed and we
+// can safely reuse the already-shuffled pool instead of recomputing (and re-shuffling).
+function computeFunFactsSignature(books, wishlist){
+  const b = books.map(bk => [
+    bk.status, bk.dateFinished, bk.rating, bk.pagesHours, bk.genre, bk.author,
+    bk.format, bk.language, bk.source, bk.dueDate, bk.title
+  ].join("|")).join(";");
+  const w = wishlist ? wishlist.length : 0;
+  return b + "::" + w;
+}
+
+// Cached accessor for the fun-facts pool: only recomputes (and re-shuffles) when the
+// underlying data actually changed.
+function getFunFactsPool(books, wishlist){
+  const sig = computeFunFactsSignature(books, wishlist);
+  if(sig !== funFactsSignature){
+    funFactsPool = computeFunFacts(books, wishlist);
+    funFactsSignature = sig;
+  }
+  return funFactsPool;
+}
+
+// Picks a fresh random sample of facts from the pool. Called once when the
+// dashboard is first shown each session, and again whenever the person taps
+// the 🔄 refresh button — never automatically after that.
+function pickFunFactsSelection(pool){
+  const shuffled = [...pool];
+  for(let i = shuffled.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  funFactsSelection = shuffled.slice(0, Math.min(FUN_FACTS_VISIBLE, shuffled.length));
+}
+
+function renderFunFactRows(list){
+  return list.map(f=>`<div class="fact-row"><span class="fact-icon">${f.icon}</span><span>${f.text}</span></div>`).join("");
 }
 
 /* ---------------- dashboard ---------------- */
@@ -916,7 +1112,11 @@ function renderDashboard(){
     return !isNaN(d) && d.getFullYear() === currentYear && d.getMonth() === currentMonth;
   }).sort((a, b) => (b.dateFinished || "").localeCompare(a.dateFinished || ""));
 
-  const funFacts = computeFunFacts(books);
+  getFunFactsPool(books, state.wishlist);
+  // Pick a random sample only the first time (app just opened this session);
+  // after that it stays fixed until the person taps the refresh button.
+  if(funFactsSelection === null) pickFunFactsSelection(funFactsPool);
+  const funFactsTrackHTML = renderFunFactRows(funFactsSelection);
 
   const goalVal = Number(state.goals[year]) || 0;
   let goalNum, goalPaceHTML = "";
@@ -1088,11 +1288,14 @@ function renderDashboard(){
         </div>
       </div>`;
       })()}
-      ${funFacts.length ? `
+      ${funFactsPool.length ? `
       <div class="card" id="ff-card" style="flex:1 1 340px;min-width:300px;">
-        <div class="section-label">Fun facts</div>
+        <div class="section-label" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>Fun facts</span>
+          <button type="button" class="fact-refresh-btn" data-action="refresh-fun-facts" title="Shuffle fun facts" aria-label="Shuffle fun facts">🔄︎</button>
+        </div>
         <div class="fact-list">
-          ${funFacts.map(f=>`<div class="fact-row"><span class="fact-icon">${f.icon}</span><span>${f.text}</span></div>`).join("")}
+          <div class="fact-track">${funFactsTrackHTML}</div>
         </div>
       </div>` : ""}
     </div>
@@ -2571,7 +2774,11 @@ document.addEventListener("click", (e)=>{
   else if(action==="close-modal"){ state.modal = null; goodreadsParsed = null; renderModal(); }
   else if(action==="sort"){ ui.sortKey = el.getAttribute("data-key"); render(); }
   else if(action==="dash-genre-view"){ ui.dashGenreView = el.getAttribute("data-view"); render(); }
-  else if(action==="dash-genre-view"){ ui.dashGenreView = el.getAttribute("data-view"); render(); }
+  else if(action==="refresh-fun-facts"){
+    getFunFactsPool(state.books, state.wishlist);
+    pickFunFactsSelection(funFactsPool);
+    render();
+  }
   else if(action==="clear-examples"){ clearExamples(); }
   else if(action==="cal-prev"){ ui.calMonth = new Date(ui.calMonth.getFullYear(), ui.calMonth.getMonth()-1, 1); ui.calPicked=null; render(); }
   else if(action==="cal-next"){ ui.calMonth = new Date(ui.calMonth.getFullYear(), ui.calMonth.getMonth()+1, 1); ui.calPicked=null; render(); }
@@ -2789,17 +2996,31 @@ function fitFunFactsHeight(){
   const crCard = document.getElementById("cr-card");
   const ffCard = document.getElementById("ff-card");
   if(!row || !crCard || !ffCard) return;
-  const factList = ffCard.querySelector(".fact-list");
-  if(!factList) return;
+  const viewport = ffCard.querySelector(".fact-list");
+  const track = ffCard.querySelector(".fact-track");
+  if(!viewport || !track) return;
 
   const BASE_FONT = 14.5, BASE_GAP = 16;
   const MIN_SCALE = 0.72, MAX_SCALE = 1.65;
+  const n = Math.max(1, (funFactsSelection || []).length || 1);
+
+  // Height spanned by just the first n rows — a stand-in for "how tall would the old
+  // fixed 7-row card be", regardless of whether the track secretly holds a doubled
+  // copy of the pool underneath for seamless looping.
+  function naturalBlockHeight(){
+    const rows = track.children;
+    if(rows.length < n) return track.offsetHeight;
+    const top = rows[0].getBoundingClientRect().top;
+    const bottom = rows[n-1].getBoundingClientRect().bottom;
+    return bottom - top;
+  }
 
   // Measure natural (unstretched) heights so we can compare real content sizes,
   // not the equalized heights align-items:stretch produces.
   row.style.alignItems = "flex-start";
-  factList.style.fontSize = "";
-  factList.style.gap = "";
+  track.style.fontSize = "";
+  track.style.gap = "";
+  viewport.style.height = "";
 
   // Only relevant when the two cards are actually sharing a row.
   const sameRow = Math.abs(crCard.getBoundingClientRect().top - ffCard.getBoundingClientRect().top) < 1;
@@ -2809,21 +3030,23 @@ function fitFunFactsHeight(){
   }
 
   const crHeight = crCard.offsetHeight;
-  let ffHeight = ffCard.offsetHeight;
+  let ffHeight = naturalBlockHeight();
   if(crHeight > 0 && ffHeight > 0){
     let scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, crHeight/ffHeight));
-    factList.style.fontSize = (BASE_FONT*scale).toFixed(2)+"px";
-    factList.style.gap = Math.max(6, Math.round(BASE_GAP*scale))+"px";
+    track.style.fontSize = (BASE_FONT*scale).toFixed(2)+"px";
+    track.style.gap = Math.max(6, Math.round(BASE_GAP*scale))+"px";
     // One corrective pass: line-wrapping means font-size vs height isn't perfectly
     // linear, so re-measure once and nudge closer.
-    ffHeight = ffCard.offsetHeight;
+    ffHeight = naturalBlockHeight();
     if(ffHeight > 0){
       const correction = Math.max(0.85, Math.min(1.18, crHeight/ffHeight));
       scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale*correction));
-      factList.style.fontSize = (BASE_FONT*scale).toFixed(2)+"px";
-      factList.style.gap = Math.max(6, Math.round(BASE_GAP*scale))+"px";
+      track.style.fontSize = (BASE_FONT*scale).toFixed(2)+"px";
+      track.style.gap = Math.max(6, Math.round(BASE_GAP*scale))+"px";
     }
   }
+  ffHeight = naturalBlockHeight();
+  if(ffHeight > 0) viewport.style.height = Math.round(ffHeight)+"px";
   row.style.alignItems = "stretch";
 }
 let funFactsFitRAF = null;
