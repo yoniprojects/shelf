@@ -2032,10 +2032,53 @@ function bookDetailHTML(book){
         <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">Finished ${fmtDate(book.dateFinished)}${book.language?` · ${esc(book.language)}`:""}</div>
         ${book.review?`<div style="margin-bottom:10px;"><div class="section-label" style="margin-bottom:2px;">Brief review</div><div style="font-size:13px;line-height:1.5;">${esc(book.review)}</div></div>`:""}
         ${book.notes?`<div style="margin-bottom:14px;"><div class="section-label" style="margin-bottom:2px;">Notes / thoughts</div><div style="font-size:13px;line-height:1.5;">${esc(book.notes)}</div></div>`:""}
-        <button class="btn btn-primary" data-action="edit-from-detail" data-id="${book.id}">Edit book</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary" data-action="edit-from-detail" data-id="${book.id}">Edit book</button>
+          <button class="btn btn-subtle" data-action="copy-to-other" data-id="${book.id}">Copy to ${esc(otherProfile().name)}</button>
+        </div>
       </div>
     </div>
   `;
+}
+// Returns the profile object for the user who is NOT currently active
+// (i.e. Tom's profile when Yoni is active, and vice versa).
+function otherProfile(){
+  const curId = getCurrentUserId();
+  return PROFILES.find(p => p.id !== curId) || PROFILES[0];
+}
+// Copies a book's key info (cover, title, author, genre, sub-genre, pages,
+// series, # in series) into the OTHER profile's wishlist. Writes straight to
+// that profile's Firestore doc since it isn't the currently loaded one.
+async function copyBookToOtherWishlist(bookId){
+  const book = findBook(bookId);
+  if(!book) return;
+  const target = otherProfile();
+  const btn = document.querySelector(`[data-action="copy-to-other"][data-id="${bookId}"]`);
+  if(btn){ btn.disabled = true; btn.textContent = "Copying…"; }
+  try{
+    const targetRef = db.collection("shelf-spine").doc(target.id);
+    const snap = await targetRef.get();
+    const existing = (snap.exists && Array.isArray(snap.data().wishlist)) ? snap.data().wishlist : [];
+    const newItem = {
+      id: uid(),
+      title: book.title || "",
+      author: book.author || "",
+      coverUrl: book.coverUrl || "",
+      genre: book.genre || "",
+      subGenre: book.subGenre || "",
+      pagesHours: book.pagesHours || "",
+      seriesName: book.seriesName || "",
+      seriesNumber: book.seriesNumber || "",
+      priority: "Interested"
+    };
+    await targetRef.set({ wishlist: [...existing, newItem] }, { merge: true });
+    alert(`Added "${book.title}" to ${target.name}'s wishlist.`);
+  }catch(err){
+    console.error("Failed to copy book to other profile's wishlist:", err);
+    alert("Something went wrong copying this book. Please try again.");
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = `Copy to ${target.name}`; }
+  }
 }
 function bulkEditFormHTML(count){
   const noChange = `<option value="">— No change —</option>`;
@@ -2767,6 +2810,7 @@ document.addEventListener("click", (e)=>{
   else if(action==="edit-book"){ state.modal = {type:"book-form", payload: findBook(id)}; renderModal(); }
   else if(action==="open-book"){ state.modal = {type:"book-detail", payload: findBook(id)}; renderModal(); }
   else if(action==="edit-from-detail"){ state.modal = {type:"book-form", payload: findBook(id)}; renderModal(); }
+  else if(action==="copy-to-other"){ copyBookToOtherWishlist(id); }
   else if(action==="delete-book"){ deleteBook(id); }
   else if(action==="save-book"){ saveBookFromForm(); }
   else if(action==="save-complete-book"){ saveCompleteBookFromModal(); }
