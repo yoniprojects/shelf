@@ -883,8 +883,9 @@
                 <canvas id="wheel" width="340" height="340"></canvas>
             </div>
 
-            <div id="spin-buttons-row" style="display: flex; gap: 10px; width: 100%; margin-top: 20px;">
+            <div id="spin-buttons-row" style="display: flex; gap: 10px; width: 100%; margin-top: 20px; flex-wrap: wrap;">
                 <button id="spin-wheel-btn" onclick="spinWheel()" style="flex: 1; margin-top: 0;">Spin Wheel for Next Read!</button>
+                <button id="spin-mark-done-btn" onclick="spinWheelAndMarkDone()" style="display: none; flex: 1; margin-top: 0; background-color: var(--accent-yellow); color: #5c572b;">Spin &amp; Mark Done</button>
                 <button id="spin-use-spin-btn" onclick="spinWheelUseSpin()" style="display: none; flex: 1; margin-top: 0; background-color: #ffb3ba; color: #5e3a3a;">Spin & 1 down</button>
             </div>
         </div>
@@ -1041,6 +1042,15 @@
         let editingSubGoalBookTitle = '';
         let editingSubGoalParentLabel = '';
         let currentWinnerSubGoal = null; // { key, id } for the "Mark Sub-Goal Done" button
+
+        // Remembers whatever goal (or sub-goal) was most recently shown in the
+        // winner popup while in Goals mode, so "Spin & Mark Done" can mark
+        // *that* one done right after the next spin reveals a new winner —
+        // i.e. it always marks the goal from the spin before this click, not
+        // the one just landed on. Shape: { book, display } using the same
+        // `display` object getEffectiveGoalDisplay() returns. Null if nothing
+        // goal-related has been spun yet.
+        let lastSpunGoalForDone = null;
         let wheelMode = ['reading', 'tbr', 'goals'].includes(localStorage.getItem('shelf:wheelMode'))
             ? localStorage.getItem('shelf:wheelMode')
             : 'reading';
@@ -1647,6 +1657,18 @@
             deselectedFormats.clear();
             updateFilterOptions();
             applyFilters();
+            updateSpinButtonsForMode();
+        }
+
+        // "Spin & Mark Done" only makes sense in Goals mode. When it's
+        // showing, the main spin button is shortened to just "Spin" (per the
+        // request that renaming only happen while the mark-done button is
+        // present); otherwise it keeps its original full label.
+        function updateSpinButtonsForMode() {
+            const isGoals = wheelMode === 'goals';
+            document.getElementById('spin-mark-done-btn').style.display = isGoals ? '' : 'none';
+            updateSpinWheelBtnLabel();
+            if (!isGoals) lastSpunGoalForDone = null;
         }
 
         // Shows/hides the "Move to Next Day" bar above the goals list. Only
@@ -1776,12 +1798,12 @@
                     card.appendChild(badgeEl);
                 }
 
-                // Goals mode only: double-click a goal to split it into a
+                // Goals mode only: click a goal to split it into a
                 // sequential list of sub-goals. Never wired up in
                 // reading/TBR mode.
                 if (wheelMode === 'goals' && book.goalLabel) {
-                    card.title = 'Double-click to split into sub-goals';
-                    card.addEventListener('dblclick', () => openSubGoalEditor(book));
+                    card.title = 'Click to split into sub-goals';
+                    card.addEventListener('click', () => openSubGoalEditor(book));
                 }
 
                 container.appendChild(card);
@@ -1841,8 +1863,11 @@
             });
         }
 
-        function spinWheel() {
-            if (filteredBooks.length === 0 || isSpinning) return;
+        // Core spin animation + winner selection, shared by all three spin
+        // buttons. `onWinner` is called with the winning book once the
+        // animation finishes (isSpinning is already reset by then).
+        function performSpin(onWinner) {
+            if (filteredBooks.length === 0 || isSpinning) return false;
             isSpinning = true;
 
             const n = filteredBooks.length;
@@ -1860,10 +1885,16 @@
             currentRotation += extraSpins + delta;
             document.getElementById('wheel').style.transform = `rotate(${currentRotation}deg)`;
 
+            const winningBook = filteredBooks[winningIndex];
             setTimeout(() => {
                 isSpinning = false;
-                showWinningBook(filteredBooks[winningIndex]);
+                onWinner(winningBook);
             }, 4000);
+            return true;
+        }
+
+        function spinWheel() {
+            performSpin(showWinningBook);
         }
 
         // Same as spinWheel(), but also counts as one of the "spins left"
@@ -1872,6 +1903,64 @@
             if (currentSpins <= 0) return;
             spinWheel();
             decreaseSpins();
+        }
+
+        // "Spin & Mark Done": spins normally, reveals the new winner, and
+        // THEN marks the *previous* winner (whatever was captured in
+        // lastSpunGoalForDone before this click) as done. Marking-done is
+        // deliberately deferred until after the new winner is picked, so the
+        // goals list/wheel data isn't mutated out from under the spin that's
+        // already in flight.
+        function spinWheelAndMarkDone() {
+            const goalToMarkDone = lastSpunGoalForDone;
+            performSpin((winningBook) => {
+                showWinningBook(winningBook);
+                if (goalToMarkDone) {
+                    markGoalAsDone(goalToMarkDone);
+                }
+            });
+        }
+
+        // Marks a previously-spun goal (or sub-goal) done, mirroring
+        // markWinnerSubGoalDone() / markEntireGoalComplete() but without a
+        // confirm prompt and without depending on the sub-goal editor's
+        // editing state — this can fire well after that modal-specific state
+        // has moved on. Silently no-ops if the goal can no longer be found
+        // (e.g. already completed elsewhere in the meantime).
+        function markGoalAsDone(goalInfo) {
+            const { book, display } = goalInfo;
+            if (display.isSubGoal) {
+                const entry = subGoalsMap[display.key];
+                const item = entry && Array.isArray(entry.items) && entry.items.find(i => i.id === display.subGoalId);
+                if (item) {
+                    item.completed = true;
+                    saveSubGoalsToFirebase();
+                }
+                return;
+            }
+
+            // Plain goal (no sub-goals defined) — mark the underlying
+            // milestone complete, same as markEntireGoalComplete().
+            const viewDate = effectiveGoalsDate();
+            const goal = goalsModeData.find(g => g.bookTitle === book.title &&
+                (g.milestones || []).some(ms => ms.label === book.goalLabel && ms.date === viewDate && !ms.completed));
+            if (!goal) return;
+
+            const ms = goal.milestones.find(m => m.label === book.goalLabel && m.date === viewDate && !m.completed);
+            if (ms) ms.completed = true;
+
+            SHARED_DOC.set({ goalsMode: goalsModeData }, { merge: true })
+                .then(() => setSyncStatus('synced'))
+                .catch(err => {
+                    console.error("Mark goal complete failed", err);
+                    setSyncStatus('offline');
+                });
+
+            delete subGoalsMap[subGoalKey(book)];
+            saveSubGoalsToFirebase();
+
+            allBooks = computeAllBooksForMode('goals');
+            applyFilters();
         }
 
         function showWinningBook(book) {
@@ -1890,9 +1979,11 @@
                 } else {
                     doneBtn.style.display = 'none';
                 }
+                lastSpunGoalForDone = { book, display };
             } else {
                 goalEl.style.display = 'none';
                 doneBtn.style.display = 'none';
+                lastSpunGoalForDone = null;
             }
             document.getElementById('winner-modal').classList.add('active');
             fireConfetti();
@@ -2052,8 +2143,20 @@
                 document.getElementById('one-down-btn').style.display = 'none';
             }
             document.getElementById('spin-use-spin-btn').style.display = currentSpins > 0 ? 'inline-block' : 'none';
-            document.getElementById('spin-wheel-btn').innerText = currentSpins > 0 ? 'Spin Wheel' : 'Spin Wheel for Next Read!';
+            updateSpinWheelBtnLabel();
             document.getElementById('spin-use-spin-btn').innerText = 'Spin & 1 down';
+        }
+
+        // Single source of truth for the main spin button's label, since two
+        // independent things affect it: Goals mode (shortens it to "Spin",
+        // to go alongside "Spin & Mark Done") and the small wheel's spins
+        // count (switches it to "Spin Wheel" once there are spins banked).
+        // Goals mode takes priority whenever it's active.
+        function updateSpinWheelBtnLabel() {
+            const label = wheelMode === 'goals'
+                ? 'Spin'
+                : (currentSpins > 0 ? 'Spin Wheel' : 'Spin Wheel for Next Read!');
+            document.getElementById('spin-wheel-btn').innerText = label;
         }
 
         // Reflects whether the count is actually synced to Firestore (so
@@ -2271,6 +2374,7 @@
             document.getElementById('mode-tbr-btn').classList.toggle('active', wheelMode === 'tbr');
             updateFilterOptions();
             applyFilters();
+            updateSpinButtonsForMode();
             drawSmallWheel();
 
             // Show the last known spin count right away instead of leaving
