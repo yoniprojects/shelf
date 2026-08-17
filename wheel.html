@@ -1907,15 +1907,19 @@
 
         // "Spin & Mark Done": FIRST marks the *previous* winner (whatever
         // was captured in lastSpunGoalForDone before this click) as done,
-        // and only THEN spins the wheel. Marking-done first means the wheel
-        // (and its slices) reflect the completed goal's removal before the
-        // new winner is picked.
+        // fully updating the task list/wheel slices, and only THEN spins
+        // the wheel. Also closes out any still-open winner popup from the
+        // prior spin immediately, so the freshly-updated task list is
+        // actually visible behind the scenes while the new spin runs,
+        // instead of being hidden behind stale modal content for the
+        // full spin animation.
         function spinWheelAndMarkDone() {
             const goalToMarkDone = lastSpunGoalForDone;
             if (goalToMarkDone) {
                 markGoalAsDone(goalToMarkDone);
                 lastSpunGoalForDone = null;
             }
+            closeWinnerModal();
             performSpin(showWinningBook);
         }
 
