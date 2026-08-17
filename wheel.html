@@ -1905,20 +1905,18 @@
             decreaseSpins();
         }
 
-        // "Spin & Mark Done": spins normally, reveals the new winner, and
-        // THEN marks the *previous* winner (whatever was captured in
-        // lastSpunGoalForDone before this click) as done. Marking-done is
-        // deliberately deferred until after the new winner is picked, so the
-        // goals list/wheel data isn't mutated out from under the spin that's
-        // already in flight.
+        // "Spin & Mark Done": FIRST marks the *previous* winner (whatever
+        // was captured in lastSpunGoalForDone before this click) as done,
+        // and only THEN spins the wheel. Marking-done first means the wheel
+        // (and its slices) reflect the completed goal's removal before the
+        // new winner is picked.
         function spinWheelAndMarkDone() {
             const goalToMarkDone = lastSpunGoalForDone;
-            performSpin((winningBook) => {
-                showWinningBook(winningBook);
-                if (goalToMarkDone) {
-                    markGoalAsDone(goalToMarkDone);
-                }
-            });
+            if (goalToMarkDone) {
+                markGoalAsDone(goalToMarkDone);
+                lastSpunGoalForDone = null;
+            }
+            performSpin(showWinningBook);
         }
 
         // Marks a previously-spun goal (or sub-goal) done, mirroring
