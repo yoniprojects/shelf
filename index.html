@@ -395,6 +395,13 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+db.enablePersistence().catch((err) => {
+  // Fails if multiple tabs are open at once, or the browser doesn't support
+  // it (e.g. private/incognito mode in some browsers). The app still works
+  // fine either way - it just falls back to always fetching over the
+  // network like before.
+  console.warn('Firestore offline persistence not enabled:', err.code);
+});
 
 /* ---------------- safe localStorage (never throws, e.g. private browsing / blocked storage) ---------------- */
 function lsGet(key){ try{ return localStorage.getItem(key); } catch(e){ return null; } }
@@ -584,7 +591,6 @@ async function migrateLegacyLibraryIfNeeded(){
 }
 
 async function loadData(){
-  await migrateLegacyLibraryIfNeeded();
   SHARED_DOC.onSnapshot((snap) => {
     if (!snap.exists) {
       // SAFETY: no longer auto-writes seed data here. Auto-seeding on an
@@ -609,6 +615,10 @@ async function loadData(){
     console.error("Firestore sync error:", err);
     alert("Couldn't connect to the shared library. Check your internet connection.");
   });
+  // Runs alongside the listener above instead of gating it - this is only
+  // relevant to old profiles that never migrated, and if it does copy
+  // anything over, the listener above picks the change up automatically.
+  migrateLegacyLibraryIfNeeded().catch(err => console.error('Legacy library migration failed:', err));
 }
 
 function persistBooks(){
