@@ -1805,10 +1805,10 @@ function completeBookModalHTML(book){
     </label>
     <label class="field">Rating <span style="color:#A2572B;">*</span>
       <span style="display:flex;align-items:center;gap:10px;">
-        ${starsHTML(0, true, "cf-rating", 22)}
-        <input type="number" class="input" id="cf-rating-num" min="0.25" max="5" step="0.25" value="" placeholder="0-5" style="width:80px;" required />
+        ${starsHTML(book.rating||0, true, "cf-rating", 22)}
+        <input type="number" class="input" id="cf-rating-num" min="0.25" max="5" step="0.25" value="${book.rating||""}" placeholder="0-5" style="width:80px;" required />
       </span>
-      <input type="hidden" id="cf-rating" value="0" />
+      <input type="hidden" id="cf-rating" value="${book.rating||0}" />
     </label>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;">
       <button class="btn-danger" data-action="mark-dnf" data-id="${book.id}">Mark as Did Not Finish instead</button>
