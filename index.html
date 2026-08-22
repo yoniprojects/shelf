@@ -2991,7 +2991,13 @@ document.addEventListener("input", (e)=>{
     const datalist = document.getElementById("genre-list");
     if (datalist) {
       const allGenres = Array.from(new Set([...DEFAULT_GENRES, ...state.books.map(x=>x.genre).filter(Boolean)]));
-      datalist.innerHTML = sortSuggestionsByInput(allGenres, val).map(g=>`<option value="${esc(g)}">`).join("");
+      const exactMatch = allGenres.some(g => g.toLowerCase() === val.trim().toLowerCase());
+      // Skip rebuilding once the value is already an exact match (e.g. right after picking
+      // a suggestion) — rebuilding the datalist while focused reopens the browser's
+      // suggestion popup, making it look like the item needs to be picked a second time.
+      if (!exactMatch) {
+        datalist.innerHTML = sortSuggestionsByInput(allGenres, val).map(g=>`<option value="${esc(g)}">`).join("");
+      }
     }
   }
   else if(e.target.id==="f-subgenre"){
@@ -2999,7 +3005,10 @@ document.addEventListener("input", (e)=>{
     const datalist = document.getElementById("subgenre-list");
     if (datalist) {
       const allSubGenres = Array.from(new Set(state.books.map(x=>x.subGenre).filter(Boolean)));
-      datalist.innerHTML = sortSuggestionsByInput(allSubGenres, val).map(sg=>`<option value="${esc(sg)}">`).join("");
+      const exactMatch = allSubGenres.some(sg => sg.toLowerCase() === val.trim().toLowerCase());
+      if (!exactMatch) {
+        datalist.innerHTML = sortSuggestionsByInput(allSubGenres, val).map(sg=>`<option value="${esc(sg)}">`).join("");
+      }
     }
   }
   else if(e.target.id==="f-cover-url"){
