@@ -1860,7 +1860,10 @@ function progressFormHTML(book){
       <input type="date" class="input" id="pf-duedate" value="${book.dueDate||''}" />
     </label>
     ` : ''}
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;">
+    <div style="margin-top:14px;">
+      <button type="button" class="btn-danger" data-action="move-to-wishlist" data-id="${book.id}">↩ Move back to Wishlist</button>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
       <button class="btn" style="background:#2E7D32;color:#fff;" data-action="mark-completed" data-id="${book.id}">Complete ✓</button>
       <div style="display:flex;gap:10px;">
         <button class="btn btn-ghost" data-action="close-modal">Cancel</button>
@@ -2020,7 +2023,10 @@ function bookFormHTML(book){
       <div style="font-size:11px;color:var(--muted);font-weight:500;">Each reread with an end date counts as an extra completed book toward that year's goal.</div>
     </label>` : ""}
     <div style="display:flex;justify-content:space-between;margin-top:6px;">
-      <div>${book ? `<button class="btn-danger" data-action="delete-book" data-id="${b.id}">Remove book</button>` : ""}</div>
+      <div>${book ? `
+        ${b.status==='reading' ? `<button type="button" class="btn-text" style="color:var(--oxblood);margin-right:16px;" data-action="move-to-wishlist" data-id="${b.id}">↩ Move to Wishlist</button>` : ""}
+        <button class="btn-danger" data-action="delete-book" data-id="${b.id}">Remove book</button>
+      ` : ""}</div>
       <div style="display:flex;gap:10px;">
         <button class="btn btn-ghost" data-action="close-modal">Cancel</button>
         <button class="btn btn-primary" data-action="save-book">Save book</button>
@@ -2048,6 +2054,7 @@ function bookDetailHTML(book){
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-primary" data-action="edit-from-detail" data-id="${book.id}">Edit book</button>
           <button class="btn btn-subtle" data-action="copy-to-other" data-id="${book.id}">Copy to ${esc(otherProfile().name)}</button>
+          ${book.status==='reading' ? `<button class="btn btn-subtle" data-action="move-to-wishlist" data-id="${book.id}">↩ Move to Wishlist</button>` : ""}
         </div>
       </div>
     </div>
@@ -2605,6 +2612,31 @@ function deleteBook(id){
   state.modal = null;
   render();
 }
+// Moves a book that's currently in the tracker (typically "Currently Reading")
+// back to the Wishlist. Carries over the details that make sense on a wishlist
+// item (title, author, cover, genre, series, etc.) and drops anything that
+// only makes sense for a book actively being tracked (progress, rating,
+// review, notes, dates).
+function moveBookToWishlist(id){
+  const b = findBook(id);
+  if(!b) return;
+  if(!confirm(`Move "${b.title}" back to your wishlist? This will clear its progress, rating, and notes.`)) return;
+  state.wishlist.push({
+    id: uid(), isExample:false,
+    title: b.title||"", author: b.author||"",
+    priority: b.priority||"Interested",
+    coverUrl: b.coverUrl||"",
+    pagesHours: b.pagesHours||"",
+    genre: b.genre||"", subGenre: b.subGenre||"",
+    seriesName: b.seriesName||"", seriesNumber: b.seriesNumber||""
+  });
+  state.books = state.books.filter(x=>x.id!==id);
+  persistBooks(); persistWishlist();
+  state.modal = null;
+  state.tab = "wishlist";
+  lsSet('shelf:lastTab', state.tab);
+  render();
+}
 function saveWishFromForm(){
   const id = document.getElementById("wf-id").value;
   const existing = state.wishlist.find(w=>w.id===id);
@@ -2825,6 +2857,7 @@ document.addEventListener("click", (e)=>{
   else if(action==="edit-from-detail"){ state.modal = {type:"book-form", payload: findBook(id)}; renderModal(); }
   else if(action==="copy-to-other"){ copyBookToOtherWishlist(id); }
   else if(action==="delete-book"){ deleteBook(id); }
+  else if(action==="move-to-wishlist"){ moveBookToWishlist(id); }
   else if(action==="save-book"){ saveBookFromForm(); }
   else if(action==="save-complete-book"){ saveCompleteBookFromModal(); }
   else if(action==="mark-dnf"){ markDNFFromModal(id); }
