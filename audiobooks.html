@@ -40,13 +40,13 @@
     margin:0;font-family:'Inter',sans-serif;color:var(--ink);overflow-wrap:anywhere;
     background-color:var(--bg);
     /* Web/desktop background — swapped below for mobile widths. */
-    background-image:url("https://i.imgur.com/iHzdG9K.png");
+    background-image:url("https://i.imgur.com/2ylXdqZ.png");
     background-attachment:fixed;background-size:cover;background-position:center;background-repeat:no-repeat;
     min-height:100vh;
   }
   @media (max-width:600px){
     body{
-      background-image:url("https://i.imgur.com/BKWwsHz.png");
+      background-image:url("https://i.imgur.com/XbbH2yg.png");
       /* fixed attachment is unreliable during mobile scroll/zoom — scroll instead */
       background-attachment:scroll;
     }
@@ -420,6 +420,33 @@ function setRating(bookId, value){
   BOOKS_DOC.set({ books: newBooks }, { merge: true })
     .catch(err => console.error('Failed to sync rating:', err));
 }
+// Mirrors the tracker's own saveCompleteBookFromModal() exactly: same fields
+// (status/dateFinished/rating/priority/dueDate cleared), same required-rating
+// check, and the same write — straight to BOOKS_DOC, which is the very same
+// Firestore doc (shelf-spine/<profile>) the tracker itself reads and writes.
+// So completing a book here is indistinguishable, on the other end, from
+// completing it there.
+function saveCompleteBook(itemId){
+  const draft = (state.modal && state.modal.kind === 'complete' && state.modal.draft) || {};
+  const dateInput = document.getElementById('complete-date-input');
+  const dateFinished = dateInput ? dateInput.value : (draft.dateFinished || new Date().toISOString().slice(0,10));
+  const rating = Number(draft.rating) || 0;
+  if (rating <= 0){ toast('Add a rating before completing.'); return; }
+  const newBooks = state.books.map(b => b.id === itemId ? {
+    ...b,
+    status: 'done',
+    dateFinished: dateFinished,
+    rating: rating,
+    priority: '',
+    dueDate: '',
+  } : b);
+  state.books = newBooks;
+  state.modal = null;
+  render();
+  BOOKS_DOC.set({ books: newBooks }, { merge: true })
+    .then(() => toast('Marked as complete.'))
+    .catch(err => { console.error('Failed to mark complete:', err); toast('Could not sync completion — try again.'); });
+}
 // Same day/month order convention as the main tracker, keyed off the same profile.
 function formatDueDate(iso){
   if (!iso) return '';
@@ -588,7 +615,11 @@ function loadBooks(){
     const books = Array.isArray(data.books) ? data.books : [];
     const wishlist = Array.isArray(data.wishlist) ? data.wishlist : [];
     state.books = books.filter(b => b.format === 'Audio');
-    state.wishlist = wishlist.filter(w => w.format === 'Audio');
+    // Wishlist items never carry a `format` field on the tracker side — format
+    // is only chosen once a book moves to Currently Reading — so show all of
+    // them here; which format they end up with is decided in the move-to-
+    // reading popup below (pre-filled to Audio, same as clicking "Read" there).
+    state.wishlist = wishlist;
     state.loaded = true;
     if (booksReadyResolve) { booksReadyResolve(); booksReadyResolve = null; }
     render();
@@ -1136,6 +1167,7 @@ let player = {
   isPlaying: false,
   seeking: false,
   scrubMode: 'book',     // 'book' | 'chapter' — which range the scrubber/time labels reflect
+  sleepTimer: null,      // {mode:'book'|'speed'|'chapter', ...} — see setSleepTimer* below
 };
 
 function entryStartOffset(idx){
@@ -1285,6 +1317,7 @@ async function openPlayer(itemId){
 }
 
 async function startPlaybackSession(itemId, match, item){
+  clearSleepTimer();
   player.bookId = itemId;
   player.item = item;
   player.match = match;
@@ -1453,10 +1486,94 @@ function saveProgressNow(){
   if (player.totalSec) syncPercentToMainSiteNow(player.bookId, Math.min(100, Math.round(cum/player.totalSec*100)));
 }
 
+/* ==================================================================
+   SLEEP TIMER ("listen for X minutes…")
+   Three independent stopping conditions:
+   - 'book':    stop once X minutes of book CONTENT have played, no
+                matter the playback speed (checked against cumulativeSec,
+                which already tracks file position, not wall-clock time).
+   - 'speed':   stop once X real minutes of listening have elapsed —
+                a classic wall-clock sleep timer. How much of the book
+                that covers depends on the current speed.
+   - 'chapter': stop once N more chapters have gone by.
+================================================================== */
+let sleepBadgeInterval = null;
+function startSleepBadgeInterval(){
+  stopSleepBadgeInterval();
+  sleepBadgeInterval = setInterval(() => {
+    const el = document.getElementById('sleep-badge');
+    if (!el || !player.sleepTimer){ stopSleepBadgeInterval(); return; }
+    el.textContent = sleepTimerLabel();
+  }, 1000);
+}
+function stopSleepBadgeInterval(){
+  if (sleepBadgeInterval){ clearInterval(sleepBadgeInterval); sleepBadgeInterval = null; }
+}
+function sleepTimerLabel(){
+  const t = player.sleepTimer;
+  if (!t) return '';
+  if (t.mode === 'book'){
+    return `${fmtHMS(Math.max(0, t.targetCumulativeSec - cumulativeSec()))} of book left`;
+  }
+  if (t.mode === 'speed'){
+    return `${fmtHMS(Math.max(0, (t.endsAtMs - Date.now())/1000))} left`;
+  }
+  if (t.mode === 'chapter'){
+    const remain = Math.max(0, t.targetChapterIdx - currentChapterIndex());
+    return `${remain} chapter${remain===1?'':'s'} left`;
+  }
+  return '';
+}
+function clearSleepTimer(){
+  if (player.sleepTimer && player.sleepTimer.timeoutId) clearTimeout(player.sleepTimer.timeoutId);
+  player.sleepTimer = null;
+  stopSleepBadgeInterval();
+}
+function fireSleepTimer(){
+  clearSleepTimer();
+  if (player.isPlaying){ audioEl.pause(); player.isPlaying = false; saveProgressNow(); }
+  toast('Sleep timer ended — playback paused.');
+  render();
+}
+function checkSleepTimer(){
+  const t = player.sleepTimer;
+  if (!t) return;
+  if (t.mode === 'book' && cumulativeSec() >= t.targetCumulativeSec) fireSleepTimer();
+  else if (t.mode === 'chapter' && currentChapterIndex() >= t.targetChapterIdx) fireSleepTimer();
+  // 'speed' mode fires on its own via setTimeout, independent of playback state.
+}
+function setSleepTimerBook(minutes){
+  clearSleepTimer();
+  player.sleepTimer = { mode:'book', targetCumulativeSec: cumulativeSec() + minutes*60 };
+  startSleepBadgeInterval();
+  state.modal = null;
+  toast(`Sleep timer set — ${minutes}m of book left to play.`);
+  render();
+}
+function setSleepTimerSpeed(minutes){
+  clearSleepTimer();
+  const endsAtMs = Date.now() + minutes*60*1000;
+  const timeoutId = setTimeout(fireSleepTimer, minutes*60*1000);
+  player.sleepTimer = { mode:'speed', endsAtMs, timeoutId };
+  startSleepBadgeInterval();
+  state.modal = null;
+  toast(`Sleep timer set — ${minutes}m of listening.`);
+  render();
+}
+function setSleepTimerChapters(n){
+  clearSleepTimer();
+  player.sleepTimer = { mode:'chapter', targetChapterIdx: currentChapterIndex() + n };
+  startSleepBadgeInterval();
+  state.modal = null;
+  toast(`Sleep timer set — ${n} chapter${n>1?'s':''} left.`);
+  render();
+}
+
 audioEl.addEventListener('timeupdate', () => {
   if (player.isReady && player.isPlaying) {
     renderScrubOnly();
     saveProgress();
+    checkSleepTimer();
   }
 });
 audioEl.addEventListener('ended', async () => {
@@ -1476,6 +1593,7 @@ window.addEventListener('beforeunload', () => { if (player.bookId) saveProgressN
 function closePlayer(){
   if (player.isPlaying) audioEl.pause();
   if (player.bookId) saveProgressNow();
+  clearSleepTimer();
   state.view = 'gallery';
   history.replaceState(null, '', location.pathname);
   render();
@@ -1564,11 +1682,13 @@ function renderFeatureCard(item){
 
 function renderCoverCard(item){
   const prog = progressFor(item);
+  const isWishlist = item.source === 'wishlist';
   return `<div class="cover-card" data-action="open-book" data-id="${esc(item.id)}">
-    <div style="position:relative;">${coverHtml(item,'cover')}${matchBadge(item)}</div>
+    <div style="position:relative;">${coverHtml(item,'cover')}${isWishlist ? '' : matchBadge(item)}</div>
     <div class="title">${esc(item.title)}</div>
     <div class="author">${esc(item.author||'')}</div>
-    ${prog ? `<div class="mini-pct">${prog.pct}%${prog.pct>=100?' · Finished':''}</div>` : `<div class="mini-pill">${state.matches[item.id] ? 'Not started' : 'Tap to add'}</div>`}
+    ${isWishlist ? `<div class="mini-pill">Start reading…</div>`
+      : (prog ? `<div class="mini-pct">${prog.pct}%${prog.pct>=100?' · Finished':''}</div>` : `<div class="mini-pill">${state.matches[item.id] ? 'Not started' : 'Tap to add'}</div>`)}
   </div>`;
 }
 
@@ -1584,7 +1704,7 @@ function renderGallery(){
   if (!items.length){
     return `<div class="wrap">${renderConnBanner()}
       <div class="empty-state"><div class="icon">🎧</div>
-      <p>No audiobooks yet. Mark a book's format as "Audio" in your tracker or wishlist and it'll show up here.</p></div>
+      <p>No audiobooks yet. Mark a book's format as "Audio" in your tracker, or add something to your wishlist, and it'll show up here.</p></div>
     </div>`;
   }
 
@@ -1649,7 +1769,11 @@ function renderPlayer(){
   const BOOK_ICON = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.2c-1.6-1.1-4.1-1.7-6.3-1.7v13.6c2.2 0 4.7.6 6.3 1.7 1.6-1.1 4.1-1.7 6.3-1.7V4.5c-2.2 0-4.7.6-6.3 1.7z"/><path d="M12 6.2v13.6"/></svg>`;
 
   return `<div class="player-wrap">
-    <button class="player-back" data-action="close-player">‹ Library</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <button class="player-back" data-action="close-player">‹ Library</button>
+      <button class="btn-icon" data-action="open-sleep-modal" title="Sleep timer" style="font-size:19px;line-height:1;${player.sleepTimer?'color:var(--accent);':''}">☾</button>
+    </div>
+    ${player.sleepTimer ? `<div id="sleep-badge" style="text-align:right;font-size:11px;color:var(--accent);margin-top:-4px;">${esc(sleepTimerLabel())}</div>` : ''}
     ${coverHtml(item,'player-cover')}
     <div class="player-title">${esc(item.title)}</div>
     <div class="player-author">${esc(item.author||'')}</div>
@@ -1685,6 +1809,10 @@ function renderPlayer(){
         <div class="speed-val">${player.rate.toFixed(2)}x</div>
         <button class="speed-btn" data-action="rate-up">+</button>
       </div>
+      ${(pct>=100 && item.source==='book' && item.raw && item.raw.status==='reading') ? `
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line);text-align:center;">
+        <button class="btn btn-accent" data-action="open-complete-modal" data-id="${esc(item.id)}">✓ Mark book as complete</button>
+      </div>` : ''}
     </div>
 
     ${list.length ? `<div class="chapter-list" id="chapter-list">
@@ -1737,9 +1865,9 @@ function renderMatchModal(itemId){
   const cands = buildCandidatesForItem(item);
   const topFolders = cands.folders.slice(0,5);
   const topFiles = cands.files.slice(0,6);
-  return `<div class="modal-overlay" data-action="close-modal">
-    <div class="modal-card" onclick="event.stopPropagation()">
-      <div class="modal-head"><h3>Match “${esc(item.title)}”</h3><button class="modal-close" data-action="close-modal">✕</button></div>
+  return `<div class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-head"><h3>Match "${esc(item.title)}"</h3><button class="modal-close" data-action="close-modal">✕</button></div>
       <div class="modal-body">
         <button class="btn btn-accent" style="width:100%;margin-bottom:14px;" data-action="add-files" data-id="${esc(item.id)}">📂 Add file(s) from this device</button>
         ${!state.scan ? (SUPPORTS_FS_ACCESS ? `<p style="color:var(--muted);font-size:13px;">Or connect a folder (top of the library) to auto-match your whole collection.</p>` : '') : `
@@ -1770,6 +1898,209 @@ function renderMatchModal(itemId){
 </script>
 
 <script>
+function renderSleepModal(){
+  const list = chapterLabelList();
+  const hasChapters = list.length > 0;
+  const timer = player.sleepTimer;
+  return `<div class="modal-overlay">
+    <div class="modal-card" style="width:380px;">
+      <div class="modal-head">
+        <h3>☾ Sleep timer</h3>
+        <button class="modal-close" data-action="close-modal">×</button>
+      </div>
+      <div class="modal-body">
+        ${timer ? `<div style="background:var(--panel-2);border-radius:10px;padding:11px 14px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+          <span style="font-size:12.5px;color:var(--ink);" id="sleep-badge">${esc(sleepTimerLabel())}</span>
+          <button class="btn btn-subtle btn-sm" data-action="cancel-sleep-timer">Cancel</button>
+        </div>` : ''}
+
+        <div class="divider-label" style="margin-top:0;">By book minutes</div>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 10px;line-height:1.45;">Stops after this many minutes of the book itself play — the same no matter your speed.</p>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:18px;">
+          <input type="number" id="sleep-book-input" min="1" max="600" value="30" style="width:64px;border:1.5px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;background:var(--panel-2);color:var(--ink);outline:none;">
+          <span style="font-size:12.5px;color:var(--muted);">min</span>
+          <button class="btn btn-accent btn-sm" data-action="set-sleep-book" style="margin-left:auto;">Start</button>
+        </div>
+
+        <div class="divider-label">By speed <span style="color:var(--muted-dim);font-weight:600;text-transform:none;">(real listening time)</span></div>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 10px;line-height:1.45;">Stops after this many real minutes of listening — at ${player.rate.toFixed(2)}x that covers more of the book than the same time at 1x.</p>
+        <div style="display:flex;gap:8px;align-items:center;${hasChapters?'margin-bottom:18px;':''}">
+          <input type="number" id="sleep-speed-input" min="1" max="600" value="30" style="width:64px;border:1.5px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;background:var(--panel-2);color:var(--ink);outline:none;">
+          <span style="font-size:12.5px;color:var(--muted);">min</span>
+          <button class="btn btn-accent btn-sm" data-action="set-sleep-speed" style="margin-left:auto;">Start</button>
+        </div>
+
+        ${hasChapters ? `<div class="divider-label">By chapters</div>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 10px;line-height:1.45;">Stops at the end of this many more chapters.</p>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="number" id="sleep-chapters-input" min="1" max="${Math.max(1,list.length)}" value="1" style="width:64px;border:1.5px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;background:var(--panel-2);color:var(--ink);outline:none;">
+          <span style="font-size:12.5px;color:var(--muted);">chapter(s)</span>
+          <button class="btn btn-accent btn-sm" data-action="set-sleep-chapters" style="margin-left:auto;">Start</button>
+        </div>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+// Local, non-committing star picker for the complete-book modal — unlike
+// starsEditableHTML (which writes straight to Firestore on click, for the
+// always-visible player rating), this only updates the modal's own draft
+// until "Complete Book" is pressed, matching the tracker's own completion
+// flow where rating + date are chosen together before anything is saved.
+function starsPickerHTML(value, size){
+  size = size || 22;
+  value = Math.max(0, Math.min(5, Number(value)||0));
+  let out = `<span class="mini-stars editable" style="font-size:${size}px">`;
+  for (let n=1;n<=5;n++){
+    const frac = Math.max(0, Math.min(1, value-(n-1)));
+    out += `<span class="star-slot">
+      <span class="star-base">★</span>
+      <span class="star-fill" style="width:${Math.round(frac*100)}%">★</span>
+      <span class="star-hit star-hit-left" data-action="pick-complete-rating" data-val="${n-0.5}"></span>
+      <span class="star-hit star-hit-right" data-action="pick-complete-rating" data-val="${n}"></span>
+    </span>`;
+  }
+  return out + `</span>`;
+}
+
+// Mirrors the tracker's own "Complete book" modal (date finished + required
+// rating) so finishing a book here asks for exactly the same information.
+function renderCompleteModal(itemId){
+  const item = findItem(itemId);
+  if (!item) return '';
+  const book = item.raw || {};
+  const draft = state.modal.draft || (state.modal.draft = {
+    dateFinished: new Date().toISOString().slice(0,10),
+    rating: Number(book.rating)||0,
+  });
+  return `<div class="modal-overlay">
+    <div class="modal-card" style="width:380px;">
+      <div class="modal-head">
+        <h3>Complete book</h3>
+        <button class="modal-close" data-action="close-modal">×</button>
+      </div>
+      <div class="modal-body">
+        <label style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">Date finished</label>
+        <input type="date" id="complete-date-input" value="${esc(draft.dateFinished)}" style="width:100%;border:1.5px solid var(--line);border-radius:9px;padding:9px 11px;font-size:13.5px;background:var(--panel-2);color:var(--ink);outline:none;margin-bottom:16px;">
+        <label style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;">Rating <span style="color:var(--bad);">*</span></label>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:22px;">
+          ${starsPickerHTML(draft.rating)}
+          <span style="font-size:12.5px;color:var(--muted);">${draft.rating ? String(draft.rating) : 'Tap to rate'}</span>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:10px;">
+          <button class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button class="btn btn-accent" data-action="save-complete-book" data-id="${esc(item.id)}">Complete Book</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// Same option lists and shape as the tracker's own wishlist "Read" flow.
+const WISH_FORMATS = ["Physical","Digital","Audio"];
+const WISH_SOURCES = ["Purchased","Borrowed","Gift","Free"];
+const WISH_LANGUAGES = ["English","Hebrew"];
+function wishSelectOptions(list, current){
+  return list.map(v => `<option value="${esc(v)}" ${v===current?'selected':''}>${esc(v)}</option>`).join('');
+}
+const modalInputStyle = "width:100%;border:1.5px solid var(--line);border-radius:9px;padding:9px 11px;font-size:13.5px;background:var(--panel-2);color:var(--ink);outline:none;";
+
+// Mirrors the tracker's own moveWishFormHTML() — same fields, same defaults —
+// except Format is pre-filled to "Audio" instead of "Physical", since a book
+// chosen from here is (presumably) about to be listened to, not read.
+function renderMoveWishModal(wishId){
+  const w = state.wishlist.find(x => x.id === wishId);
+  if (!w) return '';
+  return `<div class="modal-overlay">
+    <div class="modal-card" style="width:420px;">
+      <div class="modal-head">
+        <h3>Move to Currently Reading</h3>
+        <button class="modal-close" data-action="close-modal">×</button>
+      </div>
+      <div class="modal-body">
+        <div style="font-size:12.5px;color:var(--muted);margin-bottom:16px;line-height:1.5;">
+          Moving <strong style="color:var(--ink);">${esc(w.title)}</strong> to Currently Reading. A few more details:
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+          <label style="display:block;">
+            <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">Source</div>
+            <select id="mw-source" style="${modalInputStyle}">${wishSelectOptions(WISH_SOURCES,'Purchased')}</select>
+          </label>
+          <label style="display:block;">
+            <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">Format</div>
+            <select id="mw-format" style="${modalInputStyle}">${wishSelectOptions(WISH_FORMATS,'Audio')}</select>
+          </label>
+          <label style="display:block;">
+            <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">Language</div>
+            <select id="mw-language" style="${modalInputStyle}">${wishSelectOptions(WISH_LANGUAGES,'English')}</select>
+          </label>
+          <label style="display:block;">
+            <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">Recommended by</div>
+            <input id="mw-recby" placeholder="Optional" style="${modalInputStyle}">
+          </label>
+        </div>
+        <label style="display:block;margin-bottom:18px;">
+          <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">Notes / thoughts</div>
+          <textarea id="mw-notes" placeholder="Quotes, annotations, anything to remember" style="${modalInputStyle}min-height:70px;resize:vertical;font-family:inherit;"></textarea>
+        </label>
+        <div style="display:flex;justify-content:flex-end;gap:10px;">
+          <button class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button class="btn btn-accent" data-action="confirm-move-wish" data-id="${esc(w.id)}">Add to Currently Reading</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+function openMoveWishModal(wishId){
+  const w = state.wishlist.find(x => x.id === wishId);
+  if (!w) return;
+  state.modal = { kind:'move-wish', id: wishId };
+  render();
+}
+// Mirrors the tracker's own completeMoveWish() field-for-field: same new-book
+// shape, same defaults (status "reading", priority "Interested", a 14-day due
+// date if Borrowed), and the same two writes — books AND wishlist, to the
+// same BOOKS_DOC/shelf-spine doc the tracker itself reads and writes. So a
+// book moved from here shows up on the tracker's Currently Reading list (and
+// disappears from its Wishlist tab) exactly as if "Read" had been clicked there.
+function confirmMoveWish(wishId){
+  const w = state.wishlist.find(x => x.id === wishId);
+  if (!w) return;
+  const source = (document.getElementById('mw-source')||{}).value || 'Purchased';
+  const format = (document.getElementById('mw-format')||{}).value || 'Audio';
+  const language = (document.getElementById('mw-language')||{}).value || 'English';
+  const recommendedBy = ((document.getElementById('mw-recby')||{}).value || '').trim();
+  const notes = ((document.getElementById('mw-notes')||{}).value || '').trim();
+  const todayISO = new Date().toISOString().slice(0,10);
+  const addDaysISO = (iso, days) => { const d = new Date((iso||todayISO)+'T00:00:00'); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); };
+  const newBook = {
+    id: Date.now().toString(36)+Math.random().toString(36).slice(2,8),
+    title: w.title, author: w.author, genre: w.genre||'', subGenre: w.subGenre||'',
+    format, source, status: 'reading', priority: 'Interested', rating: 0, dateFinished: '',
+    language, pagesHours: w.pagesHours||'', review: '', notes, recommendedBy, coverUrl: w.coverUrl||'',
+    seriesName: w.seriesName||'', seriesNumber: w.seriesNumber||'', rereads: [],
+    isExample: false, progressPercent: 0, progressMode: 'percent', progressPage: '',
+    dueDate: source === 'Borrowed' ? addDaysISO(todayISO, 14) : '',
+  };
+  const newWishlist = state.wishlist.filter(x => x.id !== wishId);
+  state.wishlist = newWishlist;
+  if (format === 'Audio') state.books = [...state.books, newBook]; // optimistic local update — this view only ever shows Audio books
+  state.modal = null;
+  render();
+
+  // state.books here only ever holds the Audio-format subset (this app's own
+  // filter) — writing it back wholesale would silently drop every non-audio
+  // book from the shared tracker doc, since Firestore replaces array fields
+  // rather than merging their elements. Read the FULL book list fresh right
+  // before writing, so nothing outside this app's view gets lost.
+  BOOKS_DOC.get().then(snap => {
+    const data = snap.exists ? snap.data() : {};
+    const fullBooks = Array.isArray(data.books) ? data.books : [];
+    return BOOKS_DOC.set({ books: [...fullBooks, newBook], wishlist: newWishlist }, { merge: true });
+  }).then(() => toast(`${w.title} moved to Currently Reading.`))
+    .catch(err => { console.error('Failed to move wishlist item:', err); toast('Could not sync — try again.'); });
+}
+
 /* ==================================================================
    MAIN RENDER + EVENT DELEGATION
 ================================================================== */
@@ -1786,10 +2117,23 @@ function render(){
   </div>` + (state.view === 'player' ? renderPlayer() : renderGallery());
 
   const modalRoot = document.getElementById('modal-root');
-  modalRoot.innerHTML = state.modal ? renderMatchModal(state.modal.id) : '';
+  modalRoot.innerHTML = state.modal
+    ? (state.modal.kind === 'sleep' ? renderSleepModal()
+      : state.modal.kind === 'complete' ? renderCompleteModal(state.modal.id)
+      : state.modal.kind === 'move-wish' ? renderMoveWishModal(state.modal.id)
+      : renderMatchModal(state.modal.id))
+    : '';
 }
 
 document.addEventListener('click', async (e) => {
+  // Backdrop click: closes the modal only when the click lands directly on
+  // the overlay itself (not a descendant) — checked before the data-action
+  // lookup below, and independent of it, since the overlay no longer carries
+  // its own data-action (that approach required bubbling all the way up to
+  // this listener, which the modal card's own click handling was blocking).
+  if (e.target.classList && e.target.classList.contains('modal-overlay')){
+    state.modal = null; render(); return;
+  }
   const t = e.target.closest('[data-action]');
   if (!t) return;
   const action = t.dataset.action;
@@ -1798,7 +2142,11 @@ document.addEventListener('click', async (e) => {
   if (action === 'connect-folder') return connectFolder();
   if (action === 'reconnect-folder') return reconnectFolder();
   if (action === 'rescan') return rescanLibrary();
-  if (action === 'open-book') return openPlayer(id);
+  if (action === 'open-book'){
+    const it = findItem(id);
+    if (it && it.source === 'wishlist') return openMoveWishModal(it.raw.id);
+    return openPlayer(id);
+  }
   if (action === 'close-player') return closePlayer();
   if (action === 'toggle-play') return togglePlay();
   if (action === 'skip-back') return skip(-30);
@@ -1811,7 +2159,47 @@ document.addEventListener('click', async (e) => {
   if (action === 'view-chapter'){ player.scrubMode = 'chapter'; render(); return; }
   if (action === 'add-files'){ return triggerAddFiles(id); }
   if (action === 'open-match-modal'){ state.modal = { id }; render(); return; }
+  if (action === 'open-sleep-modal'){ state.modal = { kind:'sleep' }; render(); return; }
   if (action === 'close-modal'){ state.modal = null; render(); return; }
+  if (action === 'set-sleep-book'){
+    const el = document.getElementById('sleep-book-input');
+    const v = el ? parseFloat(el.value) : NaN;
+    if (v > 0) setSleepTimerBook(v);
+    return;
+  }
+  if (action === 'set-sleep-speed'){
+    const el = document.getElementById('sleep-speed-input');
+    const v = el ? parseFloat(el.value) : NaN;
+    if (v > 0) setSleepTimerSpeed(v);
+    return;
+  }
+  if (action === 'set-sleep-chapters'){
+    const el = document.getElementById('sleep-chapters-input');
+    const v = el ? parseInt(el.value,10) : NaN;
+    if (v > 0) setSleepTimerChapters(v);
+    return;
+  }
+  if (action === 'cancel-sleep-timer'){ clearSleepTimer(); toast('Sleep timer canceled.'); render(); return; }
+  if (action === 'open-complete-modal'){
+    const it = findItem(id);
+    if (!it) return;
+    state.modal = { kind:'complete', id, draft: {
+      dateFinished: new Date().toISOString().slice(0,10),
+      rating: Number((it.raw||{}).rating) || 0,
+    }};
+    render();
+    return;
+  }
+  if (action === 'pick-complete-rating'){
+    if (state.modal && state.modal.kind === 'complete'){
+      state.modal.draft = state.modal.draft || {};
+      state.modal.draft.rating = parseFloat(t.dataset.val);
+      render();
+    }
+    return;
+  }
+  if (action === 'save-complete-book'){ return saveCompleteBook(id); }
+  if (action === 'confirm-move-wish'){ return confirmMoveWish(id); }
   if (action === 'clear-match'){ await clearMatch(id); state.modal = null; render(); return; }
   if (action === 'pick-folder'){
     const path = t.dataset.path;
