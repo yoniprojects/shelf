@@ -43,12 +43,26 @@
     background-image:url("https://i.imgur.com/2ylXdqZ.png");
     background-attachment:fixed;background-size:cover;background-position:center;background-repeat:no-repeat;
     min-height:100vh;
+    position:relative;
   }
   @media (max-width:600px){
     body{
+      /* Mobile: drop the body-level image entirely and use a viewport-locked
+         layer instead. background-attachment:fixed is unreliable on iOS/Android
+         during scroll, but background-attachment:scroll sizes "cover" against
+         the full scrollable page height, so the image stretches/zooms
+         differently depending on how long the page is. A fixed, viewport-sized
+         pseudo-element sidesteps both: it's always exactly the screen size,
+         never the page size, and never moves. */
+      background-image:none;
+    }
+    body::before{
+      content:"";
+      position:fixed;
+      top:0;left:0;right:0;bottom:0;
+      z-index:-1;
       background-image:url("https://i.imgur.com/XbbH2yg.png");
-      /* fixed attachment is unreliable during mobile scroll/zoom — scroll instead */
-      background-attachment:scroll;
+      background-size:cover;background-position:center;background-repeat:no-repeat;
     }
   }
   ::-webkit-scrollbar{height:8px;width:8px;}
