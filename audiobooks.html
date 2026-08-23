@@ -39,11 +39,21 @@
   body{
     margin:0;font-family:'Inter',sans-serif;color:var(--ink);overflow-wrap:anywhere;
     background-color:var(--bg);
+    /* Web/desktop background — swapped below for mobile widths. */
     background-image:
       linear-gradient(rgba(10,15,7,.92), rgba(10,15,7,.92)),
-      url("https://i.imgur.com/u5igRkn.jpeg");
+      url("https://i.imgur.com/iHzdG9K.png");
     background-attachment:fixed;background-size:cover;background-position:center;background-repeat:no-repeat;
     min-height:100vh;
+  }
+  @media (max-width:600px){
+    body{
+      background-image:
+        linear-gradient(rgba(10,15,7,.92), rgba(10,15,7,.92)),
+        url("https://i.imgur.com/BKWwsHz.png");
+      /* fixed attachment is unreliable during mobile scroll/zoom — scroll instead */
+      background-attachment:scroll;
+    }
   }
   ::-webkit-scrollbar{height:8px;width:8px;}
   ::-webkit-scrollbar-thumb{background:#3A4A2C;border-radius:4px;}
@@ -88,17 +98,31 @@
   .feature-row{display:flex;flex-direction:column;gap:12px;}
   .feature-card{display:flex;gap:16px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;cursor:pointer;box-shadow:var(--shadow);}
   .feature-card:hover{border-color:var(--accent-dark);}
+  .feature-cover-wrap{position:relative;flex-shrink:0;}
   .feature-cover{width:76px;height:112px;border-radius:8px;flex-shrink:0;overflow:hidden;box-shadow:0 6px 16px rgba(0,0,0,.4);position:relative;background:linear-gradient(150deg,var(--panel-3),var(--panel-2));display:flex;align-items:center;justify-content:center;}
   .feature-cover img{width:100%;height:100%;object-fit:cover;}
   .feature-cover .ph{font-family:'Fraunces',serif;font-weight:600;font-size:11px;text-align:center;padding:6px;color:var(--muted);line-height:1.25;}
   .feature-body{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:5px;}
   .feature-title{font-weight:700;font-size:15px;line-height:1.3;}
   .feature-author{font-size:12.5px;color:var(--muted);}
+  .feature-sub-row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
+  .feature-due{font-size:10.5px;color:var(--warn);font-weight:700;}
   .feature-progress-row{display:flex;align-items:center;gap:9px;margin-top:5px;}
   .prog-bar{flex:1;height:6px;border-radius:999px;background:var(--panel-2);overflow:hidden;}
   .prog-fill{height:100%;background:var(--accent);border-radius:999px;}
   .prog-pct{font-size:11px;font-weight:700;color:var(--accent);min-width:32px;text-align:right;}
   .feature-meta{font-size:11px;color:var(--muted-dim);margin-top:2px;}
+
+  /* Ring sits in the "dead space" at the cover's bottom-left corner — no extra layout height. */
+  .cover-ring{position:absolute;left:-9px;bottom:-9px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 3px 6px rgba(0,0,0,.5));}
+  .cover-ring svg{display:block;}
+  .cover-ring .ring-pct{position:absolute;font-size:9px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;}
+
+  .mini-stars{display:inline-flex;line-height:1;}
+  .mini-stars .star-slot{position:relative;display:inline-block;width:1em;height:1em;}
+  .mini-stars .star-slot .star-base,.mini-stars .star-slot .star-fill{position:absolute;left:0;top:0;pointer-events:none;white-space:nowrap;}
+  .mini-stars .star-slot .star-base{color:var(--panel-3);}
+  .mini-stars .star-slot .star-fill{color:var(--accent);overflow:hidden;width:0%;}
 
   .gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:16px 12px;}
   .cover-card{cursor:pointer;}
@@ -132,12 +156,16 @@
   .toggle-group{display:flex;background:var(--panel-2);border-radius:999px;padding:3px;gap:2px;}
   .toggle-btn{border:none;background:transparent;color:var(--muted);font-size:12px;font-weight:700;padding:6px 16px;border-radius:999px;cursor:pointer;display:flex;align-items:center;gap:5px;}
   .toggle-btn.active{background:var(--accent);color:#0F160C;}
+  .toggle-btn svg{flex-shrink:0;}
 
   .scrub-row{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;}
-  input[type=range].scrub{-webkit-appearance:none;appearance:none;width:100%;height:5px;border-radius:999px;background:var(--panel-2);outline:none;cursor:pointer;}
-  input[type=range].scrub::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.4);margin-top:-5px;}
-  input[type=range].scrub::-moz-range-thumb{width:15px;height:15px;border:none;border-radius:50%;background:var(--accent);cursor:pointer;}
+  .scrub-track-wrap{position:relative;padding-bottom:6px;}
+  input[type=range].scrub{-webkit-appearance:none;appearance:none;width:100%;height:5px;border-radius:999px;background:var(--panel-2);outline:none;cursor:pointer;display:block;}
+  input[type=range].scrub::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.4);margin-top:-5px;position:relative;z-index:2;}
+  input[type=range].scrub::-moz-range-thumb{width:15px;height:15px;border:none;border-radius:50%;background:var(--accent);cursor:pointer;position:relative;z-index:2;}
   input[type=range].scrub::-webkit-slider-runnable-track{height:5px;border-radius:999px;background:linear-gradient(to right, var(--accent) var(--fill,0%), var(--panel-2) 0);}
+  .scrub-notches{position:absolute;left:0;right:0;top:0;height:5px;pointer-events:none;}
+  .scrub-notch{position:absolute;top:1px;width:2px;height:3px;border-radius:1px;background:rgba(14,20,10,.55);transform:translateX(-1px);}
   .time-row{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;margin-top:2px;}
 
   .transport{display:flex;align-items:center;justify-content:center;gap:26px;margin:18px 0 6px;}
@@ -338,6 +366,38 @@ function initials(title){
   return (title||"?").split(/\s+/).slice(0,4).join(" ");
 }
 
+// Mirrors the main tracker's star display, in the app's own dark palette.
+function starsHTML(value, size){
+  size = size || 12;
+  value = Math.max(0, Math.min(5, Number(value)||0));
+  if (!value) return '';
+  let out = `<span class="mini-stars" style="font-size:${size}px">`;
+  for (let n=1;n<=5;n++){
+    const frac = Math.max(0, Math.min(1, value-(n-1)));
+    out += `<span class="star-slot"><span class="star-base">★</span><span class="star-fill" style="width:${Math.round(frac*100)}%">★</span></span>`;
+  }
+  return out + `</span>`;
+}
+// Same day/month order convention as the main tracker, keyed off the same profile.
+function formatDueDate(iso){
+  if (!iso) return '';
+  const [y,m,d] = iso.split('-');
+  return getCurrentUserId()==='tom' ? `${m}/${d}` : `${d}/${m}`;
+}
+// Small radial % ring for the cover's dead space — mirrors the book % shown in prose below it.
+function progressRingHTML(pct){
+  const size = 30, stroke = 3, r = (size-stroke)/2, c = 2*Math.PI*r;
+  const offset = c * (1 - Math.max(0,Math.min(100,pct))/100);
+  return `<div class="cover-ring" style="width:${size}px;height:${size}px;">
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="rgba(14,20,10,.85)" stroke="var(--panel-2)" stroke-width="${stroke}"/>
+      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--accent)" stroke-width="${stroke}" stroke-linecap="round"
+        stroke-dasharray="${c}" stroke-dashoffset="${offset}" transform="rotate(-90 ${size/2} ${size/2})"/>
+    </svg>
+    <span class="ring-pct">${Math.round(pct)}</span>
+  </div>`;
+}
+
 function toast(msg, ms=2600){
   const el = document.createElement('div');
   el.className = 'toast';
@@ -364,7 +424,12 @@ let state = {
   scan: null,            // {files:[...], folders: Map} built by scanning rootDirHandle
   scanning: false,
   matches: {},            // bookId -> match object (loaded lazily from IndexedDB)
-  view: (location.hash === '#player' && lsGet('audiobooks:lastBook')) ? 'player' : 'gallery',
+  // NOTE: always boot into 'gallery' even if the URL hash says #player — we resume
+  // into the player explicitly further down, once books/progress have actually
+  // loaded (see the boot sequence at the bottom of the file). Setting view:'player'
+  // here directly, before any data existed, used to strand the player on a blank/
+  // "add files" screen with nothing to resume — see the resumeIntoPlayer() note.
+  view: 'gallery',
   currentBookId: lsGet('audiobooks:lastBook') || null,
   modal: null,
   pendingLocateId: null,   // bookId waiting on the universal <input type=file> picker
@@ -447,6 +512,14 @@ function findItem(id){ return allAudioItems().find(i => i.id === id) || null; }
 /* ==================================================================
    FIRESTORE LOAD
 ================================================================== */
+// Resolved the first time each Firestore collection has actually returned data
+// (from cache or network). Playback resume waits on these so it never mistakes
+// "hasn't loaded yet" for "there's no saved position" — see the note further
+// down about why the reset-to-0 bug happened.
+let booksReadyResolve, progressReadyResolve;
+const booksReadyPromise = new Promise(res => { booksReadyResolve = res; });
+const progressReadyPromise = new Promise(res => { progressReadyResolve = res; });
+
 function loadBooks(){
   BOOKS_DOC.onSnapshot((snap) => {
     const data = snap.exists ? snap.data() : {};
@@ -455,10 +528,12 @@ function loadBooks(){
     state.books = books.filter(b => b.format === 'Audio');
     state.wishlist = wishlist.filter(w => w.format === 'Audio');
     state.loaded = true;
+    if (booksReadyResolve) { booksReadyResolve(); booksReadyResolve = null; }
     render();
   }, (err) => {
     console.error('Firestore sync error:', err);
     state.loaded = true;
+    if (booksReadyResolve) { booksReadyResolve(); booksReadyResolve = null; }
     render();
   });
 }
@@ -466,9 +541,13 @@ function loadProgress(){
   PROGRESS_DOC.onSnapshot((snap) => {
     const data = snap.exists ? snap.data() : {};
     state.progress = (data && typeof data.progress === 'object' && data.progress) || {};
+    if (progressReadyResolve) { progressReadyResolve(); progressReadyResolve = null; }
     render();
     if (state.view === 'player' && state.currentBookId) syncPlayerFromRemoteIfIdle();
-  }, (err) => console.error('Progress sync error:', err));
+  }, (err) => {
+    console.error('Progress sync error:', err);
+    if (progressReadyResolve) { progressReadyResolve(); progressReadyResolve = null; }
+  });
 }
 let saveDebounce = null;
 function persistProgress(bookId, patch){
@@ -483,6 +562,30 @@ function persistProgressNow(bookId, patch){
   state.progress[bookId] = { ...(state.progress[bookId]||{}), ...patch, updatedAt: Date.now() };
   PROGRESS_DOC.set({ progress: { [bookId]: state.progress[bookId] } }, { merge: true })
     .catch(err => console.error('Failed to save progress:', err));
+}
+
+// Pushes the audiobook's % done back into the main tracker's own book record,
+// so the "Currently Reading" card on the main site reflects listening progress
+// too. Only for books currently in "reading" status there — this never touches
+// wishlist items or the star rating / due date, which flow the other way.
+let bookSyncDebounce = null;
+function syncPercentToMainSite(bookId, pct){
+  const book = state.books.find(b => b.id === bookId);
+  if (!book || book.status !== 'reading' || Math.round(Number(book.progressPercent)||0) === pct) return;
+  clearTimeout(bookSyncDebounce);
+  bookSyncDebounce = setTimeout(() => writeBookPercent(bookId, pct), 1500);
+}
+function syncPercentToMainSiteNow(bookId, pct){
+  const book = state.books.find(b => b.id === bookId);
+  if (!book || book.status !== 'reading' || Math.round(Number(book.progressPercent)||0) === pct) return;
+  clearTimeout(bookSyncDebounce);
+  writeBookPercent(bookId, pct);
+}
+function writeBookPercent(bookId, pct){
+  const newBooks = state.books.map(b => b.id === bookId ? { ...b, progressPercent: pct } : b);
+  state.books = newBooks; // keep local copy in sync so the ring/badge don't flicker
+  BOOKS_DOC.set({ books: newBooks }, { merge: true })
+    .catch(err => console.error('Failed to sync % to main site:', err));
 }
 </script>
 
@@ -970,6 +1073,7 @@ let player = {
   isReady: false,
   isPlaying: false,
   seeking: false,
+  scrubMode: 'book',     // 'book' | 'chapter' — which range the scrubber/time labels reflect
 };
 
 function entryStartOffset(idx){
@@ -997,6 +1101,64 @@ function chapterLabelList(){
     return player.match.entries.map((e,i) => ({ title: cleanTrackName(e.name, i), startSec: entryStartOffset(i) }));
   }
   return player.chapters || [];
+}
+
+// The current chapter's bounds *within the currently-loaded audio file*
+// (audioEl.currentTime is always local to that file, whether it's a whole
+// book in one m4b or a single ripped-CD track).
+function currentChapterLocalBounds(){
+  const idx = currentChapterIndex();
+  if (idx < 0) return null;
+  if (player.match.mode === 'multi'){
+    return { idx, localStart: 0, localEnd: player.entryDurations[player.entryIndex] || (audioEl.duration||0) };
+  }
+  const chaps = player.chapters || [];
+  if (!chaps.length) return null;
+  const localStart = chaps[idx].startSec;
+  const localEnd = (idx+1 < chaps.length) ? chaps[idx+1].startSec : (player.totalSec || audioEl.duration || 0);
+  return { idx, localStart, localEnd };
+}
+
+// Maps an absolute book-scale time (0..totalSec) to {idx, local} for seeking
+// across entries in Book mode.
+function resolveEntryForCumulative(target){
+  let acc = 0;
+  for (let idx=0; idx<player.entryDurations.length; idx++){
+    const d = player.entryDurations[idx] || 0;
+    if (target < acc + d || idx === player.entryDurations.length-1){
+      return { idx, local: Math.max(0, target-acc) };
+    }
+    acc += d;
+  }
+  return { idx: 0, local: 0 };
+}
+
+// Everything the scrub bar / time labels need, computed fresh from mode + audio state.
+function getScrubDisplay(){
+  const cum = cumulativeSec();
+  const bookRemaining = Math.max(0, (player.totalSec||0) - cum);
+  if (player.scrubMode === 'chapter'){
+    const b = currentChapterLocalBounds();
+    const local = audioEl.currentTime || 0;
+    const dur = b ? Math.max(0.1, b.localEnd - b.localStart) : Math.max(0.1, audioEl.duration||0.1);
+    const elapsed = b ? Math.max(0, Math.min(dur, local - b.localStart)) : local;
+    return {
+      sliderMax: dur, sliderValue: elapsed,
+      elapsedLabel: fmtHMS(elapsed), remainingLabel: fmtRemaining(Math.max(0, dur-elapsed)),
+    };
+  }
+  const sliderMax = Math.max(0.1, player.totalSec || audioEl.duration || 0.1);
+  return {
+    sliderMax, sliderValue: Math.min(sliderMax, cum),
+    elapsedLabel: fmtHMS(cum), remainingLabel: fmtRemaining(bookRemaining),
+  };
+}
+
+// Chapter start marks as % across the full book, for notches on the Book-mode scrubber.
+function chapterNotchPercents(){
+  if (player.match.mode !== 'single' || !player.chapters || player.chapters.length < 2) return [];
+  if (!player.totalSec) return [];
+  return player.chapters.slice(1).map(c => Math.min(100, Math.max(0, c.startSec/player.totalSec*100)));
 }
 function cleanTrackName(name, idx){
   let n = name.replace(/\.[a-z0-9]{2,4}$/i,'').replace(/[_]+/g,' ').trim();
@@ -1067,6 +1229,7 @@ async function startPlaybackSession(itemId, match, item){
   player.entryDurations = [];
   player.chapters = null;
   player.isReady = false;
+  player.scrubMode = 'book';
   render();
 
   await ensureDurationsKnown();
@@ -1080,6 +1243,11 @@ async function startPlaybackSession(itemId, match, item){
     }
   }
 
+  // Wait for the real saved position to arrive before deciding where to start —
+  // otherwise a book opened right after a fresh page load can read an empty
+  // {} (progress hasn't synced from Firestore yet), start at 0:00, and then
+  // that 0:00 gets saved right back over your actual progress.
+  await progressReadyPromise;
   const saved = state.progress[itemId];
   let startEntry = 0, startTime = 0;
   if (saved && typeof saved.trackIndex === 'number'){
@@ -1145,34 +1313,53 @@ function setRate(delta){
   audioEl.playbackRate = player.rate;
   render(); saveProgressNow();
 }
-function scrubTo(sec){
-  audioEl.currentTime = sec;
-  render();
+// `val` is on whatever scale the visible slider currently uses (book-cumulative
+// or chapter-relative) — converts it to the right local audioEl.currentTime,
+// crossing entries if needed in Book mode.
+async function scrubTo(val){
+  if (player.scrubMode === 'chapter'){
+    const b = currentChapterLocalBounds();
+    const local = (b ? b.localStart : 0) + val;
+    audioEl.currentTime = Math.max(0, Math.min(local, audioEl.duration||local));
+    render();
+    return;
+  }
+  const { idx, local } = resolveEntryForCumulative(val);
+  if (idx !== player.entryIndex){
+    await goToEntry(idx, local);
+  } else {
+    audioEl.currentTime = Math.max(0, Math.min(local, audioEl.duration||local));
+    render();
+  }
 }
 
 function saveProgress(){
   if (!player.bookId) return;
+  const cum = cumulativeSec();
   persistProgress(player.bookId, {
     mode: player.match.mode,
     trackIndex: player.entryIndex,
     trackPosSec: audioEl.currentTime || 0,
-    cumulativeSec: cumulativeSec(),
+    cumulativeSec: cum,
     totalSec: player.totalSec,
     rate: player.rate,
     chapterTitle: (chapterLabelList()[currentChapterIndex()]||{}).title || '',
   });
+  if (player.totalSec) syncPercentToMainSite(player.bookId, Math.min(100, Math.round(cum/player.totalSec*100)));
 }
 function saveProgressNow(){
   if (!player.bookId) return;
+  const cum = cumulativeSec();
   persistProgressNow(player.bookId, {
     mode: player.match.mode,
     trackIndex: player.entryIndex,
     trackPosSec: audioEl.currentTime || 0,
-    cumulativeSec: cumulativeSec(),
+    cumulativeSec: cum,
     totalSec: player.totalSec,
     rate: player.rate,
     chapterTitle: (chapterLabelList()[currentChapterIndex()]||{}).title || '',
   });
+  if (player.totalSec) syncPercentToMainSiteNow(player.bookId, Math.min(100, Math.round(cum/player.totalSec*100)));
 }
 
 audioEl.addEventListener('timeupdate', () => {
@@ -1231,11 +1418,7 @@ function renderConnBanner(){
     ? `<div class="sub" style="margin-top:4px;">${fmtBytes(state.storageEstimate.usage)} of audio cached on this device.</div>` : '';
 
   if (!SUPPORTS_FS_ACCESS){
-    return `<div class="conn-banner ok">
-      <div class="icon">🎧</div>
-      <div class="txt"><div class="ttl">Add files per book</div>
-      <div class="sub">This browser can't remember a folder automatically, so open a book once and add its file(s) — after that it opens straight into the player, no picker needed.</div>${storageLine}</div>
-    </div>`;
+    return '';
   }
   if (!state.rootDirHandle){
     return `<div class="conn-banner">
@@ -1264,11 +1447,21 @@ function renderConnBanner(){
 
 function renderFeatureCard(item){
   const prog = progressFor(item);
+  const raw = item.raw || {};
+  const due = raw.source === 'Borrowed' && raw.dueDate ? formatDueDate(raw.dueDate) : '';
+  const stars = starsHTML(raw.rating, 11);
   return `<div class="feature-card" data-action="open-book" data-id="${esc(item.id)}">
-    ${coverHtml(item,'feature-cover')}
+    <div class="feature-cover-wrap">
+      ${coverHtml(item,'feature-cover')}
+      ${prog ? progressRingHTML(prog.pct) : ''}
+    </div>
     <div class="feature-body">
       <div class="feature-title">${esc(item.title)}</div>
       <div class="feature-author">${esc(item.author||'')}</div>
+      ${(due || stars) ? `<div class="feature-sub-row">
+        ${due ? `<span class="feature-due">Due by ${esc(due)}</span>` : ''}
+        ${stars}
+      </div>` : ''}
       ${prog ? `<div class="feature-progress-row">
         <div class="prog-bar"><div class="prog-fill" style="width:${prog.pct}%"></div></div>
         <div class="prog-pct">${prog.pct}%</div>
@@ -1357,9 +1550,10 @@ function renderPlayer(){
   const chIdx = currentChapterIndex();
   const cum = cumulativeSec();
   const pct = player.totalSec ? Math.min(100, Math.round((cum/player.totalSec)*100)) : 0;
-  const dur = audioEl.duration || 0;
-  const cur = audioEl.currentTime || 0;
-  const trackFillPct = dur ? (cur/dur*100) : 0;
+  const disp = getScrubDisplay();
+  const trackFillPct = disp.sliderMax ? (disp.sliderValue/disp.sliderMax*100) : 0;
+  const notches = player.scrubMode === 'book' ? chapterNotchPercents() : [];
+  const BOOK_ICON = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.2c-1.6-1.1-4.1-1.7-6.3-1.7v13.6c2.2 0 4.7.6 6.3 1.7 1.6-1.1 4.1-1.7 6.3-1.7V4.5c-2.2 0-4.7.6-6.3 1.7z"/><path d="M12 6.2v13.6"/></svg>`;
 
   return `<div class="player-wrap">
     <button class="player-back" data-action="close-player">‹ Library</button>
@@ -1372,15 +1566,18 @@ function renderPlayer(){
       <div class="player-pct" id="pct-label">${pct}% through the book</div>
       <div class="toggle-row">
         <div class="toggle-group">
-          <button class="toggle-btn active">📖 Book</button>
-          ${list.length ? `<button class="toggle-btn" data-action="scroll-chapters">☰ Chapter</button>` : ''}
+          <button class="toggle-btn ${player.scrubMode==='book'?'active':''}" data-action="view-book">${BOOK_ICON} Book</button>
+          ${list.length ? `<button class="toggle-btn ${player.scrubMode==='chapter'?'active':''}" data-action="view-chapter">☰ Chapter</button>` : ''}
         </div>
       </div>
       <div class="scrub-row">
-        <input type="range" class="scrub" id="scrub" min="0" max="${Math.max(dur,0.1)}" step="0.5" value="${cur}" style="--fill:${trackFillPct}%">
+        <div class="scrub-track-wrap">
+          <input type="range" class="scrub" id="scrub" min="0" max="${disp.sliderMax}" step="0.5" value="${disp.sliderValue}" style="--fill:${trackFillPct}%">
+          ${notches.length ? `<div class="scrub-notches">${notches.map(p=>`<span class="scrub-notch" style="left:${p}%"></span>`).join('')}</div>` : ''}
+        </div>
         <div class="time-row">
-          <span id="time-elapsed">${fmtHMS(cum)}</span>
-          <span id="time-remaining">${fmtRemaining(Math.max(0,player.totalSec-cum))}</span>
+          <span id="time-elapsed">${disp.elapsedLabel}</span>
+          <span id="time-remaining">${disp.remainingLabel}</span>
         </div>
       </div>
       <div class="transport">
@@ -1417,14 +1614,13 @@ function renderScrubOnly(){
   const remEl = document.getElementById('time-remaining');
   const pctEl = document.getElementById('pct-label');
   if (!scrub || !player.isReady) return;
-  const dur = audioEl.duration || 0;
-  const cur = audioEl.currentTime || 0;
-  scrub.max = Math.max(dur, 0.1);
-  if (!player.seeking) scrub.value = cur;
-  scrub.style.setProperty('--fill', (dur? cur/dur*100:0)+'%');
+  const disp = getScrubDisplay();
+  scrub.max = disp.sliderMax;
+  if (!player.seeking) scrub.value = disp.sliderValue;
+  scrub.style.setProperty('--fill', (disp.sliderMax? disp.sliderValue/disp.sliderMax*100:0)+'%');
+  if (elapsedEl) elapsedEl.textContent = disp.elapsedLabel;
+  if (remEl) remEl.textContent = disp.remainingLabel;
   const cum = cumulativeSec();
-  if (elapsedEl) elapsedEl.textContent = fmtHMS(cum);
-  if (remEl) remEl.textContent = fmtRemaining(Math.max(0,player.totalSec-cum));
   if (pctEl && player.totalSec) pctEl.textContent = Math.min(100,Math.round(cum/player.totalSec*100)) + '% through the book';
   // Keep active chapter row in sync without a full re-render.
   const chIdx = currentChapterIndex();
@@ -1517,7 +1713,8 @@ document.addEventListener('click', async (e) => {
   if (action === 'rate-up') return setRate(1);
   if (action === 'rate-down') return setRate(-1);
   if (action === 'jump-chapter') return jumpToChapter(parseInt(t.dataset.idx,10));
-  if (action === 'scroll-chapters'){ document.getElementById('chapter-list')?.scrollIntoView({behavior:'smooth'}); return; }
+  if (action === 'view-book'){ player.scrubMode = 'book'; render(); return; }
+  if (action === 'view-chapter'){ player.scrubMode = 'chapter'; render(); return; }
   if (action === 'add-files'){ return triggerAddFiles(id); }
   if (action === 'open-match-modal'){ state.modal = { id }; render(); return; }
   if (action === 'close-modal'){ state.modal = null; render(); return; }
@@ -1539,13 +1736,18 @@ document.addEventListener('click', async (e) => {
 document.addEventListener('input', (e) => {
   if (e.target.id === 'scrub'){
     player.seeking = true;
-    document.getElementById('scrub').style.setProperty('--fill', (e.target.value/(audioEl.duration||1)*100)+'%');
+    const max = parseFloat(e.target.max) || 1;
+    e.target.style.setProperty('--fill', (e.target.value/max*100)+'%');
+    const elapsedEl = document.getElementById('time-elapsed');
+    const remEl = document.getElementById('time-remaining');
+    if (elapsedEl) elapsedEl.textContent = fmtHMS(parseFloat(e.target.value));
+    if (remEl) remEl.textContent = fmtRemaining(Math.max(0, max-parseFloat(e.target.value)));
   }
 });
-document.addEventListener('change', (e) => {
+document.addEventListener('change', async (e) => {
   if (e.target.id === 'scrub'){
     player.seeking = false;
-    scrubTo(parseFloat(e.target.value));
+    await scrubTo(parseFloat(e.target.value));
     saveProgress();
   }
 });
@@ -1569,6 +1771,19 @@ loadProgress();
 refreshStorageEstimate();
 if (SUPPORTS_FS_ACCESS){
   restoreRootDir().then(() => { if (state.dirPermissionOk) rescanLibrary(); });
+}
+// Resume straight into the player on reload, the same way the old code tried
+// to do it by guessing at initial state — except this actually waits for the
+// book list to load first, so it can find the book and hand off to the normal
+// openPlayer() flow (which itself waits for progress before picking a start
+// time). This was the real source of the "resets to 0" bug: previously the
+// page would jump into the player view immediately on load, before the match
+// or the saved position had loaded from anywhere — so it looked stuck or blank,
+// and anything played from there saved right over the real progress.
+if (location.hash === '#player' && state.currentBookId){
+  booksReadyPromise.then(() => {
+    if (findItem(state.currentBookId)) openPlayer(state.currentBookId);
+  });
 }
 </script>
 </body>
