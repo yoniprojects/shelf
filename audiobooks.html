@@ -1469,7 +1469,13 @@ function syncPlayerFromRemoteIfIdle(){
 
 async function togglePlay(){
   if (!player.isReady) return;
-  if (audioEl.paused){ await audioEl.play().catch(()=>{}); player.isPlaying = true; }
+  if (audioEl.paused){
+    try { await audioEl.play(); }
+    catch(e){ console.warn('Playback failed to start.', e); toast('This book failed to start playing — it may need to be re-exported.'); }
+    // Don't set player.isPlaying here — the real 'play'/'pause' listeners below
+    // reflect what audioEl actually did, so a failed play() correctly leaves
+    // the button showing "play" instead of lying that it's playing.
+  }
   else { audioEl.pause(); player.isPlaying = false; saveProgressNow(); }
   render();
 }
@@ -1659,6 +1665,20 @@ audioEl.addEventListener('ended', async () => {
     player.isPlaying = false;
     saveProgressNow();
     render();
+  }
+});
+audioEl.addEventListener('durationchange', () => {
+  // Mobile Safari can report duration as NaN/Infinity on loadedmetadata for
+  // some m4b files (typically ones not "faststart"-optimized), then correct
+  // itself once it's actually parsed more of the file. Single-mode books read
+  // their totalSec once, right after loadedmetadata (see startPlaybackSession) —
+  // this catches the correction so the book doesn't stay stuck at "0:00 left".
+  if (player.match && player.match.mode === 'single' && isFinite(audioEl.duration) && audioEl.duration > 0){
+    if (player.entryDurations[0] !== audioEl.duration){
+      player.entryDurations[0] = audioEl.duration;
+      player.totalSec = audioEl.duration;
+      render();
+    }
   }
 });
 audioEl.addEventListener('play', () => { player.isPlaying = true; if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing'; render(); });
