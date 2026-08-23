@@ -602,7 +602,7 @@ async function requestPersistentStorage(){
 // moving or being deleted) and falls back to a live FileSystemFileHandle
 // (Chromium only) when no cached copy exists yet — caching it afterward.
 async function getEntryFile(bookId, idx, entry){
-  const key = blobKey(bookId, idx);
+  const key = entry.blobKey || blobKey(bookId, idx);
   try{
     const cached = await idbGetBlob(key);
     if (cached) return cached;
@@ -918,7 +918,7 @@ async function setMultiMatch(bookId, folderRec){
 async function clearMatch(bookId){
   const match = state.matches[bookId] || await idbGet(matchKey(bookId));
   if (match){
-    for (let i=0;i<match.entries.length;i++){ await idbDeleteBlob(blobKey(bookId, i)).catch(()=>{}); }
+    for (let i=0;i<match.entries.length;i++){ await idbDeleteBlob(match.entries[i].blobKey || blobKey(bookId, i)).catch(()=>{}); }
   }
   delete state.matches[bookId];
   await idbDelete(matchKey(bookId));
@@ -1002,6 +1002,10 @@ async function findTopLevelBox(file, type){
 }
 
 // Parses a fully-loaded buffer of sibling boxes starting at `start`, up to `end`.
+// `boxStart` (the position of the box's own size field, i.e. its very start)
+// is kept alongside `start`/`end` (the payload range) so callers can copy a
+// box *verbatim*, header included — needed when byte-exact content matters
+// (e.g. `stsd`'s codec config) rather than just parsing fields out of it.
 function parseBoxList(buf, start, end){
   const boxes = [];
   let off = start;
@@ -1012,12 +1016,13 @@ function parseBoxList(buf, start, end){
     if (size === 1){ size = Number(u64(buf, off+8)); headerSize = 16; }
     else if (size === 0){ size = end - off; }
     if (size < headerSize) break;
-    boxes.push({ type, start: off+headerSize, end: off+size });
+    boxes.push({ type, start: off+headerSize, end: off+size, boxStart: off });
     off += size;
   }
   return boxes;
 }
 function findBox(boxes, type){ return boxes.find(b => b.type === type) || null; }
+function rawBoxBytes(buf, box){ return buf.slice(box.boxStart, box.end); }
 function findBoxDeep(buf, boxes, path){
   // path e.g. ['udta','chpl']
   let list = boxes, found = null;
@@ -1174,6 +1179,23 @@ async function parseQtTextChapters(file, buf, moovBoxes){
   } catch(e){ console.warn('QT chapter parse failed', e); return null; }
 }
 
+// Collapses zero/near-zero-length chapter entries (e.g. duplicate "Chapter 1"
+// markers sitting at the same timestamp, an embedded-chapter-track quirk
+// some encoders produce) into one. Needed both so the chapter list UI stops
+// showing back-to-back duplicates, and because a zero-length chapter used
+// as a mobile-split boundary would produce a broken, empty segment.
+function dedupeChapters(chapters){
+  if (!chapters || chapters.length < 2) return chapters || [];
+  const sorted = chapters.slice().sort((a,b) => a.startSec - b.startSec);
+  const out = [];
+  for (let i=0;i<sorted.length;i++){
+    const next = sorted[i+1];
+    if (next && Math.abs(next.startSec - sorted[i].startSec) < 0.05) continue;
+    out.push(sorted[i]);
+  }
+  return out;
+}
+
 async function tryParseChapters(bookId, idx, entry){
   try{
     const file = await getEntryFile(bookId, idx, entry);
@@ -1183,17 +1205,352 @@ async function tryParseChapters(bookId, idx, entry){
     const buf = await readSlice(file, moovLoc.offset, moovLoc.size);
     const moovBoxes = parseBoxList(buf, moovLoc.headerSize, buf.length);
 
+    let chapters = null;
     const udta = findBox(moovBoxes, 'udta');
     if (udta){
       const udtaBoxes = parseBoxList(buf, udta.start, udta.end);
       const chpl = findBox(udtaBoxes, 'chpl');
-      if (chpl){
-        const chapters = parseChplChapters(buf, chpl);
-        if (chapters) return chapters;
+      if (chpl) chapters = parseChplChapters(buf, chpl);
+    }
+    if (!chapters) chapters = await parseQtTextChapters(file, buf, moovBoxes);
+    return chapters ? dedupeChapters(chapters) : null;
+  } catch(e){ console.warn('Chapter parsing failed, falling back to plain scrubbing.', e); return null; }
+}
+
+/* ==================================================================
+   MOBILE LONG-BOOK SPLITTER
+   Mobile Safari's media parser can choke on a single-file .m4b once
+   it's long enough — the `moov` atom's `stsz` table (one entry per
+   AAC frame, which can't be compressed since frame sizes vary) grows
+   too large for it to handle. Splitting the same audio into several
+   smaller files, each with its own small `moov`, fixes it — and lets
+   the file reuse the multi-file playback path the app already has
+   for ripped-CD folders. This reads the audio track's full sample
+   table (byte offset/size/timestamp of every frame) and writes new,
+   minimal, standalone MP4 files containing copies of those frame
+   bytes — no re-encoding, just moving compressed audio into smaller
+   containers (the same thing `ffmpeg -c copy` does, in the browser).
+================================================================== */
+
+// Per-sample duration ("delta"), flattened to one entry per sample, in the
+// media's own timescale — the form a *new* stts table (via run-length
+// re-encoding) needs, alongside a running sum for time/sample-index math.
+function parseSttsDeltas(buf, sttsBox){
+  const entryCount = u32(buf, sttsBox.start+4);
+  let p = sttsBox.start + 8;
+  const deltas = [];
+  for (let i=0;i<entryCount;i++){
+    const count = u32(buf, p), delta = u32(buf, p+4); p += 8;
+    for (let j=0;j<count;j++) deltas.push(delta);
+  }
+  return deltas;
+}
+
+// Reads the AUDIO track's full sample table (stsz/stco/stsc/stts) plus the
+// raw `stsd` (codec config) and `hdlr` boxes, which any file built from
+// these samples needs copied in byte-for-byte so players can still decode it.
+async function readAudioSampleTable(file){
+  const moovLoc = await findTopLevelBox(file, 'moov');
+  if (!moovLoc) return null;
+  const buf = await readSlice(file, moovLoc.offset, moovLoc.size);
+  const moovBoxes = parseBoxList(buf, moovLoc.headerSize, buf.length);
+  const traks = moovBoxes.filter(b => b.type === 'trak');
+
+  for (const trakBox of traks){
+    const trakBoxes = parseBoxList(buf, trakBox.start, trakBox.end);
+    const mdia = findBox(trakBoxes, 'mdia');
+    if (!mdia) continue;
+    const mdiaBoxes = parseBoxList(buf, mdia.start, mdia.end);
+    const hdlr = findBox(mdiaBoxes, 'hdlr');
+    if (!hdlr) continue;
+    const handlerType = fourcc(buf, hdlr.start + 8); // version/flags(4)+pre_defined(4)+handler_type
+    if (handlerType !== 'soun') continue; // not the audio track
+
+    const mdhd = findBox(mdiaBoxes, 'mdhd');
+    const minf = findBox(mdiaBoxes, 'minf');
+    if (!mdhd || !minf) continue;
+    const minfBoxes = parseBoxList(buf, minf.start, minf.end);
+    const stbl = findBox(minfBoxes, 'stbl');
+    if (!stbl) continue;
+    const stblBoxes = parseBoxList(buf, stbl.start, stbl.end);
+    const stts = findBox(stblBoxes, 'stts');
+    const stsz = findBox(stblBoxes, 'stsz');
+    const stsc = findBox(stblBoxes, 'stsc');
+    const stco = findBox(stblBoxes, 'stco') || findBox(stblBoxes, 'co64');
+    const stsd = findBox(stblBoxes, 'stsd');
+    if (!stts || !stsz || !stsc || !stco || !stsd) continue;
+
+    const timescale = parseMdhdTimescale(buf, mdhd);
+    const deltas = parseSttsDeltas(buf, stts);
+    const sizes = parseStszSizes(buf, stsz);
+    const stscEntries = parseStsc(buf, stsc);
+    const chunkOffsets = parseChunkOffsets(buf, stco);
+    const offsets = sampleOffsets(chunkOffsets, stscEntries, sizes);
+    const sampleCount = Math.min(deltas.length, sizes.length, offsets.length);
+    if (!sampleCount) continue;
+
+    const cumTicks = new Array(sampleCount);
+    let acc = 0;
+    for (let i=0;i<sampleCount;i++){ cumTicks[i] = acc; acc += deltas[i]; }
+
+    return {
+      timescale,
+      stsdRaw: rawBoxBytes(buf, stsd),
+      hdlrRaw: rawBoxBytes(buf, hdlr),
+      offsets: offsets.slice(0, sampleCount),
+      sizes: sizes.slice(0, sampleCount),
+      deltas: deltas.slice(0, sampleCount),
+      cumTicks,
+      totalTicks: acc,
+      sampleCount,
+    };
+  }
+  return null;
+}
+
+// Binary search: first sample whose start tick is >= targetTicks.
+function findSampleIndexAtOrAfterTicks(cumTicks, targetTicks){
+  let lo = 0, hi = cumTicks.length - 1, ans = cumTicks.length;
+  while (lo <= hi){
+    const mid = (lo+hi) >> 1;
+    if (cumTicks[mid] >= targetTicks) { ans = mid; hi = mid - 1; }
+    else lo = mid + 1;
+  }
+  return ans;
+}
+
+// Chooses split points: prefer chapter boundaries, grouping several
+// chapters together so parts land near a target length (avoids a glut of
+// tiny files for books with many short chapters). Falls back to fixed time
+// windows for books with no usable chapter data. Returns an ascending array
+// of cut points in seconds, starting at 0 and ending at totalDurationSec.
+const MOBILE_SPLIT_TARGET_SEC = 40 * 60;
+const MOBILE_SPLIT_MIN_TAIL_SEC = 60; // don't leave a sliver final part
+function chooseSplitPoints(totalDurationSec, chapters){
+  const points = [0];
+  if (chapters && chapters.length > 1){
+    let last = 0;
+    for (let i=1;i<chapters.length;i++){
+      const t = chapters[i].startSec;
+      if (t - last >= MOBILE_SPLIT_TARGET_SEC && totalDurationSec - t >= MOBILE_SPLIT_MIN_TAIL_SEC){
+        points.push(t);
+        last = t;
       }
     }
-    return await parseQtTextChapters(file, buf, moovBoxes);
-  } catch(e){ console.warn('Chapter parsing failed, falling back to plain scrubbing.', e); return null; }
+  } else {
+    for (let t=MOBILE_SPLIT_TARGET_SEC; totalDurationSec - t >= MOBILE_SPLIT_MIN_TAIL_SEC; t += MOBILE_SPLIT_TARGET_SEC) points.push(t);
+  }
+  points.push(totalDurationSec);
+  return points;
+}
+
+/* ---- MP4 box-writing primitives (mirror image of the reader above) ---- */
+function wU32(buf, off, n){ buf[off]=(n>>>24)&255; buf[off+1]=(n>>>16)&255; buf[off+2]=(n>>>8)&255; buf[off+3]=n&255; }
+function wU16(buf, off, n){ buf[off]=(n>>>8)&255; buf[off+1]=n&255; }
+function concatUint8(arrays){
+  let len = 0; for (const a of arrays) len += a.length;
+  const out = new Uint8Array(len);
+  let p = 0; for (const a of arrays){ out.set(a, p); p += a.length; }
+  return out;
+}
+function box(type, payload){
+  const out = new Uint8Array(8 + payload.length);
+  wU32(out, 0, out.length);
+  out[4]=type.charCodeAt(0); out[5]=type.charCodeAt(1); out[6]=type.charCodeAt(2); out[7]=type.charCodeAt(3);
+  out.set(payload, 8);
+  return out;
+}
+function wrapBox(type, children){ return box(type, concatUint8(children)); }
+function runLengthEncodeDeltas(deltas){
+  const entries = [];
+  for (const d of deltas){
+    const last = entries[entries.length-1];
+    if (last && last.delta === d) last.count++;
+    else entries.push({ count: 1, delta: d });
+  }
+  return entries;
+}
+
+// Builds one segment's `ftyp`+`moov` header as a minimal, valid, standalone
+// MP4 describing samples [startIdx, endIdx). The codec config (`stsd`) and
+// handler (`hdlr`) are copied byte-for-byte from the source so any player
+// that could decode the original can decode the segment.
+function buildSegmentBoxes(table, startIdx, endIdx){
+  const sizes = table.sizes.slice(startIdx, endIdx);
+  const deltas = table.deltas.slice(startIdx, endIdx);
+  const sampleCount = sizes.length;
+  const durationTicks = table.cumTicks[endIdx] != null
+    ? table.cumTicks[endIdx] - table.cumTicks[startIdx]
+    : table.totalTicks - table.cumTicks[startIdx];
+
+  const ftypPayload = concatUint8([
+    new TextEncoder().encode('isom'),
+    (() => { const b = new Uint8Array(4); wU32(b,0,0x200); return b; })(),
+    new TextEncoder().encode('isom'),
+    new TextEncoder().encode('iso2'),
+    new TextEncoder().encode('mp41'),
+  ]);
+  const ftypBytes = box('ftyp', ftypPayload);
+
+  const stsdBytes = table.stsdRaw; // verbatim copy — contains e.g. esds/AudioSpecificConfig
+  const hdlrBytes = table.hdlrRaw; // verbatim copy — declares the 'soun' handler
+
+  const sttsEntries = runLengthEncodeDeltas(deltas);
+  const sttsPayload = new Uint8Array(8 + sttsEntries.length*8);
+  wU32(sttsPayload, 4, sttsEntries.length);
+  { let p = 8; for (const e of sttsEntries){ wU32(sttsPayload,p,e.count); wU32(sttsPayload,p+4,e.delta); p+=8; } }
+  const sttsBytes = box('stts', sttsPayload);
+
+  const stszPayload = new Uint8Array(12 + sampleCount*4); // AAC frame sizes vary, same as the source
+  wU32(stszPayload, 8, sampleCount);
+  { let p = 12; for (let i=0;i<sampleCount;i++){ wU32(stszPayload,p,sizes[i]); p+=4; } }
+  const stszBytes = box('stsz', stszPayload);
+
+  const stscPayload = new Uint8Array(20); // everything in this segment is one contiguous chunk in the new file
+  wU32(stscPayload, 4, 1);
+  wU32(stscPayload, 8, 1); wU32(stscPayload, 12, sampleCount); wU32(stscPayload, 16, 1);
+  const stscBytes = box('stsc', stscPayload);
+
+  // Placeholder offset — patched below once the header's total length is known.
+  const stcoPayload = new Uint8Array(12);
+  wU32(stcoPayload, 4, 1);
+  const stcoBytes = box('stco', stcoPayload);
+  const STCO_VALUE_OFF_IN_BOX = 16; // 8(header)+4(version/flags)+4(entrycount)
+
+  const stblChildren = [stsdBytes, sttsBytes, stscBytes, stszBytes, stcoBytes];
+  let runOff = 8;
+  let stcoOffInStbl = 0;
+  for (const c of stblChildren){ if (c === stcoBytes) stcoOffInStbl = runOff + STCO_VALUE_OFF_IN_BOX; runOff += c.length; }
+  const stblBytes = wrapBox('stbl', stblChildren);
+
+  const smhdBytes = box('smhd', new Uint8Array(8));
+  const urlPayload = new Uint8Array(4); urlPayload[3] = 1; // flags = 0x000001 (self-contained)
+  const urlBytes = box('url ', urlPayload);
+  const drefPayload = new Uint8Array(8); wU32(drefPayload, 4, 1);
+  const drefBytes = box('dref', concatUint8([drefPayload, urlBytes]));
+  const dinfBytes = wrapBox('dinf', [drefBytes]);
+
+  const minfChildren = [smhdBytes, dinfBytes, stblBytes];
+  runOff = 8;
+  let stcoOffInMinf = 0;
+  for (const c of minfChildren){ if (c === stblBytes) stcoOffInMinf = runOff + stcoOffInStbl; runOff += c.length; }
+  const minfBytes = wrapBox('minf', minfChildren);
+
+  const mdhdPayload = new Uint8Array(24); // version 0 — 32-bit durations comfortably cover a ~40min segment
+  wU32(mdhdPayload, 12, table.timescale);
+  wU32(mdhdPayload, 16, durationTicks);
+  wU16(mdhdPayload, 20, 0x55C4); // language = 'und'
+  const mdhdBytes = box('mdhd', mdhdPayload);
+
+  const mdiaChildren = [mdhdBytes, hdlrBytes, minfBytes];
+  runOff = 8;
+  let stcoOffInMdia = 0;
+  for (const c of mdiaChildren){ if (c === minfBytes) stcoOffInMdia = runOff + stcoOffInMinf; runOff += c.length; }
+  const mdiaBytes = wrapBox('mdia', mdiaChildren);
+
+  const tkhdPayload = new Uint8Array(84); // version 0; duration is in the movie (mvhd) timescale, set equal to this track's below
+  tkhdPayload[3] = 0x07; // flags: track enabled + in movie + in preview
+  wU32(tkhdPayload, 12, 1); // track_ID
+  wU32(tkhdPayload, 20, durationTicks);
+  wU16(tkhdPayload, 36, 0x0100); // volume = 1.0
+  wU32(tkhdPayload, 40, 0x00010000); wU32(tkhdPayload, 56, 0x00010000); wU32(tkhdPayload, 68, 0x40000000); // identity matrix
+  const tkhdBytes = box('tkhd', tkhdPayload);
+
+  const trakChildren = [tkhdBytes, mdiaBytes];
+  runOff = 8;
+  let stcoOffInTrak = 0;
+  for (const c of trakChildren){ if (c === mdiaBytes) stcoOffInTrak = runOff + stcoOffInMdia; runOff += c.length; }
+  const trakBytes = wrapBox('trak', trakChildren);
+
+  const mvhdPayload = new Uint8Array(100); // version 0
+  wU32(mvhdPayload, 12, table.timescale);
+  wU32(mvhdPayload, 16, durationTicks);
+  wU32(mvhdPayload, 20, 0x00010000); // rate = 1.0
+  wU16(mvhdPayload, 24, 0x0100); // volume = 1.0
+  wU32(mvhdPayload, 36, 0x00010000); wU32(mvhdPayload, 52, 0x00010000); wU32(mvhdPayload, 68, 0x40000000); // identity matrix
+  wU32(mvhdPayload, 96, 2); // next_track_ID
+  const mvhdBytes = box('mvhd', mvhdPayload);
+
+  const moovChildren = [mvhdBytes, trakBytes];
+  runOff = 8;
+  let stcoOffInMoov = 0;
+  for (const c of moovChildren){ if (c === trakBytes) stcoOffInMoov = runOff + stcoOffInTrak; runOff += c.length; }
+  const moovBytes = wrapBox('moov', moovChildren);
+
+  const header = concatUint8([ftypBytes, moovBytes]);
+  const stcoAbsOff = ftypBytes.length + stcoOffInMoov;
+  const mdatDataStart = header.length + 8; // + mdat's own 8-byte header
+  wU32(header, stcoAbsOff, mdatDataStart);
+
+  return { header, sampleCount, durationTicks, durationSec: durationTicks / table.timescale };
+}
+
+// Produces the final segment as a Blob without ever materializing its audio
+// bytes in JS memory: the `mdat` payload is assembled from zero-copy slices
+// of the *original* file (merging contiguous runs, so a typical
+// single-audio-track file needs only one slice), and Blob concatenation lets
+// the browser stream the bytes lazily whenever the segment is actually read.
+function buildSegmentBlob(file, table, startIdx, endIdx){
+  const built = buildSegmentBoxes(table, startIdx, endIdx);
+  let totalDataSize = 0;
+  for (let i=startIdx;i<endIdx;i++) totalDataSize += table.sizes[i];
+  const mdatHeader = new Uint8Array(8);
+  wU32(mdatHeader, 0, totalDataSize + 8);
+  mdatHeader[4]=109; mdatHeader[5]=100; mdatHeader[6]=97; mdatHeader[7]=116; // 'mdat'
+
+  const parts = [built.header, mdatHeader];
+  if (endIdx > startIdx){
+    let runStart = table.offsets[startIdx];
+    let runLen = table.sizes[startIdx];
+    for (let i=startIdx+1;i<endIdx;i++){
+      const off = table.offsets[i];
+      if (off === runStart + runLen){ runLen += table.sizes[i]; }
+      else { parts.push(file.slice(runStart, runStart+runLen)); runStart = off; runLen = table.sizes[i]; }
+    }
+    parts.push(file.slice(runStart, runStart+runLen));
+  }
+  return { blob: new Blob(parts, { type: 'audio/mp4' }), durationSec: built.durationSec, sampleCount: built.sampleCount };
+}
+
+function isMobileBrowser(){ return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent); }
+const MOBILE_SPLIT_THRESHOLD_SEC = 3.5 * 3600; // plan's "provisional ~3-4h" proxy for "moov will likely be too big"
+const splitBlobKey = (bookId, i) => `blob:${getCurrentUserId()}:${bookId}:split:${i}`;
+
+// Splits a single-file book into cached multi-part entries for mobile
+// playback, once, and returns the new multi-mode match — or null if
+// anything went wrong, in which case the caller should just fall back to
+// normal single-file playback.
+async function ensureMobileSplit(bookId, singleMatch, totalDurationSec, chapters){
+  try{
+    const file = await getEntryFile(bookId, 0, singleMatch.entries[0]);
+    const table = await readAudioSampleTable(file);
+    if (!table) return null;
+
+    const points = chooseSplitPoints(totalDurationSec, chapters);
+    const boundaryIdx = points.map(sec => findSampleIndexAtOrAfterTicks(table.cumTicks, Math.round(sec * table.timescale)));
+    boundaryIdx[boundaryIdx.length-1] = table.sampleCount;
+
+    const entries = [];
+    for (let s=0; s<boundaryIdx.length-1; s++){
+      const startIdx = boundaryIdx[s], endIdx = boundaryIdx[s+1];
+      if (endIdx <= startIdx) continue;
+      const { blob, durationSec } = buildSegmentBlob(file, table, startIdx, endIdx);
+      const key = splitBlobKey(bookId, entries.length);
+      await idbSetBlob(key, blob);
+      entries.push({ name: `Part ${entries.length+1}`, path: `split:${entries.length}`, blobKey: key, durationSec });
+    }
+    if (!entries.length) return null;
+
+    const match = { mode: 'multi', entries, matchedAt: Date.now(), splitFromSingle: true };
+    state.matches[bookId] = match;
+    await idbSet(matchKey(bookId), match);
+    requestPersistentStorage();
+    refreshStorageEstimate();
+    return match;
+  } catch(e){
+    console.warn('Mobile split failed, falling back to normal single-file playback.', e);
+    return null;
+  }
 }
 </script>
 
@@ -1393,6 +1750,7 @@ async function startPlaybackSession(itemId, match, item){
   player.chapters = null;
   player.isReady = false;
   player.scrubMode = 'book';
+  player.autoSplitAttempted = false;
   render();
 
   await ensureDurationsKnown();
@@ -1424,6 +1782,20 @@ async function startPlaybackSession(itemId, match, item){
     // total length.
     player.entryDurations[0] = audioEl.duration || 0;
     player.totalSec = player.entryDurations[0];
+
+    // Mobile Safari's media parser can choke on a single-file .m4b once it's
+    // long enough (see MOBILE LONG-BOOK SPLITTER above). Split it into
+    // cached parts once, the first time a long book is opened on mobile, and
+    // switch straight to that — everything downstream (chapters, resume
+    // position, scrubbing) treats this exactly like a ripped-CD folder,
+    // since it's the same `mode: 'multi'` match shape.
+    if (isMobileBrowser() && player.totalSec > MOBILE_SPLIT_THRESHOLD_SEC){
+      const splitMatch = await ensureMobileSplit(itemId, match, player.totalSec, player.chapters);
+      if (splitMatch){
+        toast('This book was optimized for mobile playback — it will open straight into the player from now on.', 5000);
+        return startPlaybackSession(itemId, splitMatch, item);
+      }
+    }
   }
   audioEl.playbackRate = player.rate = (saved && saved.rate) || 1;
   player.isReady = true;
@@ -1480,6 +1852,23 @@ async function togglePlay(){
       const err = audioEl.error;
       const detail = err ? `MediaError ${err.code} (${codeNames[err.code]||'?'})${err.message?': '+err.message:''}` : (e && (e.name||e.message)) || String(e);
       console.warn('Playback failed to start.', e, err);
+
+      // Safety net for the long-book mobile Safari failure this couldn't
+      // catch proactively (e.g. a book just under the proactive threshold
+      // that still trips the parser): if this is a single-file book on
+      // mobile failing to decode/start, split it once and retry, instead of
+      // just leaving the person stuck on a dead play button.
+      const isDecodeLikeFailure = err && (err.code === 3 || err.code === 4);
+      if (isDecodeLikeFailure && isMobileBrowser() && player.match && player.match.mode === 'single' && !player.match.splitFromSingle && !player.autoSplitAttempted){
+        player.autoSplitAttempted = true;
+        toast('Optimizing this book for mobile playback…', 6000);
+        const splitMatch = await ensureMobileSplit(player.bookId, player.match, player.totalSec, player.chapters);
+        if (splitMatch){
+          await startPlaybackSession(player.bookId, splitMatch, player.item);
+          await togglePlay();
+          return;
+        }
+      }
       toast(`Playback failed — ${detail}`, 12000);
     }
     // Don't set player.isPlaying here — the real 'play'/'pause' listeners below
