@@ -420,6 +420,18 @@ function starsEditableHTML(bookId, value, size){
   return out;
 }
 
+// Applies `patch` to the single book `itemId` and writes the FULL book list
+// (state.allBooks — every format, not just Audio) back to Firestore. Because
+// Firestore's `merge:true` replaces array fields wholesale rather than
+// merging them element-by-element, writing anything less than the complete
+// list here would silently delete every non-Audio book from the tracker doc.
+// Always go through this instead of writing state.books directly.
+function saveBookPatch(itemId, patch){
+  const newAllBooks = state.allBooks.map(b => b.id === itemId ? { ...b, ...patch } : b);
+  state.allBooks = newAllBooks;
+  state.books = newAllBooks.filter(b => b.format === 'Audio');
+  return BOOKS_DOC.set({ books: newAllBooks }, { merge: true });
+}
 // Writes the new rating straight to the tracker doc, mirroring writeBookPercent's
 // pattern — this is the one place ratings flow app → main site instead of the
 // other way around, so it stays a deliberate, separate write.
@@ -428,11 +440,9 @@ function setRating(bookId, value){
   const book = state.books.find(b => b.id === bookId);
   if (!book) return;
   if ((Number(book.rating)||0) === value) return;
-  const newBooks = state.books.map(b => b.id === bookId ? { ...b, rating: value } : b);
-  state.books = newBooks;
+  const writePromise = saveBookPatch(bookId, { rating: value }); // updates state.books synchronously
   render();
-  BOOKS_DOC.set({ books: newBooks }, { merge: true })
-    .catch(err => console.error('Failed to sync rating:', err));
+  writePromise.catch(err => console.error('Failed to sync rating:', err));
 }
 // Mirrors the tracker's own saveCompleteBookFromModal() exactly: same fields
 // (status/dateFinished/rating/priority/dueDate cleared), same required-rating
@@ -446,18 +456,16 @@ function saveCompleteBook(itemId){
   const dateFinished = dateInput ? dateInput.value : (draft.dateFinished || new Date().toISOString().slice(0,10));
   const rating = Number(draft.rating) || 0;
   if (rating <= 0){ toast('Add a rating before completing.'); return; }
-  const newBooks = state.books.map(b => b.id === itemId ? {
-    ...b,
+  const writePromise = saveBookPatch(itemId, {
     status: 'done',
     dateFinished: dateFinished,
     rating: rating,
     priority: '',
     dueDate: '',
-  } : b);
-  state.books = newBooks;
+  }); // updates state.books synchronously
   state.modal = null;
   render();
-  BOOKS_DOC.set({ books: newBooks }, { merge: true })
+  writePromise
     .then(() => toast('Marked as complete.'))
     .catch(err => { console.error('Failed to mark complete:', err); toast('Could not sync completion — try again.'); });
 }
@@ -518,7 +526,9 @@ const SUPPORTS_FS_ACCESS = !!window.showDirectoryPicker; // Chromium-only folder
 
 let state = {
   loaded: false,
-  books: [],          // format === "Audio" tracker books
+  allBooks: [],        // EVERY book from the tracker doc, all formats — the full
+                        // set that must be preserved on every write. Never filtered.
+  books: [],          // format === "Audio" tracker books (view-only subset of allBooks)
   wishlist: [],        // format === "Audio" wishlist items
   progress: {},         // bookId -> {mode, trackIndex, trackPosSec, cumulativeSec, totalSec, rate, chapterTitle, updatedAt}
   rootDirName: null,     // display name of connected folder
@@ -628,6 +638,7 @@ function loadBooks(){
     const data = snap.exists ? snap.data() : {};
     const books = Array.isArray(data.books) ? data.books : [];
     const wishlist = Array.isArray(data.wishlist) ? data.wishlist : [];
+    state.allBooks = books;
     state.books = books.filter(b => b.format === 'Audio');
     // Wishlist items never carry a `format` field on the tracker side — format
     // is only chosen once a book moves to Currently Reading — so show all of
@@ -689,9 +700,7 @@ function syncPercentToMainSiteNow(bookId, pct){
   writeBookPercent(bookId, pct);
 }
 function writeBookPercent(bookId, pct){
-  const newBooks = state.books.map(b => b.id === bookId ? { ...b, progressPercent: pct } : b);
-  state.books = newBooks; // keep local copy in sync so the ring/badge don't flicker
-  BOOKS_DOC.set({ books: newBooks }, { merge: true })
+  saveBookPatch(bookId, { progressPercent: pct }) // keeps local copy in sync so the ring/badge don't flicker
     .catch(err => console.error('Failed to sync % to main site:', err));
 }
 </script>
@@ -2134,7 +2143,9 @@ function confirmMoveWish(wishId){
   BOOKS_DOC.get().then(snap => {
     const data = snap.exists ? snap.data() : {};
     const fullBooks = Array.isArray(data.books) ? data.books : [];
-    return BOOKS_DOC.set({ books: [...fullBooks, newBook], wishlist: newWishlist }, { merge: true });
+    const mergedFullBooks = [...fullBooks, newBook];
+    state.allBooks = mergedFullBooks;
+    return BOOKS_DOC.set({ books: mergedFullBooks, wishlist: newWishlist }, { merge: true });
   }).then(() => toast(`${w.title} moved to Currently Reading.`))
     .catch(err => { console.error('Failed to move wishlist item:', err); toast('Could not sync — try again.'); });
 }
