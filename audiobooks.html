@@ -2132,14 +2132,36 @@ let watchdogLastTime = -1;
 setInterval(() => {
   if (!player.isReady || !player.isPlaying){ watchdogLastTime = audioEl.currentTime; return; }
   if (Math.abs(audioEl.currentTime - watchdogLastTime) < 0.05){
+    const dur = audioEl.duration;
+    const nearOwnEnd = isFinite(dur) && dur > 0 && (dur - audioEl.currentTime) < 2;
+    const hasNextEntry = player.match && player.entryIndex < player.match.entries.length - 1;
+    if (nearOwnEnd && hasNextEntry){
+      // Some mobile Safari builds never fire 'ended' for a track that's
+      // essentially exhausted — readyState stays HAVE_ENOUGH_DATA and
+      // currentTime just parks a fraction of a second short of duration
+      // forever. Treat "stalled right at this entry's own tail" as an
+      // implicit ended instead of surfacing it as a hard failure, since a
+      // real ended event would have done exactly this anyway.
+      console.warn('Stall right at entry end with no ended event — treating as implicit end, advancing.', {
+        entryIndex: player.entryIndex, currentTime: audioEl.currentTime, duration: dur,
+      });
+      (async () => {
+        await loadEntry(player.entryIndex+1, 0);
+        await attemptPlay();
+        render(); saveProgress();
+      })();
+      watchdogLastTime = audioEl.currentTime;
+      return;
+    }
     console.warn('Playback stall detected: currentTime not advancing.', {
       entryIndex: player.entryIndex,
       currentTime: audioEl.currentTime,
+      duration: dur,
       readyState: audioEl.readyState,
       networkState: audioEl.networkState,
     });
     player.isPlaying = false;
-    toast(`Playback stalled at ${fmtHMS(audioEl.currentTime)} in part ${player.entryIndex+1} (readyState ${audioEl.readyState}, networkState ${audioEl.networkState}) — tap play to retry.`, 15000);
+    toast(`Playback stalled at ${fmtHMS(audioEl.currentTime)} of ${isFinite(dur)?fmtHMS(dur):'?'} in part ${player.entryIndex+1} (readyState ${audioEl.readyState}, networkState ${audioEl.networkState}) — tap play to retry.`, 15000);
     render();
     watchdogLastTime = audioEl.currentTime;
     return;
