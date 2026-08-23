@@ -1275,7 +1275,19 @@ function cleanTrackName(name, idx){
 }
 
 async function ensureDurationsKnown(){
-  // Probe each entry's duration once (cheap metadata-only load), cached on the match object.
+  // Single-file books (one m4b/mp3 = the whole book) don't need a pre-probe at
+  // all: loadEntry() is about to load that exact file into the real audioEl
+  // anyway, and that element's own 'loadedmetadata' event gives us the total
+  // duration for free. Skipping this avoids spinning up a second, off-DOM
+  // Audio() element purely to ask it the same question — which is the probe
+  // that mobile Safari can silently never fire 'loadedmetadata' on, hanging
+  // this whole function (and, with it, the play button and end-time label)
+  // forever. Multi-file books (ripped-CD folders) still need it, since we
+  // have to know every *other* track's length up front to compute offsets —
+  // that path keeps the probe but now bounds it with a timeout.
+  if (player.match.mode === 'single'){
+    return;
+  }
   for (let i=0;i<player.match.entries.length;i++){
     const entry = player.match.entries[i];
     if (typeof entry.durationSec === 'number'){ player.entryDurations[i] = entry.durationSec; continue; }
@@ -1288,6 +1300,11 @@ async function ensureDurationsKnown(){
         a.src = url;
         a.onloadedmetadata = () => resolve(a.duration || 0);
         a.onerror = () => resolve(0);
+        // Safety net: some mobile browsers never fire loadedmetadata on an
+        // off-DOM Audio element for large files. Without this, one bad probe
+        // hangs the whole book (dead play button, stuck 0:00 end time)
+        // instead of just leaving that one track's duration unknown.
+        setTimeout(() => resolve(0), 10000);
       });
       URL.revokeObjectURL(url);
       entry.durationSec = d;
@@ -1364,6 +1381,13 @@ async function startPlaybackSession(itemId, match, item){
     startTime = saved.trackPosSec || 0;
   }
   await loadEntry(startEntry, startTime);
+  if (player.match.mode === 'single'){
+    // No pre-probe ran for single-file books (see ensureDurationsKnown) — the
+    // real audioEl just loaded this exact file, so its duration IS the book's
+    // total length.
+    player.entryDurations[0] = audioEl.duration || 0;
+    player.totalSec = player.entryDurations[0];
+  }
   audioEl.playbackRate = player.rate = (saved && saved.rate) || 1;
   player.isReady = true;
   updateMediaSessionMetadata(item);
