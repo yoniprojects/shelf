@@ -1839,20 +1839,43 @@ function syncPlayerFromRemoteIfIdle(){
   render();
 }
 
+// audioEl.error (a MediaError) is far more diagnostic than a play()
+// rejection itself — it's what actually failed inside the decoder.
+// Centralized here so every call site (initial play, entry transitions,
+// skip, background errors) reports failures the same way instead of some
+// paths swallowing them silently.
+function describeMediaError(e){
+  const codeNames = {1:'ABORTED',2:'NETWORK',3:'DECODE',4:'SRC_NOT_SUPPORTED'};
+  const err = audioEl.error;
+  return err ? `MediaError ${err.code} (${codeNames[err.code]||'?'})${err.message?': '+err.message:''}` : (e && (e.name||e.message)) || String(e);
+}
+
+// Attempts audioEl.play(), surfacing any failure as a toast (with a long
+// dismiss time, since phones without a dev-tools console have no other way
+// to see this) instead of swallowing it. Returns true on success. Never
+// lies about player.isPlaying: it's only set true if play() actually
+// resolved, and explicitly set false (plus a render) on failure so a dead
+// segment shows a stopped player instead of a silently-stuck "playing" one.
+async function attemptPlay(){
+  try {
+    await audioEl.play();
+    player.isPlaying = true;
+    return true;
+  } catch(e){
+    console.warn('Playback failed.', e, audioEl.error);
+    player.isPlaying = false;
+    toast(`Playback failed — ${describeMediaError(e)}`, 12000);
+    render();
+    return false;
+  }
+}
+
 async function togglePlay(){
   if (!player.isReady) return;
   if (audioEl.paused){
-    try { await audioEl.play(); }
-    catch(e){
-      // audioEl.error (a MediaError) is far more diagnostic than the play()
-      // rejection itself — it's what actually failed inside the decoder.
-      // Surfaced directly in the toast (with a long dismiss time) since phones
-      // without a dev-tools console have no other way to see this.
-      const codeNames = {1:'ABORTED',2:'NETWORK',3:'DECODE',4:'SRC_NOT_SUPPORTED'};
+    const ok = await attemptPlay();
+    if (!ok){
       const err = audioEl.error;
-      const detail = err ? `MediaError ${err.code} (${codeNames[err.code]||'?'})${err.message?': '+err.message:''}` : (e && (e.name||e.message)) || String(e);
-      console.warn('Playback failed to start.', e, err);
-
       // Safety net for the long-book mobile Safari failure this couldn't
       // catch proactively (e.g. a book just under the proactive threshold
       // that still trips the parser): if this is a single-file book on
@@ -1869,11 +1892,7 @@ async function togglePlay(){
           return;
         }
       }
-      toast(`Playback failed — ${detail}`, 12000);
     }
-    // Don't set player.isPlaying here — the real 'play'/'pause' listeners below
-    // reflect what audioEl actually did, so a failed play() correctly leaves
-    // the button showing "play" instead of lying that it's playing.
   }
   else { audioEl.pause(); player.isPlaying = false; saveProgressNow(); }
   render();
@@ -1882,7 +1901,7 @@ async function skip(deltaSec){
   if (!player.isReady) return;
   let target = (audioEl.currentTime||0) + deltaSec;
   if (target < 0){
-    if (player.entryIndex > 0){ await loadEntry(player.entryIndex-1, Math.max(0,(player.entryDurations[player.entryIndex-1]||0)+target)); if(player.isPlaying) audioEl.play().catch(()=>{}); }
+    if (player.entryIndex > 0){ await loadEntry(player.entryIndex-1, Math.max(0,(player.entryDurations[player.entryIndex-1]||0)+target)); if(player.isPlaying) await attemptPlay(); }
     else audioEl.currentTime = 0;
   } else if (target > (audioEl.duration||Infinity)){
     await goToEntry(player.entryIndex+1, target-(audioEl.duration||0));
@@ -1895,7 +1914,7 @@ async function goToEntry(idx, seekTo=0){
   if (idx < 0 || idx >= player.match.entries.length) return;
   const wasPlaying = player.isPlaying;
   await loadEntry(idx, seekTo);
-  if (wasPlaying) { await audioEl.play().catch(()=>{}); player.isPlaying = true; }
+  if (wasPlaying) await attemptPlay();
   render(); saveProgress();
 }
 function jumpToChapter(idx){
@@ -2058,8 +2077,14 @@ audioEl.addEventListener('timeupdate', () => {
 });
 audioEl.addEventListener('ended', async () => {
   if (player.match && player.entryIndex < player.match.entries.length-1){
-    await goToEntry(player.entryIndex+1, 0);
-    audioEl.play().catch(()=>{});
+    // 'pause' can fire just before 'ended', which would already have set
+    // player.isPlaying = false — so don't rely on goToEntry's wasPlaying
+    // check here. Always try to resume into the next part, and let
+    // attemptPlay() surface (rather than swallow) a failure to load/decode
+    // that specific segment, instead of the book just going silent.
+    await loadEntry(player.entryIndex+1, 0);
+    await attemptPlay();
+    render(); saveProgress();
   } else {
     player.isPlaying = false;
     saveProgressNow();
@@ -2082,6 +2107,18 @@ audioEl.addEventListener('durationchange', () => {
 });
 audioEl.addEventListener('play', () => { player.isPlaying = true; if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing'; render(); });
 audioEl.addEventListener('pause', () => { player.isPlaying = false; if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused'; });
+// Catches decode/network failures that happen mid-segment (not just at an
+// explicit play() call or a part transition) — e.g. a split part that loads
+// its metadata fine but fails partway through actually decoding. Without
+// this, that failure previously had no listener at all: audio just stopped
+// and the UI kept showing "playing" forever.
+audioEl.addEventListener('error', () => {
+  if (!player.isReady) return; // ignore errors from src changes during loadEntry() itself
+  console.warn('audioEl error event mid-playback.', audioEl.error);
+  player.isPlaying = false;
+  toast(`Playback stopped — ${describeMediaError(null)}`, 12000);
+  render();
+});
 window.addEventListener('beforeunload', () => { if (player.bookId) saveProgressNow(); });
 
 function closePlayer(){
