@@ -28,10 +28,10 @@
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700;800&display=swap');
   :root{
-    --bg:#0E140A; --panel:#1A2313; --panel-2:#212C18; --panel-3:#283420;
-    --ink:#EDEFE3; --muted:#93A57E; --muted-dim:#647055;
-    --accent:#8FBE5C; --accent-dark:#5E8A3A; --accent-dim:rgba(143,190,92,.16);
-    --line:#2B3722; --warn:#D9A441; --bad:#C97A5B;
+    --bg:#0C1816; --panel:#131E16; --panel-2:#1F2922; --panel-3:#29352C;
+    --ink:#F2EEE4; --muted:#9BA893; --muted-dim:#6B7568;
+    --accent:#5F9567; --accent-dark:#3E6C41; --accent-dim:rgba(95,149,103,.16);
+    --line:#29372C; --warn:#D9A441; --bad:#C97A5B;
     --shadow:0 10px 30px rgba(0,0,0,.45);
   }
   *{box-sizing:border-box;}
@@ -40,17 +40,13 @@
     margin:0;font-family:'Inter',sans-serif;color:var(--ink);overflow-wrap:anywhere;
     background-color:var(--bg);
     /* Web/desktop background — swapped below for mobile widths. */
-    background-image:
-      linear-gradient(rgba(10,15,7,.92), rgba(10,15,7,.92)),
-      url("https://i.imgur.com/iHzdG9K.png");
+    background-image:url("https://i.imgur.com/iHzdG9K.png");
     background-attachment:fixed;background-size:cover;background-position:center;background-repeat:no-repeat;
     min-height:100vh;
   }
   @media (max-width:600px){
     body{
-      background-image:
-        linear-gradient(rgba(10,15,7,.92), rgba(10,15,7,.92)),
-        url("https://i.imgur.com/BKWwsHz.png");
+      background-image:url("https://i.imgur.com/BKWwsHz.png");
       /* fixed attachment is unreliable during mobile scroll/zoom — scroll instead */
       background-attachment:scroll;
     }
@@ -103,6 +99,7 @@
   .feature-cover img{width:100%;height:100%;object-fit:cover;}
   .feature-cover .ph{font-family:'Fraunces',serif;font-weight:600;font-size:11px;text-align:center;padding:6px;color:var(--muted);line-height:1.25;}
   .feature-body{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:5px;}
+  .feature-title-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .feature-title{font-weight:700;font-size:15px;line-height:1.3;}
   .feature-author{font-size:12.5px;color:var(--muted);}
   .feature-sub-row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
@@ -163,9 +160,8 @@
   input[type=range].scrub{-webkit-appearance:none;appearance:none;width:100%;height:5px;border-radius:999px;background:var(--panel-2);outline:none;cursor:pointer;display:block;}
   input[type=range].scrub::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.4);margin-top:-5px;position:relative;z-index:2;}
   input[type=range].scrub::-moz-range-thumb{width:15px;height:15px;border:none;border-radius:50%;background:var(--accent);cursor:pointer;position:relative;z-index:2;}
-  input[type=range].scrub::-webkit-slider-runnable-track{height:5px;border-radius:999px;background:linear-gradient(to right, var(--accent) var(--fill,0%), var(--panel-2) 0);}
-  .scrub-notches{position:absolute;left:0;right:0;top:0;height:5px;pointer-events:none;}
-  .scrub-notch{position:absolute;top:1px;width:2px;height:3px;border-radius:1px;background:rgba(14,20,10,.55);transform:translateX(-1px);}
+  input[type=range].scrub::-webkit-slider-runnable-track{height:5px;border-radius:999px;background:var(--notches,none), linear-gradient(to right, var(--accent) var(--fill,0%), var(--panel-2) 0);}
+  input[type=range].scrub::-moz-range-track{height:5px;border-radius:999px;background:var(--notches,none), linear-gradient(to right, var(--accent) var(--fill,0%), var(--panel-2) 0);}
   .time-row{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;margin-top:2px;}
 
   .transport{display:flex;align-items:center;justify-content:center;gap:26px;margin:18px 0 6px;}
@@ -384,7 +380,27 @@ function formatDueDate(iso){
   const [y,m,d] = iso.split('-');
   return getCurrentUserId()==='tom' ? `${m}/${d}` : `${d}/${m}`;
 }
-// Small radial % ring for the cover's dead space — mirrors the book % shown in prose below it.
+// Builds hard-edged tick marks straight into the track's own gradient, so they're
+// literally part of the bar's paint (not a separate overlay layer that can end up
+// behind the fill or fighting the native thumb for stacking order).
+function notchGradientCSS(percents, color){
+  color = color || '#7E827A';
+  if (!percents || !percents.length) return 'none';
+  const half = 0.35; // tick half-width, in %
+  const sorted = percents.slice().sort((a,b)=>a-b);
+  let stops = [];
+  let cursor = 0;
+  sorted.forEach(p=>{
+    const start = Math.max(cursor, p-half);
+    const end = Math.min(100, p+half);
+    if (start > cursor) stops.push(`transparent ${cursor}%`, `transparent ${start}%`);
+    stops.push(`${color} ${start}%`, `${color} ${end}%`);
+    cursor = end;
+  });
+  stops.push(`transparent ${cursor}%`, `transparent 100%`);
+  return `linear-gradient(to right, ${stops.join(', ')})`;
+}
+
 function progressRingHTML(pct){
   const size = 30, stroke = 3, r = (size-stroke)/2, c = 2*Math.PI*r;
   const offset = c * (1 - Math.max(0,Math.min(100,pct))/100);
@@ -1456,12 +1472,12 @@ function renderFeatureCard(item){
       ${prog ? progressRingHTML(prog.pct) : ''}
     </div>
     <div class="feature-body">
-      <div class="feature-title">${esc(item.title)}</div>
-      <div class="feature-author">${esc(item.author||'')}</div>
-      ${(due || stars) ? `<div class="feature-sub-row">
-        ${due ? `<span class="feature-due">Due by ${esc(due)}</span>` : ''}
+      <div class="feature-title-row">
+        <div class="feature-title">${esc(item.title)}</div>
         ${stars}
-      </div>` : ''}
+      </div>
+      <div class="feature-author">${esc(item.author||'')}</div>
+      ${due ? `<div class="feature-sub-row"><span class="feature-due">Due by ${esc(due)}</span></div>` : ''}
       ${prog ? `<div class="feature-progress-row">
         <div class="prog-bar"><div class="prog-fill" style="width:${prog.pct}%"></div></div>
         <div class="prog-pct">${prog.pct}%</div>
@@ -1572,8 +1588,7 @@ function renderPlayer(){
       </div>
       <div class="scrub-row">
         <div class="scrub-track-wrap">
-          <input type="range" class="scrub" id="scrub" min="0" max="${disp.sliderMax}" step="0.5" value="${disp.sliderValue}" style="--fill:${trackFillPct}%">
-          ${notches.length ? `<div class="scrub-notches">${notches.map(p=>`<span class="scrub-notch" style="left:${p}%"></span>`).join('')}</div>` : ''}
+          <input type="range" class="scrub" id="scrub" min="0" max="${disp.sliderMax}" step="0.5" value="${disp.sliderValue}" style="--fill:${trackFillPct}%; --notches:${notchGradientCSS(notches)};">
         </div>
         <div class="time-row">
           <span id="time-elapsed">${disp.elapsedLabel}</span>
