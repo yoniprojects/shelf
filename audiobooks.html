@@ -1319,7 +1319,36 @@ async function startPlaybackSession(itemId, match, item){
   await loadEntry(startEntry, startTime);
   audioEl.playbackRate = player.rate = (saved && saved.rate) || 1;
   player.isReady = true;
+  updateMediaSessionMetadata(item);
   render();
+}
+
+// Feeds the book's title/author/cover into the OS-level Now Playing widget
+// (lock screen, Control Center, AirPods) — without this, iOS just shows the
+// page title and app icon for every book, since that's its fallback when a
+// page never sets navigator.mediaSession.metadata.
+function updateMediaSessionMetadata(item){
+  if (!('mediaSession' in navigator)) return;
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: item.title || 'Audiobook',
+    artist: item.author || '',
+    album: 'Shelf & Spine',
+    artwork: item.coverUrl ? [
+      { src: item.coverUrl, sizes: '512x512', type: 'image/png' },
+      { src: item.coverUrl, sizes: '256x256', type: 'image/png' }
+    ] : []
+  });
+}
+
+// Wires the lock screen's play/pause/skip controls to the same functions the
+// in-app buttons use, so they stay in sync (iOS still LABELS its skip buttons
+// "10" regardless — that's a fixed OS icon it won't let sites relabel — but
+// tapping them now actually skips the app's real 30s).
+if ('mediaSession' in navigator){
+  navigator.mediaSession.setActionHandler('play', () => { if (player.isReady && audioEl.paused) togglePlay(); });
+  navigator.mediaSession.setActionHandler('pause', () => { if (player.isReady && !audioEl.paused) togglePlay(); });
+  navigator.mediaSession.setActionHandler('seekbackward', () => { if (player.isReady) skip(-30); });
+  navigator.mediaSession.setActionHandler('seekforward', () => { if (player.isReady) skip(30); });
 }
 
 function syncPlayerFromRemoteIfIdle(){
@@ -1440,8 +1469,8 @@ audioEl.addEventListener('ended', async () => {
     render();
   }
 });
-audioEl.addEventListener('play', () => { player.isPlaying = true; render(); });
-audioEl.addEventListener('pause', () => { player.isPlaying = false; });
+audioEl.addEventListener('play', () => { player.isPlaying = true; if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing'; render(); });
+audioEl.addEventListener('pause', () => { player.isPlaying = false; if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused'; });
 window.addEventListener('beforeunload', () => { if (player.bookId) saveProgressNow(); });
 
 function closePlayer(){
