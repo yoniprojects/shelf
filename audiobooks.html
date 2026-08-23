@@ -136,9 +136,11 @@
   .mini-stars .star-slot .star-fill{color:var(--accent);overflow:hidden;width:0%;}
   .mini-stars.editable{gap:2px;}
   .mini-stars.editable .star-slot{cursor:pointer;}
-  .mini-stars.editable .star-hit{position:absolute;top:-3px;bottom:-3px;width:50%;z-index:2;}
-  .mini-stars.editable .star-hit-left{left:0;}
-  .mini-stars.editable .star-hit-right{right:0;}
+  .mini-stars.editable .star-hit{position:absolute;top:-3px;bottom:-3px;width:25%;z-index:2;}
+  .mini-stars.editable .star-hit-q1{left:0;}
+  .mini-stars.editable .star-hit-q2{left:25%;}
+  .mini-stars.editable .star-hit-q3{left:50%;}
+  .mini-stars.editable .star-hit-q4{left:75%;}
   .player-rating-row{text-align:center;margin-top:10px;display:flex;align-items:center;justify-content:center;gap:8px;}
 
   .gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:16px 12px;}
@@ -401,8 +403,8 @@ function starsHTML(value, size){
 }
 
 // Tappable version of starsHTML — used in the player, where you're actually
-// rating the book you're listening to. Each star is split into a left/right
-// hit zone so half-star taps work the same way the fill already renders them.
+// rating the book you're listening to. Each star is split into 4 quarter-width
+// hit zones so quarter-star taps work the same way the fill already renders them.
 function starsEditableHTML(bookId, value, size){
   size = size || 20;
   value = Math.max(0, Math.min(5, Number(value)||0));
@@ -412,8 +414,10 @@ function starsEditableHTML(bookId, value, size){
     out += `<span class="star-slot">
       <span class="star-base">★</span>
       <span class="star-fill" style="width:${Math.round(frac*100)}%">★</span>
-      <span class="star-hit star-hit-left" data-action="set-rating" data-id="${esc(bookId)}" data-val="${n-0.5}"></span>
-      <span class="star-hit star-hit-right" data-action="set-rating" data-id="${esc(bookId)}" data-val="${n}"></span>
+      <span class="star-hit star-hit-q1" data-action="set-rating" data-id="${esc(bookId)}" data-val="${n-0.75}"></span>
+      <span class="star-hit star-hit-q2" data-action="set-rating" data-id="${esc(bookId)}" data-val="${n-0.5}"></span>
+      <span class="star-hit star-hit-q3" data-action="set-rating" data-id="${esc(bookId)}" data-val="${n-0.25}"></span>
+      <span class="star-hit star-hit-q4" data-action="set-rating" data-id="${esc(bookId)}" data-val="${n}"></span>
     </span>`;
   }
   out += `</span>`;
@@ -460,7 +464,7 @@ function saveBookPatch(itemId, patch){
 // pattern — this is the one place ratings flow app → main site instead of the
 // other way around, so it stays a deliberate, separate write.
 function setRating(bookId, value){
-  value = Math.max(0, Math.min(5, Math.round(Number(value)*2)/2 || 0));
+  value = Math.max(0, Math.min(5, Math.round(Number(value)*4)/4 || 0));
   const book = state.books.find(b => b.id === bookId);
   if (!book) return;
   if ((Number(book.rating)||0) === value) return;
@@ -2027,8 +2031,10 @@ function starsPickerHTML(value, size){
     out += `<span class="star-slot">
       <span class="star-base">★</span>
       <span class="star-fill" style="width:${Math.round(frac*100)}%">★</span>
-      <span class="star-hit star-hit-left" data-action="pick-complete-rating" data-val="${n-0.5}"></span>
-      <span class="star-hit star-hit-right" data-action="pick-complete-rating" data-val="${n}"></span>
+      <span class="star-hit star-hit-q1" data-action="pick-complete-rating" data-val="${n-0.75}"></span>
+      <span class="star-hit star-hit-q2" data-action="pick-complete-rating" data-val="${n-0.5}"></span>
+      <span class="star-hit star-hit-q3" data-action="pick-complete-rating" data-val="${n-0.25}"></span>
+      <span class="star-hit star-hit-q4" data-action="pick-complete-rating" data-val="${n}"></span>
     </span>`;
   }
   return out + `</span>`;
