@@ -421,16 +421,40 @@ function starsEditableHTML(bookId, value, size){
 }
 
 // Applies `patch` to the single book `itemId` and writes the FULL book list
-// (state.allBooks — every format, not just Audio) back to Firestore. Because
-// Firestore's `merge:true` replaces array fields wholesale rather than
-// merging them element-by-element, writing anything less than the complete
-// list here would silently delete every non-Audio book from the tracker doc.
-// Always go through this instead of writing state.books directly.
+// back to Firestore. Because Firestore's `merge:true` replaces array fields
+// wholesale rather than merging them element-by-element, writing anything
+// less than the complete list here would silently delete every other book
+// from the tracker doc.
+//
+// IMPORTANT: this deliberately does NOT build the write from state.allBooks.
+// Both this app and index.html call db.enablePersistence(), which means the
+// onSnapshot listener that populates state.allBooks can fire from this
+// device's local IndexedDB cache before it's actually synced with the
+// server (snapshot.metadata.fromCache === true) — e.g. right after opening
+// the page, after being backgrounded a while, or on a flaky connection. If
+// that cache happens to be stale (behind what's really on the server —
+// including from another device's more recent edit), writing state.allBooks
+// straight back would silently overwrite the server with old data, the same
+// class of bug as the original all-Audio wipeout, just via a different
+// route. So every write here re-fetches the doc fresh from the server
+// first and merges the patch into THAT, never into the cached local copy.
 function saveBookPatch(itemId, patch){
-  const newAllBooks = state.allBooks.map(b => b.id === itemId ? { ...b, ...patch } : b);
-  state.allBooks = newAllBooks;
-  state.books = newAllBooks.filter(b => b.format === 'Audio');
-  return BOOKS_DOC.set({ books: newAllBooks }, { merge: true });
+  // Optimistic local update so the UI feels instant — this is fine to base
+  // on state.allBooks since it only affects this device's own rendering
+  // until the real write below resolves.
+  const optimisticAllBooks = state.allBooks.map(b => b.id === itemId ? { ...b, ...patch } : b);
+  state.allBooks = optimisticAllBooks;
+  state.books = optimisticAllBooks.filter(b => b.format === 'Audio');
+
+  return BOOKS_DOC.get({ source: 'server' }).then(snap => {
+    const data = snap.exists ? snap.data() : {};
+    const freshBooks = Array.isArray(data.books) ? data.books : [];
+    const newAllBooks = freshBooks.map(b => b.id === itemId ? { ...b, ...patch } : b);
+    state.allBooks = newAllBooks;
+    state.books = newAllBooks.filter(b => b.format === 'Audio');
+    render();
+    return BOOKS_DOC.set({ books: newAllBooks }, { merge: true });
+  });
 }
 // Writes the new rating straight to the tracker doc, mirroring writeBookPercent's
 // pattern — this is the one place ratings flow app → main site instead of the
@@ -440,7 +464,7 @@ function setRating(bookId, value){
   const book = state.books.find(b => b.id === bookId);
   if (!book) return;
   if ((Number(book.rating)||0) === value) return;
-  const writePromise = saveBookPatch(bookId, { rating: value }); // updates state.books synchronously
+  const writePromise = saveBookPatch(bookId, { rating: value }); // optimistic render now, real merge+render after server fetch
   render();
   writePromise.catch(err => console.error('Failed to sync rating:', err));
 }
@@ -462,7 +486,7 @@ function saveCompleteBook(itemId){
     rating: rating,
     priority: '',
     dueDate: '',
-  }); // updates state.books synchronously
+  }); // optimistic render now, real merge+render after server fetch
   state.modal = null;
   render();
   writePromise
@@ -2135,12 +2159,14 @@ function confirmMoveWish(wishId){
   state.modal = null;
   render();
 
-  // state.books here only ever holds the Audio-format subset (this app's own
-  // filter) — writing it back wholesale would silently drop every non-audio
-  // book from the shared tracker doc, since Firestore replaces array fields
-  // rather than merging their elements. Read the FULL book list fresh right
-  // before writing, so nothing outside this app's view gets lost.
-  BOOKS_DOC.get().then(snap => {
+  // Always re-fetch from the server (not the local cache) right before
+  // merging — see saveBookPatch's comment above for why: this device's
+  // cached copy of the doc can be stale, and state.books here only ever
+  // holds the Audio-format subset (this app's own filter) anyway, so
+  // writing it back wholesale would silently drop every non-audio book
+  // from the shared tracker doc, since Firestore replaces array fields
+  // rather than merging their elements.
+  BOOKS_DOC.get({ source: 'server' }).then(snap => {
     const data = snap.exists ? snap.data() : {};
     const fullBooks = Array.isArray(data.books) ? data.books : [];
     const mergedFullBooks = [...fullBooks, newBook];
