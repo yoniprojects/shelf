@@ -1453,7 +1453,7 @@ function buildSegmentBoxes(table, startIdx, endIdx){
   wU32(tkhdPayload, 12, 1); // track_ID
   wU32(tkhdPayload, 20, durationTicks);
   wU16(tkhdPayload, 36, 0x0100); // volume = 1.0
-  wU32(tkhdPayload, 40, 0x00010000); wU32(tkhdPayload, 56, 0x00010000); wU32(tkhdPayload, 68, 0x40000000); // identity matrix
+  wU32(tkhdPayload, 40, 0x00010000); wU32(tkhdPayload, 56, 0x00010000); wU32(tkhdPayload, 72, 0x40000000); // identity matrix (a, d, w — w is index 8, at offset 40+8*4=72, not 68)
   const tkhdBytes = box('tkhd', tkhdPayload);
 
   const trakChildren = [tkhdBytes, mdiaBytes];
@@ -2119,6 +2119,33 @@ audioEl.addEventListener('error', () => {
   toast(`Playback stopped — ${describeMediaError(null)}`, 12000);
   render();
 });
+
+// STALL WATCHDOG: the failure mode above (an explicit 'error' event) turns
+// out not to be the only silent one. Some malformed segments cause mobile
+// Safari to accept play() successfully (no rejection, no 'error' event) and
+// then simply never advance currentTime again — no native event fires for
+// this at all on some builds. Without this, that looks exactly like a
+// healthy, playing player forever: pause icon showing, nothing wrong on
+// screen, audio just never comes. Polling currentTime is the only reliable
+// way to catch it.
+let watchdogLastTime = -1;
+setInterval(() => {
+  if (!player.isReady || !player.isPlaying){ watchdogLastTime = audioEl.currentTime; return; }
+  if (Math.abs(audioEl.currentTime - watchdogLastTime) < 0.05){
+    console.warn('Playback stall detected: currentTime not advancing.', {
+      entryIndex: player.entryIndex,
+      currentTime: audioEl.currentTime,
+      readyState: audioEl.readyState,
+      networkState: audioEl.networkState,
+    });
+    player.isPlaying = false;
+    toast(`Playback stalled at ${fmtHMS(audioEl.currentTime)} in part ${player.entryIndex+1} (readyState ${audioEl.readyState}, networkState ${audioEl.networkState}) — tap play to retry.`, 15000);
+    render();
+    watchdogLastTime = audioEl.currentTime;
+    return;
+  }
+  watchdogLastTime = audioEl.currentTime;
+}, 4000);
 window.addEventListener('beforeunload', () => { if (player.bookId) saveProgressNow(); });
 
 function closePlayer(){
