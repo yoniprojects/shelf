@@ -2128,6 +2128,8 @@ audioEl.addEventListener('error', () => {
 // healthy, playing player forever: pause icon showing, nothing wrong on
 // screen, audio just never comes. Polling currentTime is the only reliable
 // way to catch it.
+const BUILD_TAG = 'watchdog-v2';
+console.log('audiobooks.html build:', BUILD_TAG);
 let watchdogLastTime = -1;
 setInterval(() => {
   if (!player.isReady || !player.isPlaying){ watchdogLastTime = audioEl.currentTime; return; }
@@ -2161,7 +2163,7 @@ setInterval(() => {
       networkState: audioEl.networkState,
     });
     player.isPlaying = false;
-    toast(`Playback stalled at ${fmtHMS(audioEl.currentTime)} of ${isFinite(dur)?fmtHMS(dur):'?'} in part ${player.entryIndex+1} (readyState ${audioEl.readyState}, networkState ${audioEl.networkState}) — tap play to retry.`, 15000);
+    toast(`Playback stalled at ${fmtHMS(audioEl.currentTime)} of ${isFinite(dur)?fmtHMS(dur):'?'} in part ${player.entryIndex+1} (readyState ${audioEl.readyState}, networkState ${audioEl.networkState}) — tap play to retry. [${BUILD_TAG}]`, 15000);
     render();
     watchdogLastTime = audioEl.currentTime;
     return;
