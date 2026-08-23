@@ -1,0 +1,1575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Audiobooks — Shelf & Spine</title>
+<link rel="icon" type="image/png" href="https://i.imgur.com/htlhPe9.png?v=2" />
+<link rel="apple-touch-icon" href="https://i.imgur.com/htlhPe9.png?v=2" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Audiobooks" />
+<meta name="theme-color" content="#0F160C" />
+<script>
+  // Same "resume where I left off" convention as the rest of the site.
+  (function(){
+    try{
+      if (new URLSearchParams(location.search).has('home')) return;
+      if (document.referrer && document.referrer.indexOf(location.origin) === 0) return;
+      if (sessionStorage.getItem('shelf:sessionStarted')) return;
+      sessionStorage.setItem('shelf:sessionStarted', '1');
+      var last = localStorage.getItem('shelf:lastPage');
+      if (last && last !== 'audiobooks.html') { location.replace(last); }
+    } catch(e){}
+  })();
+  document.addEventListener('DOMContentLoaded', function(){
+    try{ localStorage.setItem('shelf:lastPage','audiobooks.html'); }catch(e){}
+  });
+</script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700;800&display=swap');
+  :root{
+    --bg:#0E140A; --panel:#1A2313; --panel-2:#212C18; --panel-3:#283420;
+    --ink:#EDEFE3; --muted:#93A57E; --muted-dim:#647055;
+    --accent:#8FBE5C; --accent-dark:#5E8A3A; --accent-dim:rgba(143,190,92,.16);
+    --line:#2B3722; --warn:#D9A441; --bad:#C97A5B;
+    --shadow:0 10px 30px rgba(0,0,0,.45);
+  }
+  *{box-sizing:border-box;}
+  html,body{max-width:100%;overflow-x:hidden;}
+  body{
+    margin:0;font-family:'Inter',sans-serif;color:var(--ink);overflow-wrap:anywhere;
+    background-color:var(--bg);
+    background-image:
+      linear-gradient(rgba(10,15,7,.92), rgba(10,15,7,.92)),
+      url("https://i.imgur.com/u5igRkn.jpeg");
+    background-attachment:fixed;background-size:cover;background-position:center;background-repeat:no-repeat;
+    min-height:100vh;
+  }
+  ::-webkit-scrollbar{height:8px;width:8px;}
+  ::-webkit-scrollbar-thumb{background:#3A4A2C;border-radius:4px;}
+  h1,h2,h3{margin:0;}
+  .display{font-family:'Fraunces',serif;font-weight:600;letter-spacing:.2px;color:var(--ink);}
+  a{color:inherit;}
+  button{font-family:inherit;}
+  .wrap{max-width:860px;margin:0 auto;padding:22px 18px 90px;}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:22px;}
+  .brand{display:flex;align-items:center;gap:9px;}
+  .brand svg{flex-shrink:0;color:var(--accent);}
+  .brand .word{font-family:'Fraunces',serif;font-style:italic;font-weight:600;font-size:21px;}
+  .brand .sub{font-size:11px;color:var(--muted-dim);margin-top:1px;}
+  .back-link{font-size:12.5px;color:var(--muted);text-decoration:none;font-weight:600;display:flex;align-items:center;gap:4px;}
+  .back-link:hover{color:var(--ink);}
+
+  .btn{border:none;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:.2px;}
+  .btn:active{transform:scale(.97);}
+  .btn-accent{background:var(--accent);color:#0F160C;}
+  .btn-ghost{background:transparent;color:var(--accent);border:1.5px solid var(--accent-dark);}
+  .btn-subtle{background:var(--panel-2);color:var(--ink);}
+  .btn-sm{padding:6px 11px;font-size:11.5px;border-radius:7px;}
+  .btn-icon{background:transparent;border:none;color:var(--muted);cursor:pointer;padding:6px;border-radius:8px;}
+  .btn-icon:hover{background:var(--panel-2);color:var(--ink);}
+  .btn:disabled{opacity:.45;cursor:default;}
+
+  .conn-banner{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:22px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;box-shadow:var(--shadow);}
+  .conn-banner .icon{font-size:22px;flex-shrink:0;}
+  .conn-banner .txt{flex:1;min-width:180px;}
+  .conn-banner .ttl{font-weight:700;font-size:14px;margin-bottom:2px;}
+  .conn-banner .sub{font-size:12px;color:var(--muted);line-height:1.4;}
+  .conn-banner.ok{border-color:var(--line);}
+  .conn-banner.warn{border-color:#4A3F22;}
+  .pill{background:var(--panel-2);color:var(--muted);border-radius:999px;padding:3px 10px;font-size:10.5px;font-weight:700;letter-spacing:.3px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;}
+  .pill.on{background:var(--accent-dim);color:var(--accent);}
+  .pill.off{background:rgba(201,122,91,.14);color:var(--bad);}
+  .pill.review{background:rgba(217,164,65,.14);color:var(--warn);}
+
+  .section-label{font-size:11.5px;font-weight:700;color:var(--muted);letter-spacing:.5px;margin:0 0 12px;text-transform:uppercase;}
+  section{margin-bottom:30px;}
+
+  .feature-row{display:flex;flex-direction:column;gap:12px;}
+  .feature-card{display:flex;gap:16px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;cursor:pointer;box-shadow:var(--shadow);}
+  .feature-card:hover{border-color:var(--accent-dark);}
+  .feature-cover{width:76px;height:112px;border-radius:8px;flex-shrink:0;overflow:hidden;box-shadow:0 6px 16px rgba(0,0,0,.4);position:relative;background:linear-gradient(150deg,var(--panel-3),var(--panel-2));display:flex;align-items:center;justify-content:center;}
+  .feature-cover img{width:100%;height:100%;object-fit:cover;}
+  .feature-cover .ph{font-family:'Fraunces',serif;font-weight:600;font-size:11px;text-align:center;padding:6px;color:var(--muted);line-height:1.25;}
+  .feature-body{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:5px;}
+  .feature-title{font-weight:700;font-size:15px;line-height:1.3;}
+  .feature-author{font-size:12.5px;color:var(--muted);}
+  .feature-progress-row{display:flex;align-items:center;gap:9px;margin-top:5px;}
+  .prog-bar{flex:1;height:6px;border-radius:999px;background:var(--panel-2);overflow:hidden;}
+  .prog-fill{height:100%;background:var(--accent);border-radius:999px;}
+  .prog-pct{font-size:11px;font-weight:700;color:var(--accent);min-width:32px;text-align:right;}
+  .feature-meta{font-size:11px;color:var(--muted-dim);margin-top:2px;}
+
+  .gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:16px 12px;}
+  .cover-card{cursor:pointer;}
+  .cover-card .cover{border-radius:9px;height:176px;margin-bottom:7px;overflow:hidden;position:relative;box-shadow:0 6px 16px rgba(0,0,0,.4);background:linear-gradient(150deg,var(--panel-3),var(--panel-2));display:flex;align-items:center;justify-content:center;}
+  .cover-card .cover img{width:100%;height:100%;object-fit:cover;}
+  .cover-card .cover .ph{font-family:'Fraunces',serif;font-weight:600;font-size:12.5px;text-align:center;padding:8px;color:var(--muted);}
+  .cover-card .cover .badge{position:absolute;top:6px;right:6px;}
+  .cover-card .title{font-size:12.5px;font-weight:700;line-height:1.28;}
+  .cover-card .author{font-size:11px;color:var(--muted);margin:2px 0 4px;}
+  .cover-card .mini-pct{font-size:10.5px;color:var(--accent);font-weight:700;}
+  .cover-card .mini-pill{font-size:10px;color:var(--muted-dim);}
+
+  .empty-state{text-align:center;padding:40px 20px;color:var(--muted);background:var(--panel);border:1px dashed var(--line);border-radius:14px;}
+  .empty-state .icon{font-size:28px;margin-bottom:8px;}
+  .empty-state p{font-size:13px;max-width:360px;margin:0 auto;line-height:1.5;}
+
+  /* ---------- player ---------- */
+  .player-wrap{max-width:520px;margin:0 auto;padding:18px 18px 40px;}
+  .player-back{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--muted);background:none;border:none;cursor:pointer;padding:8px 0;margin-bottom:6px;}
+  .player-back:hover{color:var(--ink);}
+  .player-cover{width:230px;height:230px;border-radius:16px;margin:8px auto 22px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.55);position:relative;background:linear-gradient(150deg,var(--panel-3),var(--panel-2));display:flex;align-items:center;justify-content:center;}
+  .player-cover img{width:100%;height:100%;object-fit:cover;}
+  .player-cover .ph{font-family:'Fraunces',serif;font-weight:600;font-size:16px;text-align:center;padding:14px;color:var(--muted);}
+  .player-title{font-family:'Fraunces',serif;font-weight:700;font-size:23px;text-align:center;line-height:1.25;padding:0 8px;}
+  .player-author{text-align:center;color:var(--muted);font-size:13.5px;margin-top:6px;}
+  .player-chapter-label{text-align:center;color:var(--accent);font-size:11.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;margin-top:12px;}
+
+  .player-panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px 20px 16px;margin-top:20px;box-shadow:var(--shadow);}
+  .player-pct{text-align:center;font-size:11.5px;font-weight:700;letter-spacing:.6px;color:var(--muted);text-transform:uppercase;margin-bottom:12px;}
+  .toggle-row{display:flex;justify-content:center;margin-bottom:16px;}
+  .toggle-group{display:flex;background:var(--panel-2);border-radius:999px;padding:3px;gap:2px;}
+  .toggle-btn{border:none;background:transparent;color:var(--muted);font-size:12px;font-weight:700;padding:6px 16px;border-radius:999px;cursor:pointer;display:flex;align-items:center;gap:5px;}
+  .toggle-btn.active{background:var(--accent);color:#0F160C;}
+
+  .scrub-row{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;}
+  input[type=range].scrub{-webkit-appearance:none;appearance:none;width:100%;height:5px;border-radius:999px;background:var(--panel-2);outline:none;cursor:pointer;}
+  input[type=range].scrub::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.4);margin-top:-5px;}
+  input[type=range].scrub::-moz-range-thumb{width:15px;height:15px;border:none;border-radius:50%;background:var(--accent);cursor:pointer;}
+  input[type=range].scrub::-webkit-slider-runnable-track{height:5px;border-radius:999px;background:linear-gradient(to right, var(--accent) var(--fill,0%), var(--panel-2) 0);}
+  .time-row{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;margin-top:2px;}
+
+  .transport{display:flex;align-items:center;justify-content:center;gap:26px;margin:18px 0 6px;}
+  .transport .skip-btn{background:none;border:none;color:var(--ink);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px;}
+  .transport .skip-btn span{font-size:9.5px;font-weight:700;color:var(--muted);}
+  .transport .play-btn{width:60px;height:60px;border-radius:50%;background:var(--accent);border:none;color:#0F160C;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(143,190,92,.35);}
+  .transport .play-btn:active{transform:scale(.95);}
+
+  .speed-row{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:8px;}
+  .speed-btn{width:28px;height:28px;border-radius:50%;border:1.5px solid var(--line);background:transparent;color:var(--ink);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .speed-btn:hover{border-color:var(--accent-dark);}
+  .speed-val{font-size:13px;font-weight:700;min-width:52px;text-align:center;font-variant-numeric:tabular-nums;}
+
+  .chapter-list{margin-top:18px;background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);}
+  .chapter-row{display:flex;justify-content:space-between;align-items:center;padding:13px 18px;border-bottom:1px solid var(--line);cursor:pointer;font-size:13.5px;}
+  .chapter-row:last-child{border-bottom:none;}
+  .chapter-row:hover{background:var(--panel-2);}
+  .chapter-row.active{background:var(--accent-dim);}
+  .chapter-row.active .chapter-name{color:var(--accent);font-weight:700;}
+  .chapter-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:12px;}
+  .chapter-time{color:var(--muted);font-variant-numeric:tabular-nums;flex-shrink:0;font-size:12px;}
+
+  .match-box{margin-top:18px;background:var(--panel);border:1px dashed var(--line);border-radius:14px;padding:16px 18px;text-align:center;}
+  .match-box p{font-size:13px;color:var(--muted);margin:0 0 12px;line-height:1.5;}
+
+  /* ---------- modal ---------- */
+  .modal-overlay{position:fixed;inset:0;background:rgba(5,8,3,.6);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
+  .modal-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;width:480px;max-width:94vw;max-height:86vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.55);}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:5;}
+  .modal-head h3{font-family:'Fraunces',serif;font-size:17px;font-weight:700;}
+  .modal-close{border:none;background:none;font-size:19px;cursor:pointer;color:var(--muted);}
+  .modal-body{padding:16px 20px 20px;}
+  .search-input{width:100%;border:1.5px solid var(--line);border-radius:9px;padding:9px 11px;font-size:13.5px;background:var(--panel-2);color:var(--ink);outline:none;margin-bottom:12px;}
+  .search-input:focus{border-color:var(--accent-dark);}
+  .cand-row{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;cursor:pointer;border:1px solid transparent;}
+  .cand-row:hover{background:var(--panel-2);border-color:var(--line);}
+  .cand-icon{font-size:18px;flex-shrink:0;width:22px;text-align:center;}
+  .cand-text{min-width:0;flex:1;}
+  .cand-name{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .cand-path{font-size:11px;color:var(--muted-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .cand-score{font-size:10.5px;color:var(--accent);font-weight:700;flex-shrink:0;}
+  .divider-label{font-size:10.5px;font-weight:700;color:var(--muted-dim);letter-spacing:.4px;text-transform:uppercase;margin:14px 0 6px;}
+  .multi-list{display:flex;flex-direction:column;gap:4px;max-height:220px;overflow-y:auto;margin-bottom:10px;}
+  .multi-item{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:6px 8px;border-radius:7px;background:var(--panel-2);}
+  .multi-item .n{color:var(--muted-dim);width:20px;flex-shrink:0;text-align:right;}
+
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--panel-3);color:var(--ink);padding:10px 18px;border-radius:999px;font-size:12.5px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:60;border:1px solid var(--line);}
+
+  @media (max-width:600px){
+    .gallery-grid{grid-template-columns:repeat(2,1fr);}
+    .player-cover{width:78vw;height:78vw;max-width:260px;max-height:260px;}
+  }
+</style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="modal-root"></div>
+  <input type="file" id="fileInput" multiple accept="audio/*,.m4b,.m4a,.mp3,.flac,.ogg,.oga,.opus,.wav,.aac" style="display:none" />
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+/* ==================================================================
+   FIREBASE — same project as the main Shelf & Spine app. This app only
+   ever READS the "shelf-spine" collection (your books/wishlist) and
+   WRITES to its own "audiobooks-app" collection (playback progress).
+   It never touches your tracker data.
+================================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyBqOuK-l7h5Do9sAk1y4MBxwYkFFu2pusY",
+  authDomain: "readingtracker-73e78.firebaseapp.com",
+  projectId: "readingtracker-73e78",
+  storageBucket: "readingtracker-73e78.firebasestorage.app",
+  messagingSenderId: "391536984056",
+  appId: "1:391536984056:web:ec841e6e42dbfd51e8e00d"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+db.enablePersistence().catch(()=>{});
+
+function lsGet(key){ try{ return localStorage.getItem(key); } catch(e){ return null; } }
+function lsSet(key, val){ try{ localStorage.setItem(key, val); return true; } catch(e){ return false; } }
+
+function getCurrentUserId(){ return lsGet('shelf:currentUser') || 'shared'; }
+const BOOKS_DOC = db.collection("shelf-spine").doc(getCurrentUserId());
+const PROGRESS_DOC = db.collection("audiobooks-app").doc(getCurrentUserId());
+</script>
+
+<script>
+/* ==================================================================
+   TINY INDEXEDDB HELPER
+   Everything stored here is LOCAL TO THIS DEVICE/BROWSER on purpose:
+   directory handles and file handles can't be serialized or sent
+   anywhere — each device has to be pointed at its own copy of the
+   files. Only playback *position* syncs, via Firestore above.
+================================================================== */
+const IDB_NAME = "audiobooks-app-db";
+const IDB_VERSION = 2;
+let idbPromise = null;
+function openIdb(){
+  if (idbPromise) return idbPromise;
+  idbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+    req.onupgradeneeded = () => {
+      const d = req.result;
+      if (!d.objectStoreNames.contains("kv")) d.createObjectStore("kv");
+      // "blobs" holds actual copies of audio files, cached on this device so
+      // playback never depends on OS-level file paths (which browsers don't
+      // expose) or on a live folder handle (which only Chromium supports).
+      if (!d.objectStoreNames.contains("blobs")) d.createObjectStore("blobs");
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return idbPromise;
+}
+async function idbGet(key){
+  const d = await openIdb();
+  return new Promise((resolve, reject) => {
+    const tx = d.transaction("kv", "readonly");
+    const rq = tx.objectStore("kv").get(key);
+    rq.onsuccess = () => resolve(rq.result === undefined ? null : rq.result);
+    rq.onerror = () => reject(rq.error);
+  });
+}
+async function idbSet(key, val){
+  const d = await openIdb();
+  return new Promise((resolve, reject) => {
+    const tx = d.transaction("kv", "readwrite");
+    tx.objectStore("kv").put(val, key);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function idbDelete(key){
+  const d = await openIdb();
+  return new Promise((resolve, reject) => {
+    const tx = d.transaction("kv", "readwrite");
+    tx.objectStore("kv").delete(key);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+const matchKey = (bookId) => `match:${getCurrentUserId()}:${bookId}`;
+const chapKey  = (bookId) => `chapters:${getCurrentUserId()}:${bookId}`;
+const blobKey  = (bookId, idx) => `blob:${getCurrentUserId()}:${bookId}:${idx}`;
+
+async function idbSetBlob(key, fileOrBlob){
+  const d = await openIdb();
+  return new Promise((resolve, reject) => {
+    const tx = d.transaction("blobs", "readwrite");
+    tx.objectStore("blobs").put(fileOrBlob, key);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function idbGetBlob(key){
+  const d = await openIdb();
+  return new Promise((resolve, reject) => {
+    const tx = d.transaction("blobs", "readonly");
+    const rq = tx.objectStore("blobs").get(key);
+    rq.onsuccess = () => resolve(rq.result === undefined ? null : rq.result);
+    rq.onerror = () => reject(rq.error);
+  });
+}
+async function idbDeleteBlob(key){
+  const d = await openIdb();
+  return new Promise((resolve, reject) => {
+    const tx = d.transaction("blobs", "readwrite");
+    tx.objectStore("blobs").delete(key);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+</script>
+
+<script>
+/* ==================================================================
+   TOKENS / HELPERS
+================================================================== */
+const SPINE_COLORS = ["#4A7A4C","#C08A4E","#7FB59A","#C29A2E","#8A9C5E","#B5794A","#5E8F87","#A0703F","#6E8A4E","#9C8248"];
+const AUDIO_EXTS = ["mp3","m4a","m4b","aac","flac","ogg","oga","opus","wav"];
+const SPEED_STEPS = [0.75,1,1.1,1.25,1.5,1.75,2,2.25,2.5,2.75,3];
+
+function esc(s){ return (s==null?"":String(s)).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function hashStr(s){ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h; }
+function spineColor(title){ return SPINE_COLORS[hashStr(title||"x")%SPINE_COLORS.length]; }
+
+function fmtHMS(sec){
+  sec = Math.max(0, Math.round(sec||0));
+  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+function fmtRemaining(sec){ return `-${fmtHMS(sec)}`; }
+
+function initials(title){
+  return (title||"?").split(/\s+/).slice(0,4).join(" ");
+}
+
+function toast(msg, ms=2600){
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(), ms);
+}
+</script>
+
+<script>
+/* ==================================================================
+   STATE
+================================================================== */
+const SUPPORTS_FS_ACCESS = !!window.showDirectoryPicker; // Chromium-only folder access
+
+let state = {
+  loaded: false,
+  books: [],          // format === "Audio" tracker books
+  wishlist: [],        // format === "Audio" wishlist items
+  progress: {},         // bookId -> {mode, trackIndex, trackPosSec, cumulativeSec, totalSec, rate, chapterTitle, updatedAt}
+  rootDirName: null,     // display name of connected folder
+  rootDirHandle: null,
+  dirPermissionOk: false,
+  scan: null,            // {files:[...], folders: Map} built by scanning rootDirHandle
+  scanning: false,
+  matches: {},            // bookId -> match object (loaded lazily from IndexedDB)
+  view: (location.hash === '#player' && lsGet('audiobooks:lastBook')) ? 'player' : 'gallery',
+  currentBookId: lsGet('audiobooks:lastBook') || null,
+  modal: null,
+  pendingLocateId: null,   // bookId waiting on the universal <input type=file> picker
+  storageEstimate: null,   // {usage, quota} from navigator.storage.estimate()
+};
+
+function fmtBytes(n){
+  if (n == null) return '';
+  const units = ['B','KB','MB','GB','TB'];
+  let i = 0, v = n;
+  while (v >= 1024 && i < units.length-1){ v /= 1024; i++; }
+  return `${v.toFixed(v < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
+}
+async function refreshStorageEstimate(){
+  try{
+    if (!navigator.storage || !navigator.storage.estimate) return;
+    state.storageEstimate = await navigator.storage.estimate();
+    render();
+  } catch(e){}
+}
+// Best-effort: ask the browser not to evict our cached audio under storage
+// pressure or (Safari) after 7 days without interaction. Not guaranteed.
+async function requestPersistentStorage(){
+  try{ if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch(e){}
+}
+
+// Resolves the actual playable file for one match entry. Always prefers the
+// cached on-device copy (works in every browser, survives the source file
+// moving or being deleted) and falls back to a live FileSystemFileHandle
+// (Chromium only) when no cached copy exists yet — caching it afterward.
+async function getEntryFile(bookId, idx, entry){
+  const key = blobKey(bookId, idx);
+  try{
+    const cached = await idbGetBlob(key);
+    if (cached) return cached;
+  } catch(e){}
+  if (entry.handle){
+    const file = await entry.handle.getFile();
+    idbSetBlob(key, file).catch(()=>{});
+    return file;
+  }
+  throw new Error("This file isn't cached on this device yet — open Match to add it.");
+}
+// After a Chromium folder-scan match, copy each file into the local cache in
+// the background so playback no longer depends on the live folder handle.
+async function cacheMatchEntries(bookId, match){
+  let copiedAny = false;
+  for (let i=0;i<match.entries.length;i++){
+    const entry = match.entries[i];
+    if (!entry.handle) continue; // already blob-only (added via file picker)
+    const key = blobKey(bookId, i);
+    try{
+      const existing = await idbGetBlob(key);
+      if (existing) continue;
+      const file = await entry.handle.getFile();
+      await idbSetBlob(key, file);
+      copiedAny = true;
+    } catch(e){ console.warn('Could not cache', entry.name, e); }
+  }
+  if (copiedAny){ requestPersistentStorage(); refreshStorageEstimate(); }
+}
+
+function allAudioItems(){
+  // Normalizes tracker books + wishlist items marked Audio into one shape.
+  const fromBooks = state.books.map(b => ({
+    id: b.id, title: b.title, author: b.author, coverUrl: b.coverUrl,
+    section: b.status === 'reading' ? 'reading' : (b.status === 'done' ? 'finished' : 'dnf'),
+    source: 'book', raw: b,
+  }));
+  const fromWishlist = state.wishlist.map(w => ({
+    id: 'wish:'+w.id, title: w.title, author: w.author, coverUrl: w.coverUrl,
+    section: 'toberead', source: 'wishlist', raw: w,
+  }));
+  return [...fromBooks, ...fromWishlist];
+}
+function findItem(id){ return allAudioItems().find(i => i.id === id) || null; }
+</script>
+
+<script>
+/* ==================================================================
+   FIRESTORE LOAD
+================================================================== */
+function loadBooks(){
+  BOOKS_DOC.onSnapshot((snap) => {
+    const data = snap.exists ? snap.data() : {};
+    const books = Array.isArray(data.books) ? data.books : [];
+    const wishlist = Array.isArray(data.wishlist) ? data.wishlist : [];
+    state.books = books.filter(b => b.format === 'Audio');
+    state.wishlist = wishlist.filter(w => w.format === 'Audio');
+    state.loaded = true;
+    render();
+  }, (err) => {
+    console.error('Firestore sync error:', err);
+    state.loaded = true;
+    render();
+  });
+}
+function loadProgress(){
+  PROGRESS_DOC.onSnapshot((snap) => {
+    const data = snap.exists ? snap.data() : {};
+    state.progress = (data && typeof data.progress === 'object' && data.progress) || {};
+    render();
+    if (state.view === 'player' && state.currentBookId) syncPlayerFromRemoteIfIdle();
+  }, (err) => console.error('Progress sync error:', err));
+}
+let saveDebounce = null;
+function persistProgress(bookId, patch){
+  state.progress[bookId] = { ...(state.progress[bookId]||{}), ...patch, updatedAt: Date.now() };
+  clearTimeout(saveDebounce);
+  saveDebounce = setTimeout(() => {
+    PROGRESS_DOC.set({ progress: { [bookId]: state.progress[bookId] } }, { merge: true })
+      .catch(err => console.error('Failed to save progress:', err));
+  }, 900);
+}
+function persistProgressNow(bookId, patch){
+  state.progress[bookId] = { ...(state.progress[bookId]||{}), ...patch, updatedAt: Date.now() };
+  PROGRESS_DOC.set({ progress: { [bookId]: state.progress[bookId] } }, { merge: true })
+    .catch(err => console.error('Failed to save progress:', err));
+}
+</script>
+
+<script>
+/* ==================================================================
+   FILE SYSTEM: connect, scan, and remember a local folder
+================================================================== */
+async function restoreRootDir(){
+  try{
+    const handle = await idbGet('rootDir');
+    if (!handle) return;
+    state.rootDirHandle = handle;
+    state.rootDirName = handle.name;
+    // Don't call requestPermission here — it needs a user gesture.
+    // Just check silently; we'll prompt to reconnect if it's not granted.
+    const perm = await handle.queryPermission({ mode: 'read' });
+    state.dirPermissionOk = perm === 'granted';
+    render();
+  } catch(e){ console.warn('No saved folder yet.', e); }
+}
+
+async function connectFolder(){
+  if (!window.showDirectoryPicker){
+    toast("This browser doesn't support folder access — try Chrome, Edge, or a Chromium-based browser.");
+    return;
+  }
+  try{
+    const handle = await window.showDirectoryPicker({ mode: 'read' });
+    state.rootDirHandle = handle;
+    state.rootDirName = handle.name;
+    state.dirPermissionOk = true;
+    await idbSet('rootDir', handle);
+    toast(`Connected to "${handle.name}"`);
+    render();
+    await rescanLibrary();
+  } catch(e){
+    if (e && e.name !== 'AbortError') console.error(e);
+  }
+}
+
+async function reconnectFolder(){
+  if (!state.rootDirHandle) return connectFolder();
+  try{
+    const perm = await state.rootDirHandle.requestPermission({ mode: 'read' });
+    state.dirPermissionOk = perm === 'granted';
+    render();
+    if (state.dirPermissionOk) { toast('Reconnected.'); await rescanLibrary(); }
+    else toast("Permission wasn't granted.");
+  } catch(e){ console.error(e); toast('Could not reconnect — try choosing the folder again.'); }
+}
+
+function extOf(name){ const m=/\.([a-z0-9]+)$/i.exec(name); return m?m[1].toLowerCase():''; }
+function isAudioFile(name){ return AUDIO_EXTS.includes(extOf(name)); }
+
+function naturalCompare(a,b){
+  const ax=[], bx=[];
+  a.replace(/(\d+)|(\D+)/g, (_,d,s)=>{ ax.push([d?parseInt(d,10):Infinity, s||""]); });
+  b.replace(/(\d+)|(\D+)/g, (_,d,s)=>{ bx.push([d?parseInt(d,10):Infinity, s||""]); });
+  while(ax.length && bx.length){
+    const an=ax.shift(), bn=bx.shift();
+    const cmp = (an[0]-bn[0]) || an[1].localeCompare(bn[1]);
+    if (cmp) return cmp;
+  }
+  return ax.length-bx.length;
+}
+
+async function scanDir(dirHandle, pathParts, out){
+  const folderEntry = { name: dirHandle.name, path: pathParts.join('/'), depth: pathParts.length, fileNames: [], handle: dirHandle };
+  out.folders.push(folderEntry);
+  for await (const [name, handle] of dirHandle.entries()){
+    if (name.startsWith('.')) continue;
+    if (handle.kind === 'file'){
+      if (!isAudioFile(name)) continue;
+      const rec = { name, path: [...pathParts, name].join('/'), parentPath: pathParts.join('/'), handle };
+      out.files.push(rec);
+      folderEntry.fileNames.push(name);
+    } else if (handle.kind === 'directory'){
+      await scanDir(handle, [...pathParts, name], out);
+    }
+  }
+  return out;
+}
+
+async function rescanLibrary(){
+  if (!state.rootDirHandle || !state.dirPermissionOk) return;
+  state.scanning = true; render();
+  try{
+    const out = { files: [], folders: [] };
+    await scanDir(state.rootDirHandle, [], out);
+    state.scan = out;
+    toast(`Found ${out.files.length} audio file${out.files.length===1?'':'s'}.`);
+    await autoMatchAll();
+  } catch(e){
+    console.error(e);
+    toast('Could not scan that folder.');
+  } finally {
+    state.scanning = false; render();
+  }
+}
+</script>
+
+<script>
+/* ==================================================================
+   MATCHING: book <-> file(s) on disk
+================================================================== */
+const STOPWORDS = new Set(["a","an","the","and","of","in","on","to","vol","volume","book","novel","unabridged","audiobook","cd","mp3"]);
+function normTokens(s){
+  return (s||"")
+    .toLowerCase()
+    .replace(/\.[a-z0-9]{2,4}$/i,'')            // strip file extension
+    .replace(/[\(\[\{][^\)\]\}]*[\)\]\}]/g,' ')  // strip (Unabridged) etc.
+    .replace(/[^a-z0-9]+/g,' ')
+    .split(' ')
+    .filter(t => t && !STOPWORDS.has(t) && !/^\d{1,2}$/.test(t)); // drop bare track numbers
+}
+function scoreTokens(bookTokens, candTokens){
+  if (!bookTokens.length) return 0;
+  const candSet = new Set(candTokens);
+  let hit = 0;
+  for (const t of bookTokens) if (candSet.has(t)) hit++;
+  return hit / bookTokens.length;
+}
+
+function buildCandidatesForItem(item){
+  const scan = state.scan;
+  if (!scan) return { folders: [], files: [] };
+  const titleTokens = normTokens(item.title);
+  const authorLast = (item.author||'').trim().split(/\s+/).pop();
+  const authorTokens = normTokens(authorLast);
+
+  const folderCands = scan.folders
+    .filter(f => f.fileNames.length >= 2)
+    .map(f => {
+      const nameTokens = normTokens(f.path.replace(/\//g,' '));
+      let score = scoreTokens(titleTokens, nameTokens);
+      if (authorTokens.length && scoreTokens(authorTokens, nameTokens) > 0) score = Math.min(1, score + 0.12);
+      return { folder: f, score };
+    })
+    .sort((a,b)=>b.score-a.score);
+
+  const fileCands = scan.files.map(f => {
+    const nameTokens = normTokens(f.path.replace(/\//g,' '));
+    let score = scoreTokens(titleTokens, nameTokens);
+    if (authorTokens.length && scoreTokens(authorTokens, nameTokens) > 0) score = Math.min(1, score + 0.12);
+    return { file: f, score };
+  }).sort((a,b)=>b.score-a.score);
+
+  return { folders: folderCands, files: fileCands };
+}
+
+async function autoMatchAll(){
+  const items = allAudioItems();
+  for (const item of items){
+    if (state.matches[item.id]) continue; // don't clobber existing/manual matches
+    const existing = await idbGet(matchKey(item.id));
+    if (existing) { state.matches[item.id] = existing; continue; }
+    const cands = buildCandidatesForItem(item);
+    const bestFolder = cands.folders[0];
+    const bestFile = cands.files[0];
+    const THRESH = 0.7;
+    if (bestFolder && bestFolder.score >= THRESH && (!bestFile || bestFolder.score >= bestFile.score)){
+      await setMultiMatch(item.id, bestFolder.folder);
+    } else if (bestFile && bestFile.score >= THRESH){
+      await setSingleMatch(item.id, bestFile.file);
+    }
+  }
+  render();
+}
+
+async function setSingleMatch(bookId, fileRec){
+  const match = { mode: 'single', entries: [{ name: fileRec.name, path: fileRec.path, handle: fileRec.handle }], matchedAt: Date.now() };
+  state.matches[bookId] = match;
+  await idbSet(matchKey(bookId), match);
+  await idbDelete(chapKey(bookId)); // force re-parse of chapters for the new file
+  cacheMatchEntries(bookId, match); // fire-and-forget: copy into the local cache
+}
+async function setMultiMatch(bookId, folderRec){
+  const filesInFolder = state.scan.files
+    .filter(f => f.parentPath === folderRec.path || f.parentPath.startsWith(folderRec.path + '/'))
+    .sort((a,b)=>naturalCompare(a.path,b.path));
+  const match = { mode: 'multi', entries: filesInFolder.map(f => ({ name: f.name, path: f.path, handle: f.handle })), matchedAt: Date.now() };
+  state.matches[bookId] = match;
+  await idbSet(matchKey(bookId), match);
+  cacheMatchEntries(bookId, match); // fire-and-forget: copy into the local cache
+}
+async function clearMatch(bookId){
+  const match = state.matches[bookId] || await idbGet(matchKey(bookId));
+  if (match){
+    for (let i=0;i<match.entries.length;i++){ await idbDeleteBlob(blobKey(bookId, i)).catch(()=>{}); }
+  }
+  delete state.matches[bookId];
+  await idbDelete(matchKey(bookId));
+  await idbDelete(chapKey(bookId));
+  refreshStorageEstimate();
+  render();
+}
+
+// Universal fallback for Safari/Firefox (and an alt path in Chromium): pick
+// file(s) straight off the device via a plain <input type=file>, then copy
+// them into the local cache immediately. No folder access API required.
+function triggerAddFiles(bookId){
+  state.pendingLocateId = bookId;
+  const input = document.getElementById('fileInput');
+  input.value = '';
+  input.click();
+}
+async function handleFilesSelected(fileList){
+  const bookId = state.pendingLocateId;
+  state.pendingLocateId = null;
+  if (!bookId || !fileList || !fileList.length) return;
+  const files = Array.from(fileList).filter(f => isAudioFile(f.name)).sort((a,b)=>naturalCompare(a.name,b.name));
+  if (!files.length){ toast('No supported audio files in that selection.'); return; }
+  const mode = files.length > 1 ? 'multi' : 'single';
+  const entries = [];
+  for (let i=0;i<files.length;i++){
+    await idbSetBlob(blobKey(bookId, i), files[i]);
+    entries.push({ name: files[i].name, path: files[i].name }); // no handle — blob is the source of truth
+  }
+  const match = { mode, entries, matchedAt: Date.now() };
+  state.matches[bookId] = match;
+  await idbSet(matchKey(bookId), match);
+  await idbDelete(chapKey(bookId));
+  requestPersistentStorage();
+  refreshStorageEstimate();
+  state.modal = null;
+  toast('Added — this book will open straight into the player from now on.');
+  if (state.view === 'player' && state.currentBookId === bookId) await startPlaybackSession(bookId, match, findItem(bookId));
+  else render();
+}
+
+async function loadMatchIfNeeded(bookId){
+  if (state.matches[bookId]) return state.matches[bookId];
+  const existing = await idbGet(matchKey(bookId));
+  if (existing) { state.matches[bookId] = existing; return existing; }
+  return null;
+}
+</script>
+
+<script>
+/* ==================================================================
+   MP4/M4B CHAPTER PARSING (best-effort — falls back gracefully)
+   Supports the two common formats: Nero "chpl" atoms, and QuickTime
+   text-track chapters (tref -> chap). Neither is loaded until you
+   open a book, and only the small "moov" atom is read into memory.
+================================================================== */
+async function readSlice(file, start, len){
+  const blob = file.slice(start, start+len);
+  return new Uint8Array(await blob.arrayBuffer());
+}
+function u32(bytes, off){ return (bytes[off]<<24 | bytes[off+1]<<16 | bytes[off+2]<<8 | bytes[off+3])>>>0; }
+function u16(bytes, off){ return (bytes[off]<<8 | bytes[off+1]); }
+function u64(bytes, off){ return BigInt(u32(bytes,off))*4294967296n + BigInt(u32(bytes,off+4)); }
+function fourcc(bytes, off){ return String.fromCharCode(bytes[off],bytes[off+1],bytes[off+2],bytes[off+3]); }
+
+async function findTopLevelBox(file, type){
+  let offset = 0;
+  const fileSize = file.size;
+  while (offset + 8 <= fileSize){
+    const head = await readSlice(file, offset, 16);
+    let size = u32(head, 0);
+    const t = fourcc(head, 4);
+    let headerSize = 8;
+    if (size === 1){ size = Number(u64(head, 8)); headerSize = 16; }
+    else if (size === 0){ size = fileSize - offset; }
+    if (t === type) return { offset, size, headerSize };
+    if (size <= 0) break;
+    offset += size;
+  }
+  return null;
+}
+
+// Parses a fully-loaded buffer of sibling boxes starting at `start`, up to `end`.
+function parseBoxList(buf, start, end){
+  const boxes = [];
+  let off = start;
+  while (off + 8 <= end){
+    let size = u32(buf, off);
+    const type = fourcc(buf, off+4);
+    let headerSize = 8;
+    if (size === 1){ size = Number(u64(buf, off+8)); headerSize = 16; }
+    else if (size === 0){ size = end - off; }
+    if (size < headerSize) break;
+    boxes.push({ type, start: off+headerSize, end: off+size });
+    off += size;
+  }
+  return boxes;
+}
+function findBox(boxes, type){ return boxes.find(b => b.type === type) || null; }
+function findBoxDeep(buf, boxes, path){
+  // path e.g. ['udta','chpl']
+  let list = boxes, found = null;
+  for (let i=0;i<path.length;i++){
+    found = findBox(list, path[i]);
+    if (!found) return null;
+    if (i < path.length-1) list = parseBoxList(buf, found.start, found.end);
+  }
+  return found;
+}
+
+function parseChplChapters(buf, box){
+  // Nero "chpl": version(1) + flags(3) + reserved(4, some encoders omit) + count(1) + entries
+  try{
+    let p = box.start + 4; // skip version/flags
+    // Some encoders put a 4-byte reserved field before the count, some don't.
+    // Heuristic: try both and keep whichever parses cleanly to the box end.
+    for (const skipReserved of [4, 0]){
+      let pos = box.start + 4 + skipReserved;
+      if (pos >= box.end) continue;
+      const count = buf[pos]; pos += 1;
+      const chapters = [];
+      let ok = true;
+      for (let i=0;i<count;i++){
+        if (pos + 9 > box.end){ ok = false; break; }
+        const start100ns = u64(buf, pos); pos += 8;
+        const titleLen = buf[pos]; pos += 1;
+        if (pos + titleLen > box.end){ ok = false; break; }
+        const titleBytes = buf.slice(pos, pos+titleLen); pos += titleLen;
+        const title = new TextDecoder('utf-8').decode(titleBytes);
+        chapters.push({ title, startSec: Number(start100ns) / 10000000 });
+      }
+      if (ok && chapters.length) return chapters;
+    }
+  } catch(e){ console.warn('chpl parse failed', e); }
+  return null;
+}
+
+function parseMdhdTimescale(buf, mdhdBox){
+  const version = buf[mdhdBox.start];
+  const off = version === 1 ? mdhdBox.start + 4 + 8 + 8 : mdhdBox.start + 4 + 4 + 4;
+  return u32(buf, off);
+}
+function parseSttsSampleTimes(buf, sttsBox){
+  const entryCount = u32(buf, sttsBox.start+4);
+  let p = sttsBox.start + 8;
+  const times = []; let cum = 0;
+  for (let i=0;i<entryCount;i++){
+    const count = u32(buf, p), delta = u32(buf, p+4); p += 8;
+    for (let j=0;j<count;j++){ times.push(cum); cum += delta; }
+  }
+  return times;
+}
+function parseStszSizes(buf, stszBox){
+  const sampleSize = u32(buf, stszBox.start+4);
+  const sampleCount = u32(buf, stszBox.start+8);
+  if (sampleSize !== 0) return new Array(sampleCount).fill(sampleSize);
+  const sizes = [];
+  let p = stszBox.start + 12;
+  for (let i=0;i<sampleCount;i++){ sizes.push(u32(buf,p)); p += 4; }
+  return sizes;
+}
+function parseStsc(buf, stscBox){
+  const entryCount = u32(buf, stscBox.start+4);
+  const entries = [];
+  let p = stscBox.start + 8;
+  for (let i=0;i<entryCount;i++){
+    entries.push({ firstChunk: u32(buf,p), samplesPerChunk: u32(buf,p+4) });
+    p += 12;
+  }
+  return entries;
+}
+function parseChunkOffsets(buf, box){
+  const isCo64 = box.type === 'co64';
+  const entryCount = u32(buf, box.start+4);
+  const offsets = [];
+  let p = box.start + 8;
+  for (let i=0;i<entryCount;i++){
+    offsets.push(isCo64 ? Number(u64(buf,p)) : u32(buf,p));
+    p += isCo64 ? 8 : 4;
+  }
+  return offsets;
+}
+function sampleOffsets(chunkOffsets, stsc, sizes){
+  const offsets = [];
+  let sampleIdx = 0;
+  for (let c=0;c<chunkOffsets.length;c++){
+    const chunkNum = c+1;
+    let spc = stsc[stsc.length-1].samplesPerChunk;
+    for (let k=stsc.length-1;k>=0;k--){ if (chunkNum >= stsc[k].firstChunk){ spc = stsc[k].samplesPerChunk; break; } }
+    let pos = chunkOffsets[c];
+    for (let s=0;s<spc && sampleIdx < sizes.length;s++){
+      offsets.push(pos);
+      pos += sizes[sampleIdx];
+      sampleIdx++;
+    }
+  }
+  return offsets;
+}
+
+async function parseQtTextChapters(file, buf, moovBoxes){
+  try{
+    const traks = moovBoxes.filter(b => b.type === 'trak').map(t => ({ boxes: parseBoxList(buf, t.start, t.end) }));
+    let chapterTrackId = null;
+    for (const tr of traks){
+      const tref = findBox(tr.boxes, 'tref');
+      if (!tref) continue;
+      const chap = findBox(parseBoxList(buf, tref.start, tref.end), 'chap');
+      if (chap) { chapterTrackId = u32(buf, chap.start); break; }
+    }
+    if (!chapterTrackId) return null;
+
+    let chapTrak = null;
+    for (const tr of traks){
+      const tkhd = findBox(tr.boxes, 'tkhd');
+      if (!tkhd) continue;
+      const version = buf[tkhd.start];
+      const idOff = version === 1 ? tkhd.start+4+8+8 : tkhd.start+4+4+4;
+      const trackId = u32(buf, idOff);
+      if (trackId === chapterTrackId) { chapTrak = tr; break; }
+    }
+    if (!chapTrak) return null;
+
+    const mdia = findBox(chapTrak.boxes, 'mdia');
+    const mdiaBoxes = parseBoxList(buf, mdia.start, mdia.end);
+    const mdhd = findBox(mdiaBoxes, 'mdhd');
+    const timescale = parseMdhdTimescale(buf, mdhd);
+    const minf = findBox(mdiaBoxes, 'minf');
+    const minfBoxes = parseBoxList(buf, minf.start, minf.end);
+    const stbl = findBox(minfBoxes, 'stbl');
+    const stblBoxes = parseBoxList(buf, stbl.start, stbl.end);
+    const stts = findBox(stblBoxes, 'stts');
+    const stsz = findBox(stblBoxes, 'stsz');
+    const stsc = findBox(stblBoxes, 'stsc');
+    const stco = findBox(stblBoxes, 'stco') || findBox(stblBoxes, 'co64');
+    if (!stts || !stsz || !stsc || !stco) return null;
+
+    const sampleTimes = parseSttsSampleTimes(buf, stts);
+    const sizes = parseStszSizes(buf, stsz);
+    const stscEntries = parseStsc(buf, stsc);
+    const chunkOffsets = parseChunkOffsets(buf, stco);
+    const offsets = sampleOffsets(chunkOffsets, stscEntries, sizes);
+
+    const chapters = [];
+    for (let i=0;i<offsets.length;i++){
+      const headBytes = await readSlice(file, offsets[i], 2);
+      const textLen = u16(headBytes, 0);
+      if (textLen <= 0) continue;
+      const textBytes = await readSlice(file, offsets[i]+2, textLen);
+      const title = new TextDecoder('utf-8').decode(textBytes);
+      chapters.push({ title, startSec: (sampleTimes[i]||0) / timescale });
+    }
+    return chapters.length ? chapters : null;
+  } catch(e){ console.warn('QT chapter parse failed', e); return null; }
+}
+
+async function tryParseChapters(bookId, idx, entry){
+  try{
+    const file = await getEntryFile(bookId, idx, entry);
+    if (!['m4b','m4a','mp4'].includes(extOf(file.name || entry.name || ''))) return null;
+    const moovLoc = await findTopLevelBox(file, 'moov');
+    if (!moovLoc) return null;
+    const buf = await readSlice(file, moovLoc.offset, moovLoc.size);
+    const moovBoxes = parseBoxList(buf, moovLoc.headerSize, buf.length);
+
+    const udta = findBox(moovBoxes, 'udta');
+    if (udta){
+      const udtaBoxes = parseBoxList(buf, udta.start, udta.end);
+      const chpl = findBox(udtaBoxes, 'chpl');
+      if (chpl){
+        const chapters = parseChplChapters(buf, chpl);
+        if (chapters) return chapters;
+      }
+    }
+    return await parseQtTextChapters(file, buf, moovBoxes);
+  } catch(e){ console.warn('Chapter parsing failed, falling back to plain scrubbing.', e); return null; }
+}
+</script>
+
+<script>
+/* ==================================================================
+   PLAYER ENGINE
+   Handles both single-file (m4b/mp3 with embedded chapters) and
+   multi-file (ripped-CD folders) books behind one consistent API.
+================================================================== */
+const audioEl = new Audio();
+audioEl.preload = 'metadata';
+let player = {
+  bookId: null,
+  item: null,
+  match: null,          // {mode, entries:[{name, handle, durationSec?}]}
+  entryIndex: 0,
+  chapters: null,        // parsed m4b chapters, only for single-mode
+  entryDurations: [],     // durations of each entry (multi-mode: per file; single-mode: [total])
+  totalSec: 0,
+  rate: 1,
+  isReady: false,
+  isPlaying: false,
+  seeking: false,
+};
+
+function entryStartOffset(idx){
+  let sum = 0;
+  for (let i=0;i<idx;i++) sum += player.entryDurations[i] || 0;
+  return sum;
+}
+function cumulativeSec(){
+  return entryStartOffset(player.entryIndex) + (audioEl.currentTime || 0);
+}
+function currentChapterIndex(){
+  if (player.match.mode === 'multi'){
+    return player.entryIndex;
+  }
+  if (player.chapters && player.chapters.length){
+    const t = audioEl.currentTime || 0;
+    let idx = 0;
+    for (let i=0;i<player.chapters.length;i++){ if (t >= player.chapters[i].startSec) idx = i; }
+    return idx;
+  }
+  return -1;
+}
+function chapterLabelList(){
+  if (player.match.mode === 'multi'){
+    return player.match.entries.map((e,i) => ({ title: cleanTrackName(e.name, i), startSec: entryStartOffset(i) }));
+  }
+  return player.chapters || [];
+}
+function cleanTrackName(name, idx){
+  let n = name.replace(/\.[a-z0-9]{2,4}$/i,'').replace(/[_]+/g,' ').trim();
+  n = n.replace(/^\d+[\s\-\.]*/, '');
+  return n || `Track ${idx+1}`;
+}
+
+async function ensureDurationsKnown(){
+  // Probe each entry's duration once (cheap metadata-only load), cached on the match object.
+  for (let i=0;i<player.match.entries.length;i++){
+    const entry = player.match.entries[i];
+    if (typeof entry.durationSec === 'number'){ player.entryDurations[i] = entry.durationSec; continue; }
+    try{
+      const file = await getEntryFile(player.bookId, i, entry);
+      const url = URL.createObjectURL(file);
+      const d = await new Promise((resolve) => {
+        const a = new Audio();
+        a.preload = 'metadata';
+        a.src = url;
+        a.onloadedmetadata = () => resolve(a.duration || 0);
+        a.onerror = () => resolve(0);
+      });
+      URL.revokeObjectURL(url);
+      entry.durationSec = d;
+      player.entryDurations[i] = d;
+    } catch(e){ player.entryDurations[i] = 0; }
+  }
+  player.totalSec = player.entryDurations.reduce((a,b)=>a+b,0);
+  await idbSet(matchKey(player.bookId), player.match); // persist cached durations
+}
+
+async function loadEntry(idx, seekTo){
+  const entry = player.match.entries[idx];
+  const file = await getEntryFile(player.bookId, idx, entry);
+  const url = URL.createObjectURL(file);
+  if (audioEl.src && audioEl.src.startsWith('blob:')) URL.revokeObjectURL(audioEl.src);
+  audioEl.src = url;
+  audioEl.playbackRate = player.rate;
+  player.entryIndex = idx;
+  await new Promise((resolve) => {
+    audioEl.onloadedmetadata = () => resolve();
+    audioEl.onerror = () => resolve();
+  });
+  if (seekTo != null) audioEl.currentTime = Math.max(0, Math.min(seekTo, audioEl.duration||seekTo));
+}
+
+async function openPlayer(itemId){
+  const item = findItem(itemId);
+  if (!item) return;
+  let match = await loadMatchIfNeeded(itemId);
+  state.currentBookId = itemId;
+  state.view = 'player';
+  lsSet('audiobooks:lastBook', itemId);
+  location.hash = 'player';
+  render();
+
+  if (!match){
+    // No confident auto-match yet — offer manual picking, don't block navigation.
+    return;
+  }
+  await startPlaybackSession(itemId, match, item);
+}
+
+async function startPlaybackSession(itemId, match, item){
+  player.bookId = itemId;
+  player.item = item;
+  player.match = match;
+  player.entryDurations = [];
+  player.chapters = null;
+  player.isReady = false;
+  render();
+
+  await ensureDurationsKnown();
+
+  if (match.mode === 'single'){
+    const cached = await idbGet(chapKey(itemId));
+    if (cached) player.chapters = cached;
+    else {
+      const parsed = await tryParseChapters(itemId, 0, match.entries[0]);
+      if (parsed) { player.chapters = parsed; await idbSet(chapKey(itemId), parsed); }
+    }
+  }
+
+  const saved = state.progress[itemId];
+  let startEntry = 0, startTime = 0;
+  if (saved && typeof saved.trackIndex === 'number'){
+    startEntry = Math.min(saved.trackIndex, match.entries.length-1);
+    startTime = saved.trackPosSec || 0;
+  }
+  await loadEntry(startEntry, startTime);
+  audioEl.playbackRate = player.rate = (saved && saved.rate) || 1;
+  player.isReady = true;
+  render();
+}
+
+function syncPlayerFromRemoteIfIdle(){
+  // If progress changed from another device while we're paused here, offer the update
+  // by simply re-rendering the displayed percentage; we never yank playback out from
+  // under an actively-playing session.
+  if (player.isPlaying) return;
+  render();
+}
+
+async function togglePlay(){
+  if (!player.isReady) return;
+  if (audioEl.paused){ await audioEl.play().catch(()=>{}); player.isPlaying = true; }
+  else { audioEl.pause(); player.isPlaying = false; saveProgressNow(); }
+  render();
+}
+async function skip(deltaSec){
+  if (!player.isReady) return;
+  let target = (audioEl.currentTime||0) + deltaSec;
+  if (target < 0){
+    if (player.entryIndex > 0){ await loadEntry(player.entryIndex-1, Math.max(0,(player.entryDurations[player.entryIndex-1]||0)+target)); if(player.isPlaying) audioEl.play().catch(()=>{}); }
+    else audioEl.currentTime = 0;
+  } else if (target > (audioEl.duration||Infinity)){
+    await goToEntry(player.entryIndex+1, target-(audioEl.duration||0));
+  } else {
+    audioEl.currentTime = target;
+  }
+  render(); saveProgress();
+}
+async function goToEntry(idx, seekTo=0){
+  if (idx < 0 || idx >= player.match.entries.length) return;
+  const wasPlaying = player.isPlaying;
+  await loadEntry(idx, seekTo);
+  if (wasPlaying) { await audioEl.play().catch(()=>{}); player.isPlaying = true; }
+  render(); saveProgress();
+}
+function jumpToChapter(idx){
+  const list = chapterLabelList();
+  if (!list[idx]) return;
+  if (player.match.mode === 'multi'){
+    goToEntry(idx, 0);
+  } else {
+    audioEl.currentTime = list[idx].startSec;
+    render(); saveProgress();
+  }
+}
+function setRate(delta){
+  const cur = player.rate;
+  let idx = SPEED_STEPS.findIndex(v => Math.abs(v-cur) < 0.001);
+  if (idx === -1) idx = SPEED_STEPS.findIndex(v => v >= cur);
+  idx = Math.max(0, Math.min(SPEED_STEPS.length-1, idx + delta));
+  player.rate = SPEED_STEPS[idx];
+  audioEl.playbackRate = player.rate;
+  render(); saveProgressNow();
+}
+function scrubTo(sec){
+  audioEl.currentTime = sec;
+  render();
+}
+
+function saveProgress(){
+  if (!player.bookId) return;
+  persistProgress(player.bookId, {
+    mode: player.match.mode,
+    trackIndex: player.entryIndex,
+    trackPosSec: audioEl.currentTime || 0,
+    cumulativeSec: cumulativeSec(),
+    totalSec: player.totalSec,
+    rate: player.rate,
+    chapterTitle: (chapterLabelList()[currentChapterIndex()]||{}).title || '',
+  });
+}
+function saveProgressNow(){
+  if (!player.bookId) return;
+  persistProgressNow(player.bookId, {
+    mode: player.match.mode,
+    trackIndex: player.entryIndex,
+    trackPosSec: audioEl.currentTime || 0,
+    cumulativeSec: cumulativeSec(),
+    totalSec: player.totalSec,
+    rate: player.rate,
+    chapterTitle: (chapterLabelList()[currentChapterIndex()]||{}).title || '',
+  });
+}
+
+audioEl.addEventListener('timeupdate', () => {
+  if (player.isReady && player.isPlaying) {
+    renderScrubOnly();
+    saveProgress();
+  }
+});
+audioEl.addEventListener('ended', async () => {
+  if (player.match && player.entryIndex < player.match.entries.length-1){
+    await goToEntry(player.entryIndex+1, 0);
+    audioEl.play().catch(()=>{});
+  } else {
+    player.isPlaying = false;
+    saveProgressNow();
+    render();
+  }
+});
+audioEl.addEventListener('play', () => { player.isPlaying = true; render(); });
+audioEl.addEventListener('pause', () => { player.isPlaying = false; });
+window.addEventListener('beforeunload', () => { if (player.bookId) saveProgressNow(); });
+
+function closePlayer(){
+  if (player.isPlaying) audioEl.pause();
+  if (player.bookId) saveProgressNow();
+  state.view = 'gallery';
+  history.replaceState(null, '', location.pathname);
+  render();
+}
+</script>
+
+<script>
+/* ==================================================================
+   RENDER — GALLERY
+================================================================== */
+function coverHtml(item, sizeClass){
+  if (item.coverUrl){
+    return `<div class="${sizeClass}"><img src="${esc(item.coverUrl)}" alt="${esc(item.title)} cover" loading="lazy" onerror="this.parentElement.innerHTML='<div class=&quot;ph&quot;>${esc(item.title)}</div>'" /></div>`;
+  }
+  return `<div class="${sizeClass}" style="background:linear-gradient(150deg, ${spineColor(item.title)}55, var(--panel-2))"><div class="ph">${esc(item.title)}</div></div>`;
+}
+function matchBadge(item){
+  const m = state.matches[item.id];
+  return m ? `<span class="pill on badge">🔗</span>` : `<span class="pill off badge">＋</span>`;
+}
+function progressFor(item){
+  const p = state.progress[item.id];
+  if (!p || !p.totalSec) return null;
+  const pct = Math.min(100, Math.round((p.cumulativeSec/p.totalSec)*100));
+  const remaining = Math.max(0, p.totalSec - p.cumulativeSec);
+  return { pct, remaining };
+}
+
+function renderConnBanner(){
+  const storageLine = (state.storageEstimate && typeof state.storageEstimate.usage === 'number')
+    ? `<div class="sub" style="margin-top:4px;">${fmtBytes(state.storageEstimate.usage)} of audio cached on this device.</div>` : '';
+
+  if (!SUPPORTS_FS_ACCESS){
+    return `<div class="conn-banner ok">
+      <div class="icon">🎧</div>
+      <div class="txt"><div class="ttl">Add files per book</div>
+      <div class="sub">This browser can't remember a folder automatically, so open a book once and add its file(s) — after that it opens straight into the player, no picker needed.</div>${storageLine}</div>
+    </div>`;
+  }
+  if (!state.rootDirHandle){
+    return `<div class="conn-banner">
+      <div class="icon">📁</div>
+      <div class="txt"><div class="ttl">Connect your audiobook folder</div>
+      <div class="sub">Point this at the folder on your device to auto-match your library, or add files per book instead. Either way, matched files are cached here — playback keeps working even if the folder moves or you switch browsers.</div>${storageLine}</div>
+      <button class="btn btn-accent" data-action="connect-folder">Choose folder</button>
+    </div>`;
+  }
+  if (!state.dirPermissionOk){
+    return `<div class="conn-banner warn">
+      <div class="icon">⚠️</div>
+      <div class="txt"><div class="ttl">Reconnect to "${esc(state.rootDirName)}"</div>
+      <div class="sub">Needed to scan for new books — anything already matched keeps playing from its cached copy.</div>${storageLine}</div>
+      <button class="btn btn-accent" data-action="reconnect-folder">Reconnect</button>
+    </div>`;
+  }
+  return `<div class="conn-banner ok">
+    <div class="icon">🎧</div>
+    <div class="txt"><div class="ttl">Connected to "${esc(state.rootDirName)}"</div>
+    <div class="sub">${state.scan ? state.scan.files.length + ' audio files found on this device.' : ''}</div>${storageLine}</div>
+    <button class="btn btn-subtle btn-sm" data-action="rescan" ${state.scanning?'disabled':''}>${state.scanning?'Scanning…':'Rescan'}</button>
+    <button class="btn btn-subtle btn-sm" data-action="connect-folder">Change folder</button>
+  </div>`;
+}
+
+function renderFeatureCard(item){
+  const prog = progressFor(item);
+  return `<div class="feature-card" data-action="open-book" data-id="${esc(item.id)}">
+    ${coverHtml(item,'feature-cover')}
+    <div class="feature-body">
+      <div class="feature-title">${esc(item.title)}</div>
+      <div class="feature-author">${esc(item.author||'')}</div>
+      ${prog ? `<div class="feature-progress-row">
+        <div class="prog-bar"><div class="prog-fill" style="width:${prog.pct}%"></div></div>
+        <div class="prog-pct">${prog.pct}%</div>
+      </div><div class="feature-meta">${fmtHMS(prog.remaining)} left</div>`
+      : `<div class="feature-meta">${state.matches[item.id] ? 'Not started' : 'Tap to add the file'}</div>`}
+    </div>
+  </div>`;
+}
+
+function renderCoverCard(item){
+  const prog = progressFor(item);
+  return `<div class="cover-card" data-action="open-book" data-id="${esc(item.id)}">
+    <div style="position:relative;">${coverHtml(item,'cover')}${matchBadge(item)}</div>
+    <div class="title">${esc(item.title)}</div>
+    <div class="author">${esc(item.author||'')}</div>
+    ${prog ? `<div class="mini-pct">${prog.pct}%${prog.pct>=100?' · Finished':''}</div>` : `<div class="mini-pill">${state.matches[item.id] ? 'Not started' : 'Tap to add'}</div>`}
+  </div>`;
+}
+
+function renderGallery(){
+  const items = allAudioItems();
+  const reading = items.filter(i => i.section === 'reading');
+  const toberead = items.filter(i => i.section === 'toberead');
+  const finished = items.filter(i => i.section === 'finished');
+
+  if (!state.loaded){
+    return `<div class="wrap"><div class="empty-state"><div class="icon">🎧</div><p>Loading your library…</p></div></div>`;
+  }
+  if (!items.length){
+    return `<div class="wrap">${renderConnBanner()}
+      <div class="empty-state"><div class="icon">🎧</div>
+      <p>No audiobooks yet. Mark a book's format as "Audio" in your tracker or wishlist and it'll show up here.</p></div>
+    </div>`;
+  }
+
+  return `<div class="wrap">
+    ${renderConnBanner()}
+    ${reading.length ? `<section><div class="section-label">Currently reading</div>
+      <div class="feature-row">${reading.map(renderFeatureCard).join('')}</div>
+    </section>` : ''}
+    ${toberead.length ? `<section><div class="section-label">To be read</div>
+      <div class="gallery-grid">${toberead.map(renderCoverCard).join('')}</div>
+    </section>` : ''}
+    ${finished.length ? `<section><div class="section-label">Finished</div>
+      <div class="gallery-grid">${finished.map(renderCoverCard).join('')}</div>
+    </section>` : ''}
+  </div>`;
+}
+</script>
+
+<script>
+/* ==================================================================
+   RENDER — PLAYER
+================================================================== */
+function renderPlayer(){
+  const item = findItem(state.currentBookId);
+  if (!item) return `<div class="wrap"><p>Book not found.</p></div>`;
+  const match = state.matches[state.currentBookId];
+
+  if (!match){
+    return `<div class="player-wrap">
+      <button class="player-back" data-action="close-player">‹ Library</button>
+      ${coverHtml(item,'player-cover')}
+      <div class="player-title">${esc(item.title)}</div>
+      <div class="player-author">${esc(item.author||'')}</div>
+      <div class="match-box">
+        <p>Add this book's audio file(s) once, and it'll open straight into the player from now on — even on another browser, even if the original file moves.</p>
+        <button class="btn btn-accent" data-action="add-files" data-id="${esc(item.id)}">Add file(s)…</button>
+        ${state.rootDirHandle ? `<button class="btn btn-ghost" style="margin-top:8px;" data-action="open-match-modal" data-id="${esc(item.id)}">Match from connected folder</button>`
+          : (SUPPORTS_FS_ACCESS ? `<button class="btn btn-ghost" style="margin-top:8px;" data-action="connect-folder">Or connect a folder to auto-match</button>` : '')}
+      </div>
+    </div>`;
+  }
+
+  if (!player.isReady || player.bookId !== state.currentBookId){
+    return `<div class="player-wrap">
+      <button class="player-back" data-action="close-player">‹ Library</button>
+      ${coverHtml(item,'player-cover')}
+      <div class="player-title">${esc(item.title)}</div>
+      <div class="player-author">${esc(item.author||'')}</div>
+      <p style="text-align:center;color:var(--muted);margin-top:20px;">Loading audio…</p>
+    </div>`;
+  }
+
+  const list = chapterLabelList();
+  const chIdx = currentChapterIndex();
+  const cum = cumulativeSec();
+  const pct = player.totalSec ? Math.min(100, Math.round((cum/player.totalSec)*100)) : 0;
+  const dur = audioEl.duration || 0;
+  const cur = audioEl.currentTime || 0;
+  const trackFillPct = dur ? (cur/dur*100) : 0;
+
+  return `<div class="player-wrap">
+    <button class="player-back" data-action="close-player">‹ Library</button>
+    ${coverHtml(item,'player-cover')}
+    <div class="player-title">${esc(item.title)}</div>
+    <div class="player-author">${esc(item.author||'')}</div>
+    ${list.length ? `<div class="player-chapter-label">${chIdx>=0?`Chapter ${chIdx+1} · ${chIdx+1}/${list.length}`:''}</div>` : ''}
+
+    <div class="player-panel">
+      <div class="player-pct" id="pct-label">${pct}% through the book</div>
+      <div class="toggle-row">
+        <div class="toggle-group">
+          <button class="toggle-btn active">📖 Book</button>
+          ${list.length ? `<button class="toggle-btn" data-action="scroll-chapters">☰ Chapter</button>` : ''}
+        </div>
+      </div>
+      <div class="scrub-row">
+        <input type="range" class="scrub" id="scrub" min="0" max="${Math.max(dur,0.1)}" step="0.5" value="${cur}" style="--fill:${trackFillPct}%">
+        <div class="time-row">
+          <span id="time-elapsed">${fmtHMS(cum)}</span>
+          <span id="time-remaining">${fmtRemaining(Math.max(0,player.totalSec-cum))}</span>
+        </div>
+      </div>
+      <div class="transport">
+        <button class="skip-btn" data-action="skip-back"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg><span>30s</span></button>
+        <button class="play-btn" data-action="toggle-play">${player.isPlaying
+          ? `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>`
+          : `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`}</button>
+        <button class="skip-btn" data-action="skip-fwd"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg><span>30s</span></button>
+      </div>
+      <div class="speed-row">
+        <button class="speed-btn" data-action="rate-down">–</button>
+        <div class="speed-val">${player.rate.toFixed(2)}x</div>
+        <button class="speed-btn" data-action="rate-up">+</button>
+      </div>
+    </div>
+
+    ${list.length ? `<div class="chapter-list" id="chapter-list">
+      ${list.map((c,i)=>`<div class="chapter-row ${i===chIdx?'active':''}" data-action="jump-chapter" data-idx="${i}">
+        <span class="chapter-name">${esc(c.title || ('Chapter '+(i+1)))}</span>
+        <span class="chapter-time">${fmtHMS(c.startSec)}</span>
+      </div>`).join('')}
+    </div>` : ''}
+
+    <div style="text-align:center;margin-top:16px;">
+      <button class="btn-icon" data-action="open-match-modal" data-id="${esc(item.id)}" style="font-size:11.5px;">🔗 Re-match file</button>
+    </div>
+  </div>`;
+}
+
+// Cheap partial update while dragging/playing so we don't re-render the whole DOM tree every timeupdate.
+function renderScrubOnly(){
+  const scrub = document.getElementById('scrub');
+  const elapsedEl = document.getElementById('time-elapsed');
+  const remEl = document.getElementById('time-remaining');
+  const pctEl = document.getElementById('pct-label');
+  if (!scrub || !player.isReady) return;
+  const dur = audioEl.duration || 0;
+  const cur = audioEl.currentTime || 0;
+  scrub.max = Math.max(dur, 0.1);
+  if (!player.seeking) scrub.value = cur;
+  scrub.style.setProperty('--fill', (dur? cur/dur*100:0)+'%');
+  const cum = cumulativeSec();
+  if (elapsedEl) elapsedEl.textContent = fmtHMS(cum);
+  if (remEl) remEl.textContent = fmtRemaining(Math.max(0,player.totalSec-cum));
+  if (pctEl && player.totalSec) pctEl.textContent = Math.min(100,Math.round(cum/player.totalSec*100)) + '% through the book';
+  // Keep active chapter row in sync without a full re-render.
+  const chIdx = currentChapterIndex();
+  document.querySelectorAll('#chapter-list .chapter-row').forEach((row,i)=>{
+    row.classList.toggle('active', i===chIdx);
+  });
+  const chapLabel = document.querySelector('.player-chapter-label');
+  if (chapLabel){
+    const list = chapterLabelList();
+    if (chIdx>=0) chapLabel.textContent = `Chapter ${chIdx+1} · ${chIdx+1}/${list.length}`;
+  }
+}
+</script>
+
+<script>
+/* ==================================================================
+   RENDER — MATCH MODAL
+================================================================== */
+function renderMatchModal(itemId){
+  const item = findItem(itemId);
+  const cands = buildCandidatesForItem(item);
+  const topFolders = cands.folders.slice(0,5);
+  const topFiles = cands.files.slice(0,6);
+  return `<div class="modal-overlay" data-action="close-modal">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div class="modal-head"><h3>Match “${esc(item.title)}”</h3><button class="modal-close" data-action="close-modal">✕</button></div>
+      <div class="modal-body">
+        <button class="btn btn-accent" style="width:100%;margin-bottom:14px;" data-action="add-files" data-id="${esc(item.id)}">📂 Add file(s) from this device</button>
+        ${!state.scan ? (SUPPORTS_FS_ACCESS ? `<p style="color:var(--muted);font-size:13px;">Or connect a folder (top of the library) to auto-match your whole collection.</p>` : '') : `
+        ${topFolders.length ? `<div class="divider-label">Matching folders (multi-file book)</div>
+          ${topFolders.map(c => `<div class="cand-row" data-action="pick-folder" data-path="${esc(c.folder.path)}" data-id="${esc(item.id)}">
+            <div class="cand-icon">📁</div>
+            <div class="cand-text"><div class="cand-name">${esc(c.folder.name)}</div><div class="cand-path">${esc(c.folder.path)} · ${c.folder.fileNames.length} files</div></div>
+            <div class="cand-score">${Math.round(c.score*100)}%</div>
+          </div>`).join('')}` : ''}
+        ${topFiles.length ? `<div class="divider-label">Matching single files</div>
+          ${topFiles.map(c => `<div class="cand-row" data-action="pick-file" data-path="${esc(c.file.path)}" data-id="${esc(item.id)}">
+            <div class="cand-icon">🎵</div>
+            <div class="cand-text"><div class="cand-name">${esc(c.file.name)}</div><div class="cand-path">${esc(c.file.parentPath)}</div></div>
+            <div class="cand-score">${Math.round(c.score*100)}%</div>
+          </div>`).join('')}` : ''}
+        ${(!topFolders.length && !topFiles.length) ? `<p style="color:var(--muted);font-size:13px;">No close matches found. Try renaming the file/folder to include the book title, then rescan.</p>` : ''}
+        `}
+        ${state.matches[itemId] ? `<div class="divider-label">Current match</div>
+          <div class="cand-row" style="cursor:default;">
+            <div class="cand-icon">${state.matches[itemId].mode==='multi'?'📁':'🎵'}</div>
+            <div class="cand-text"><div class="cand-name">${esc(state.matches[itemId].entries.length)} file(s) linked</div></div>
+            <button class="btn btn-sm btn-subtle" data-action="clear-match" data-id="${esc(item.id)}">Unlink</button>
+          </div>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+</script>
+
+<script>
+/* ==================================================================
+   MAIN RENDER + EVENT DELEGATION
+================================================================== */
+function render(){
+  const app = document.getElementById('app');
+  app.innerHTML = `<div class="topbar-outer wrap" style="padding-bottom:0;">
+    <div class="topbar">
+      <div class="brand">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
+        <div><div class="word">Audiobooks</div><div class="sub">Shelf & Spine</div></div>
+      </div>
+      <a class="back-link" href="index.html?home=1">Back to Shelf ›</a>
+    </div>
+  </div>` + (state.view === 'player' ? renderPlayer() : renderGallery());
+
+  const modalRoot = document.getElementById('modal-root');
+  modalRoot.innerHTML = state.modal ? renderMatchModal(state.modal.id) : '';
+}
+
+document.addEventListener('click', async (e) => {
+  const t = e.target.closest('[data-action]');
+  if (!t) return;
+  const action = t.dataset.action;
+  const id = t.dataset.id;
+
+  if (action === 'connect-folder') return connectFolder();
+  if (action === 'reconnect-folder') return reconnectFolder();
+  if (action === 'rescan') return rescanLibrary();
+  if (action === 'open-book') return openPlayer(id);
+  if (action === 'close-player') return closePlayer();
+  if (action === 'toggle-play') return togglePlay();
+  if (action === 'skip-back') return skip(-30);
+  if (action === 'skip-fwd') return skip(30);
+  if (action === 'rate-up') return setRate(1);
+  if (action === 'rate-down') return setRate(-1);
+  if (action === 'jump-chapter') return jumpToChapter(parseInt(t.dataset.idx,10));
+  if (action === 'scroll-chapters'){ document.getElementById('chapter-list')?.scrollIntoView({behavior:'smooth'}); return; }
+  if (action === 'add-files'){ return triggerAddFiles(id); }
+  if (action === 'open-match-modal'){ state.modal = { id }; render(); return; }
+  if (action === 'close-modal'){ state.modal = null; render(); return; }
+  if (action === 'clear-match'){ await clearMatch(id); state.modal = null; render(); return; }
+  if (action === 'pick-folder'){
+    const path = t.dataset.path;
+    const folder = state.scan.folders.find(f => f.path === path);
+    if (folder){ await setMultiMatch(id, folder); state.modal = null; toast('Matched.'); if (state.view==='player' && state.currentBookId===id) await startPlaybackSession(id, state.matches[id], findItem(id)); else render(); }
+    return;
+  }
+  if (action === 'pick-file'){
+    const path = t.dataset.path;
+    const file = state.scan.files.find(f => f.path === path);
+    if (file){ await setSingleMatch(id, file); state.modal = null; toast('Matched.'); if (state.view==='player' && state.currentBookId===id) await startPlaybackSession(id, state.matches[id], findItem(id)); else render(); }
+    return;
+  }
+});
+
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'scrub'){
+    player.seeking = true;
+    document.getElementById('scrub').style.setProperty('--fill', (e.target.value/(audioEl.duration||1)*100)+'%');
+  }
+});
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'scrub'){
+    player.seeking = false;
+    scrubTo(parseFloat(e.target.value));
+    saveProgress();
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (state.view !== 'player' || !player.isReady) return;
+  if (e.target.tagName === 'INPUT') return;
+  if (e.code === 'Space'){ e.preventDefault(); togglePlay(); }
+  if (e.code === 'ArrowRight'){ skip(30); }
+  if (e.code === 'ArrowLeft'){ skip(-30); }
+});
+
+document.getElementById('fileInput').addEventListener('change', (e) => {
+  handleFilesSelected(e.target.files);
+});
+
+/* ---------------- boot ---------------- */
+render();
+loadBooks();
+loadProgress();
+refreshStorageEstimate();
+if (SUPPORTS_FS_ACCESS){
+  restoreRootDir().then(() => { if (state.dirPermissionOk) rescanLibrary(); });
+}
+</script>
+</body>
+</html>
