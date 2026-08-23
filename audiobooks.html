@@ -120,6 +120,12 @@
   .mini-stars .star-slot .star-base,.mini-stars .star-slot .star-fill{position:absolute;left:0;top:0;pointer-events:none;white-space:nowrap;}
   .mini-stars .star-slot .star-base{color:var(--panel-3);}
   .mini-stars .star-slot .star-fill{color:var(--accent);overflow:hidden;width:0%;}
+  .mini-stars.editable{gap:2px;}
+  .mini-stars.editable .star-slot{cursor:pointer;}
+  .mini-stars.editable .star-hit{position:absolute;top:-3px;bottom:-3px;width:50%;z-index:2;}
+  .mini-stars.editable .star-hit-left{left:0;}
+  .mini-stars.editable .star-hit-right{right:0;}
+  .player-rating-row{text-align:center;margin-top:10px;display:flex;align-items:center;justify-content:center;gap:8px;}
 
   .gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:16px 12px;}
   .cover-card{cursor:pointer;}
@@ -219,7 +225,12 @@
 <body>
   <div id="app"></div>
   <div id="modal-root"></div>
-  <input type="file" id="fileInput" multiple accept="audio/*,.m4b,.m4a,.mp3,.flac,.ogg,.oga,.opus,.wav,.aac" style="display:none" />
+  <!-- No "accept" filter here on purpose: iOS Safari's file picker greys out or
+       hides .m4b (and sometimes .mp3) when accept mixes "audio/*" with specific
+       extensions, since it maps that against a limited internal type list. We
+       already filter the selection ourselves in isAudioFile()/handleFilesSelected,
+       so it's safe to let the OS picker show everything. -->
+  <input type="file" id="fileInput" multiple style="display:none" />
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -373,6 +384,41 @@ function starsHTML(value, size){
     out += `<span class="star-slot"><span class="star-base">★</span><span class="star-fill" style="width:${Math.round(frac*100)}%">★</span></span>`;
   }
   return out + `</span>`;
+}
+
+// Tappable version of starsHTML — used in the player, where you're actually
+// rating the book you're listening to. Each star is split into a left/right
+// hit zone so half-star taps work the same way the fill already renders them.
+function starsEditableHTML(bookId, value, size){
+  size = size || 20;
+  value = Math.max(0, Math.min(5, Number(value)||0));
+  let out = `<span class="mini-stars editable" style="font-size:${size}px" data-rating-for="${esc(bookId)}">`;
+  for (let n=1;n<=5;n++){
+    const frac = Math.max(0, Math.min(1, value-(n-1)));
+    out += `<span class="star-slot">
+      <span class="star-base">★</span>
+      <span class="star-fill" style="width:${Math.round(frac*100)}%">★</span>
+      <span class="star-hit star-hit-left" data-action="set-rating" data-id="${esc(bookId)}" data-val="${n-0.5}"></span>
+      <span class="star-hit star-hit-right" data-action="set-rating" data-id="${esc(bookId)}" data-val="${n}"></span>
+    </span>`;
+  }
+  out += `</span>`;
+  return out;
+}
+
+// Writes the new rating straight to the tracker doc, mirroring writeBookPercent's
+// pattern — this is the one place ratings flow app → main site instead of the
+// other way around, so it stays a deliberate, separate write.
+function setRating(bookId, value){
+  value = Math.max(0, Math.min(5, Math.round(Number(value)*2)/2 || 0));
+  const book = state.books.find(b => b.id === bookId);
+  if (!book) return;
+  if ((Number(book.rating)||0) === value) return;
+  const newBooks = state.books.map(b => b.id === bookId ? { ...b, rating: value } : b);
+  state.books = newBooks;
+  render();
+  BOOKS_DOC.set({ books: newBooks }, { merge: true })
+    .catch(err => console.error('Failed to sync rating:', err));
 }
 // Same day/month order convention as the main tracker, keyed off the same profile.
 function formatDueDate(iso){
@@ -1543,6 +1589,7 @@ function renderPlayer(){
       ${coverHtml(item,'player-cover')}
       <div class="player-title">${esc(item.title)}</div>
       <div class="player-author">${esc(item.author||'')}</div>
+      ${item.source === 'book' ? `<div class="player-rating-row">${starsEditableHTML(item.id, (item.raw&&item.raw.rating)||0)}</div>` : ''}
       <div class="match-box">
         <p>Add this book's audio file(s) once, and it'll open straight into the player from now on — even on another browser, even if the original file moves.</p>
         <button class="btn btn-accent" data-action="add-files" data-id="${esc(item.id)}">Add file(s)…</button>
@@ -1558,6 +1605,7 @@ function renderPlayer(){
       ${coverHtml(item,'player-cover')}
       <div class="player-title">${esc(item.title)}</div>
       <div class="player-author">${esc(item.author||'')}</div>
+      ${item.source === 'book' ? `<div class="player-rating-row">${starsEditableHTML(item.id, (item.raw&&item.raw.rating)||0)}</div>` : ''}
       <p style="text-align:center;color:var(--muted);margin-top:20px;">Loading audio…</p>
     </div>`;
   }
@@ -1576,6 +1624,7 @@ function renderPlayer(){
     ${coverHtml(item,'player-cover')}
     <div class="player-title">${esc(item.title)}</div>
     <div class="player-author">${esc(item.author||'')}</div>
+    ${item.source === 'book' ? `<div class="player-rating-row">${starsEditableHTML(item.id, (item.raw&&item.raw.rating)||0)}</div>` : ''}
     ${list.length ? `<div class="player-chapter-label">${chIdx>=0?`Chapter ${chIdx+1} · ${chIdx+1}/${list.length}`:''}</div>` : ''}
 
     <div class="player-panel">
@@ -1727,6 +1776,7 @@ document.addEventListener('click', async (e) => {
   if (action === 'skip-fwd') return skip(30);
   if (action === 'rate-up') return setRate(1);
   if (action === 'rate-down') return setRate(-1);
+  if (action === 'set-rating') return setRating(id, parseFloat(t.dataset.val));
   if (action === 'jump-chapter') return jumpToChapter(parseInt(t.dataset.idx,10));
   if (action === 'view-book'){ player.scrubMode = 'book'; render(); return; }
   if (action === 'view-chapter'){ player.scrubMode = 'chapter'; render(); return; }
@@ -1746,6 +1796,23 @@ document.addEventListener('click', async (e) => {
     if (file){ await setSingleMatch(id, file); state.modal = null; toast('Matched.'); if (state.view==='player' && state.currentBookId===id) await startPlaybackSession(id, state.matches[id], findItem(id)); else render(); }
     return;
   }
+});
+
+// Double-tap/double-click a rating to type an exact number instead of tapping stars.
+// Deliberately no visual affordance for this — it's just there if you know it's there.
+document.addEventListener('dblclick', (e) => {
+  const el = e.target.closest('[data-rating-for]');
+  if (!el) return;
+  e.preventDefault();
+  const bookId = el.dataset.ratingFor;
+  const book = state.books.find(b => b.id === bookId);
+  if (!book) return;
+  const current = Number(book.rating) || 0;
+  const input = window.prompt('Rating (0–5):', current || '');
+  if (input === null) return;
+  const val = parseFloat(input);
+  if (isNaN(val)) return;
+  setRating(bookId, val);
 });
 
 document.addEventListener('input', (e) => {
