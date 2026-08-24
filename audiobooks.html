@@ -1953,6 +1953,29 @@ async function attemptPlay(){
   }
 }
 
+// Debug-only: saves the currently-loaded split part's raw blob as a
+// downloadable file, so it can be inspected with real tooling (ffprobe etc)
+// instead of guessing at the MP4-writing code from behavior alone. Only
+// shown for books that went through the mobile splitter.
+async function debugExportCurrentPart(){
+  try{
+    const entry = player.match.entries[player.entryIndex];
+    const file = await getEntryFile(player.bookId, player.entryIndex, entry);
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(player.item && player.item.title || 'book').replace(/[^a-z0-9]+/gi,'_')}_part${player.entryIndex+1}_debug.m4b`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    toast(`Exporting Part ${player.entryIndex+1} (${file.size.toLocaleString()} bytes)…`, 5000);
+  } catch(e){
+    console.warn('Debug export failed.', e);
+    toast(`Export failed: ${e.message||e}`, 8000);
+  }
+}
+
 async function togglePlay(){
   if (!player.isReady) return;
   if (audioEl.paused){
@@ -2211,7 +2234,7 @@ audioEl.addEventListener('error', () => {
 // healthy, playing player forever: pause icon showing, nothing wrong on
 // screen, audio just never comes. Polling currentTime is the only reliable
 // way to catch it.
-const BUILD_TAG = 'v5-real-duration-fix';
+const BUILD_TAG = 'v6-debug-export';
 console.log('audiobooks.html build:', BUILD_TAG);
 let watchdogLastTime = -1;
 setInterval(() => {
@@ -2489,6 +2512,7 @@ function renderPlayer(){
 
     <div style="text-align:center;margin-top:16px;">
       <button class="btn-icon" data-action="open-match-modal" data-id="${esc(item.id)}" style="font-size:11.5px;">🔗 Re-match file</button>
+      ${player.match.mode === 'multi' && player.match.splitFromSingle ? `<button class="btn-icon" data-action="debug-export-part" style="font-size:11.5px;margin-left:10px;">⬇️ Export this part (debug)</button>` : ''}
     </div>
   </div>`;
 }
@@ -2830,6 +2854,7 @@ document.addEventListener('click', async (e) => {
   if (action === 'view-chapter'){ player.scrubMode = 'chapter'; render(); return; }
   if (action === 'add-files'){ return triggerAddFiles(id); }
   if (action === 'open-match-modal'){ state.modal = { id }; render(); return; }
+  if (action === 'debug-export-part'){ return debugExportCurrentPart(); }
   if (action === 'open-sleep-modal'){ state.modal = { kind:'sleep' }; render(); return; }
   if (action === 'close-modal'){ state.modal = null; render(); return; }
   if (action === 'set-sleep-book'){
