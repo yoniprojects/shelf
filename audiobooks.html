@@ -2155,7 +2155,18 @@ function renderMatchModal(itemId){
    cached for the rest of the tab's lifetime.
 ================================================================== */
 let ffmpegInstance = null;
+// The logger is only registered once, when the ffmpeg instance is first
+// created (createFFmpeg's `logger` option can't be changed afterwards).
+// Since the instance is cached and reused across every split attempt in
+// the same tab, a logger callback passed in on a later call would
+// otherwise never actually run — its closure gets silently discarded and
+// the current attempt's `duration` variable never gets set, always
+// producing "Couldn't read this file's length" on any retry. Route logs
+// through this reassignable dispatcher instead so each call's handler
+// actually receives them.
+let ffmpegLogHandler = null;
 async function loadFfmpegEngine(onLog){
+  ffmpegLogHandler = onLog || null;
   if (ffmpegInstance) return ffmpegInstance;
   await new Promise((resolve, reject) => {
     if (window.FFmpeg) return resolve();
@@ -2169,7 +2180,7 @@ async function loadFfmpegEngine(onLog){
   const ffmpeg = createFFmpeg({
     log: false,
     corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
-    logger: onLog || (()=>{}),
+    logger: (e) => { if (ffmpegLogHandler) ffmpegLogHandler(e); },
   });
   await ffmpeg.load();
   ffmpegInstance = ffmpeg;
