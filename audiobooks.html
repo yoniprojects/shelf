@@ -592,6 +592,8 @@ let state = {
     statusText: '',
     progressPct: 0,
     parts: [],              // [{name, size, blob}] once done
+    zipping: false,         // true while the "download all as zip" is being built
+    zipProgressPct: 0,
   },
 };
 
@@ -2324,6 +2326,62 @@ function downloadSplitterPart(idx){
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
+// Lazy-loaded exactly like the ffmpeg engine above — only fetched the first
+// time someone actually taps "Download all as ZIP", and cached on
+// window.JSZip for the rest of the tab's lifetime.
+let jszipLoadPromise = null;
+async function loadJSZip(){
+  if (window.JSZip) return window.JSZip;
+  if (!jszipLoadPromise){
+    jszipLoadPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+      s.onload = () => resolve(window.JSZip);
+      s.onerror = () => { jszipLoadPromise = null; reject(new Error('Could not load the zip engine. Check your internet connection and try again.')); };
+      document.head.appendChild(s);
+    });
+  }
+  return jszipLoadPromise;
+}
+
+async function downloadAllSplitterParts(){
+  const sp = state.splitter;
+  if (!sp.parts.length || sp.zipping) return;
+  try{
+    sp.zipping = true;
+    sp.zipProgressPct = 0;
+    render();
+
+    const JSZip = await loadJSZip();
+    const zip = new JSZip();
+    sp.parts.forEach(p => zip.file(p.name, p.blob));
+
+    // STORE (no compression) — the parts are already-compressed audio, so
+    // re-compressing just burns CPU/battery for no size benefit.
+    const blob = await zip.generateAsync(
+      { type: 'blob', compression: 'STORE' },
+      (meta) => { sp.zipProgressPct = Math.round(meta.percent); render(); }
+    );
+
+    const dot = sp.file ? sp.file.name.lastIndexOf('.') : -1;
+    const base = (sp.file && dot > 0) ? sp.file.name.slice(0, dot) : (sp.file ? sp.file.name : 'audiobook parts');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${base} - parts.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  } catch(err){
+    console.error('Zip error:', err);
+    toast((err && err.message) ? err.message : 'Something went wrong creating the zip.');
+  } finally {
+    sp.zipping = false;
+    render();
+  }
+}
+
 function openSplitter(){
   state.view = 'splitter';
   render();
@@ -2390,6 +2448,11 @@ function renderSplitter(){
                 <button class="btn btn-sm btn-ghost" data-action="download-split-part" data-id="${i}">Download</button>
               </div>
             `).join('')}
+            ${sp.parts.length > 1 ? `
+              <button class="btn btn-accent" style="margin-top:4px;" data-action="download-all-parts-zip" ${sp.zipping ? 'disabled' : ''}>
+                ${sp.zipping ? `Zipping… ${sp.zipProgressPct}%` : 'Download all as ZIP'}
+              </button>
+            ` : ''}
             <button class="btn btn-subtle" style="margin-top:8px;" data-action="pick-splitter-file">Split another file</button>
           </div>
         ` : ''}
@@ -2729,6 +2792,7 @@ document.addEventListener('click', async (e) => {
     return runSplit();
   }
   if (action === 'download-split-part') return downloadSplitterPart(parseInt(t.dataset.id, 10));
+  if (action === 'download-all-parts-zip') return downloadAllSplitterParts();
   if (action === 'pick-file'){
     const path = t.dataset.path;
     const file = state.scan.files.find(f => f.path === path);
