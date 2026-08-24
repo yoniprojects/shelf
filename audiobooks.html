@@ -1541,6 +1541,28 @@ async function ensureMobileSplit(bookId, singleMatch, totalDurationSec, chapters
     }
     if (!entries.length) return null;
 
+    // Sanity check the output before trusting it: a "split" that produced
+    // only one part, or any part that's still as long as the original
+    // (i.e. it didn't actually shrink anything), isn't a fix — it's the
+    // exact same giant-stsz file the split exists to avoid, just relabeled
+    // "Part 1". Caching that would look like a successful optimization
+    // forever while silently reproducing the original bug. Reject it
+    // instead, log the numbers that would explain why the boundary math
+    // collapsed, and let the caller fall back to normal single-file
+    // handling (and its own retry/toast paths) rather than pretending this
+    // worked.
+    const stillTooLong = entries.some(e => e.durationSec > MOBILE_SPLIT_THRESHOLD_SEC);
+    if (entries.length < 2 || stillTooLong){
+      console.warn('Mobile split produced a degenerate result — rejecting instead of caching it.', {
+        pointsCount: points.length, points, boundaryIdx,
+        timescale: table.timescale, sampleCount: table.sampleCount, totalTicks: table.totalTicks,
+        entryDurations: entries.map(e => e.durationSec),
+      });
+      for (const e of entries) await idbDeleteBlob(e.blobKey).catch(()=>{});
+      toast(`Splitting didn't actually shorten this book's parts (got ${entries.length} part${entries.length===1?'':'s'}) — leaving it as a single file for now.`, 10000);
+      return null;
+    }
+
     const match = { mode: 'multi', entries, matchedAt: Date.now(), splitFromSingle: true };
     state.matches[bookId] = match;
     await idbSet(matchKey(bookId), match);
@@ -1551,6 +1573,23 @@ async function ensureMobileSplit(bookId, singleMatch, totalDurationSec, chapters
     console.warn('Mobile split failed, falling back to normal single-file playback.', e);
     return null;
   }
+}
+
+// Manual escape hatch: discards a cached split (good or bad) for a book and
+// puts it back in mode:'single', so the next play attempt re-runs
+// ensureMobileSplit from scratch — now with the validation above in place.
+// Needed because a bad split that was cached before that validation existed
+// has no other way to self-correct (the auto-retry-on-failure path only
+// fires from mode:'single', never re-examines an already-cached multi/split
+// match). This is the same effect as the existing "Re-match file" button —
+// exposed as a function too since a caller may want to trigger it without
+// making the person go through the file picker again if the original file
+// handle is still known.
+async function forceResplit(bookId){
+  const existing = state.matches[bookId] || await idbGet(matchKey(bookId));
+  if (!existing || existing.mode !== 'multi' || !existing.splitFromSingle) return false;
+  await clearMatch(bookId);
+  return true;
 }
 </script>
 
@@ -2128,7 +2167,7 @@ audioEl.addEventListener('error', () => {
 // healthy, playing player forever: pause icon showing, nothing wrong on
 // screen, audio just never comes. Polling currentTime is the only reliable
 // way to catch it.
-const BUILD_TAG = 'watchdog-v2';
+const BUILD_TAG = 'watchdog-v3-split-validation';
 console.log('audiobooks.html build:', BUILD_TAG);
 let watchdogLastTime = -1;
 setInterval(() => {
