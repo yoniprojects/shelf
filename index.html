@@ -837,7 +837,7 @@ function pillHTML(text, tone){ return `<span class="pill ${tone?esc(tone):''}">$
 function coverHTML(book, h){
   const c = genreColor(book.genre);
   if(book.coverUrl){
-    return `<div class="cover has-img" style="height:${h}px;background:linear-gradient(150deg, ${c}, ${c}99)"><img src="${esc(book.coverUrl)}" alt="${esc(book.title)} cover" loading="lazy" onerror="this.parentElement.classList.remove('has-img'); this.remove();" /><span style="display:none">${esc(book.title)}</span></div>`;
+    return `<div class="cover has-img" style="height:${h}px;background:linear-gradient(150deg, ${c}, ${c}99)"><img src="${esc(book.coverUrl)}" alt="${esc(book.title)} cover" loading="lazy" onerror="console.warn('[cover-debug] failed to load:', this.src); this.insertAdjacentHTML('afterend', '<div style=\\'position:absolute;inset:0;background:rgba(200,0,0,.85);color:#fff;font-size:9px;word-break:break-all;padding:4px;overflow:auto;z-index:5;\\'>FAILED:<br>'+this.src+'</div>'); this.parentElement.classList.remove('has-img'); this.remove();" /><span style="display:none">${esc(book.title)}</span></div>`;
   }
   return `<div class="cover" style="height:${h}px;background:linear-gradient(150deg, ${c}, ${c}99)"><span>${esc(book.title)}</span></div>`;
 }
@@ -2328,7 +2328,7 @@ function applyGoogleBooksPick(idx){
     if(coverUrlEl) coverUrlEl.value = hiRes;
     if(coverPreview){
       coverPreview.classList.remove("empty");
-      coverPreview.innerHTML = `<img src="${esc(hiRes)}" alt="cover preview" onerror="this.parentElement.classList.add('empty'); this.remove();"/>`;
+      coverPreview.innerHTML = `<img src="${esc(hiRes)}" alt="cover preview" onerror="console.warn('[cover-debug] preview failed to load:', this.src); this.insertAdjacentHTML('afterend', '<div style=\\'font-size:9px;color:red;word-break:break-all;padding:4px;\\'>FAILED:<br>'+this.src+'</div>'); this.parentElement.classList.add('empty'); this.remove();"/>`;
     }
   }
   refreshSeriesBox();
@@ -3051,7 +3051,7 @@ document.addEventListener("input", (e)=>{
     const prev = document.getElementById("cover-preview");
     if(hidden) hidden.value = val;
     if(prev){
-      if(val){ prev.classList.remove("empty"); prev.innerHTML = `<img src="${esc(val)}" alt="cover preview" onerror="this.parentElement.classList.add('empty'); this.remove();"/>`; }
+      if(val){ prev.classList.remove("empty"); prev.innerHTML = `<img src="${esc(val)}" alt="cover preview" onerror="console.warn('[cover-debug] preview failed to load:', this.src); this.insertAdjacentHTML('afterend', '<div style=\\'font-size:9px;color:red;word-break:break-all;padding:4px;\\'>FAILED:<br>'+this.src+'</div>'); this.parentElement.classList.add('empty'); this.remove();"/>`; }
       else { prev.classList.add("empty"); prev.innerHTML = "📖"; }
     }
   }
