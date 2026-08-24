@@ -1559,7 +1559,13 @@ async function ensureMobileSplit(bookId, singleMatch, totalDurationSec, chapters
         entryDurations: entries.map(e => e.durationSec),
       });
       for (const e of entries) await idbDeleteBlob(e.blobKey).catch(()=>{});
-      toast(`Splitting didn't actually shorten this book's parts (got ${entries.length} part${entries.length===1?'':'s'}) — leaving it as a single file for now.`, 10000);
+      // Diagnostic numbers surfaced directly in the toast, not just
+      // console.warn — a phone has no console to check. pointsCount tells us
+      // whether chooseSplitPoints itself collapsed (bug is in chapter
+      // selection) or produced many points that then failed to map to real
+      // sample indices (bug is in the seconds→ticks conversion downstream).
+      const idxPreview = boundaryIdx.slice(0, 8).join(',') + (boundaryIdx.length > 8 ? '…' : '');
+      toast(`Split rejected: ${points.length} split point(s) chosen, but only ${entries.length} usable part(s) resulted (timescale ${table.timescale}, sampleCount ${table.sampleCount}). boundaryIdx: [${idxPreview}]`, 20000);
       return null;
     }
 
@@ -2167,7 +2173,7 @@ audioEl.addEventListener('error', () => {
 // healthy, playing player forever: pause icon showing, nothing wrong on
 // screen, audio just never comes. Polling currentTime is the only reliable
 // way to catch it.
-const BUILD_TAG = 'watchdog-v3-split-validation';
+const BUILD_TAG = 'watchdog-v4-split-diagnostics';
 console.log('audiobooks.html build:', BUILD_TAG);
 let watchdogLastTime = -1;
 setInterval(() => {
