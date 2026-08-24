@@ -2234,7 +2234,17 @@ async function runSplit(){
     // A quick, cheap no-output run just to make ffmpeg print the Duration:
     // line into the logger above. -t 0.001 keeps it near-instant.
     if (duration == null){
-      try{ await ffmpeg.run('-i', inputName, '-t', '0.001', '-f', 'null', '-'); } catch(e){}
+      // Default probesize/analyzeduration (~5MB / ~5s) is often not enough for a
+      // large audiobook file (esp. m4b/m4a with cover art up front), and ffmpeg
+      // falls back to printing "Duration: N/A" instead of a real timestamp. Force
+      // a much larger scan window so it actually finds the real duration.
+      try{
+        await ffmpeg.run(
+          '-probesize', '100000000',       // 100MB
+          '-analyzeduration', '100000000', // 100s (in microseconds)
+          '-i', inputName, '-t', '0.001', '-f', 'null', '-'
+        );
+      } catch(e){}
     }
     if (!duration || !isFinite(duration) || duration <= 0){
       throw new Error("Couldn't read this file's length. It may be corrupted or an unsupported format.");
@@ -2260,7 +2270,11 @@ async function runSplit(){
 
       const start = i*partLen;
       const outName = 'out' + i + (extOf(sp.file.name) ? '.'+extOf(sp.file.name) : '');
-      const args = ['-ss', String(start), '-i', inputName];
+      const args = [
+        '-probesize', '100000000',
+        '-analyzeduration', '100000000',
+        '-ss', String(start), '-i', inputName
+      ];
       if (i < numParts-1) args.push('-t', String(partLen));
       // -c copy: repackage, don't re-encode — fast, no quality loss, low memory.
       args.push('-c', 'copy', '-avoid_negative_ts', 'make_zero', outName);
