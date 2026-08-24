@@ -9,6 +9,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Audiobooks" />
 <meta name="theme-color" content="#0F160C" />
+<!-- GitHub Pages can't send the Cross-Origin-Opener-Policy / Cross-Origin-Embedder-Policy
+     headers that SharedArrayBuffer requires (needed by the audiobook splitter's ffmpeg.wasm
+     engine). This service worker patches those headers onto our own responses client-side so
+     the page becomes cross-origin isolated anyway. It's a no-op everywhere else on the site;
+     it only reloads the page once, the first time, to pick up the new headers. See:
+     https://github.com/gzuidhof/coi-serviceworker -->
+<script src="coi-serviceworker.js"></script>
 <script>
   // Same "resume where I left off" convention as the rest of the site.
   (function(){
@@ -2150,16 +2157,6 @@ function renderMatchModal(itemId){
 let ffmpegInstance = null;
 async function loadFfmpegEngine(onLog){
   if (ffmpegInstance) return ffmpegInstance;
-  // Safari/WKWebView never expose real SharedArrayBuffer outside a
-  // cross-origin-isolated page (COOP/COEP headers), which isn't possible
-  // here. ffmpeg.wasm references SharedArrayBuffer directly even in its
-  // single-thread core, causing a bare "Can't find variable" ReferenceError
-  // rather than a graceful fallback. We only ever use the single-thread
-  // core (no real multithreading), so aliasing it to ArrayBuffer is enough
-  // to satisfy the reference.
-  if (typeof window.SharedArrayBuffer === 'undefined') {
-    window.SharedArrayBuffer = window.ArrayBuffer;
-  }
   await new Promise((resolve, reject) => {
     if (window.FFmpeg) return resolve();
     const s = document.createElement('script');
