@@ -208,17 +208,6 @@
 
   .match-box{margin-top:18px;background:var(--panel);border:1px dashed var(--line);border-radius:14px;padding:16px 18px;text-align:center;}
   .match-box p{font-size:13px;color:var(--muted);margin:0 0 12px;line-height:1.5;}
-  .dropbox-box{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);}
-  .dropbox-box p{font-size:12px;color:var(--muted);margin:0 0 10px;line-height:1.5;}
-  .dropbox-input{width:100%;resize:vertical;min-height:44px;border:1.5px solid var(--line);border-radius:9px;padding:9px 11px;font-size:12.5px;font-family:inherit;background:var(--panel-2);color:var(--ink);outline:none;}
-  .dropbox-input:focus{border-color:var(--accent-dark);}
-  .dropbox-resolve{margin-top:12px;text-align:left;}
-  .dropbox-resolve summary{font-size:11.5px;font-weight:700;color:var(--muted);cursor:pointer;list-style:none;}
-  .dropbox-resolve summary::-webkit-details-marker{display:none;}
-  .dropbox-resolve summary:hover{color:var(--ink);}
-  .dropbox-resolve summary:before{content:'⌄ ';display:inline-block;transform:rotate(-90deg);margin-right:2px;}
-  .dropbox-resolve[open] summary:before{transform:rotate(0deg);}
-  .dropbox-resolve .body{margin-top:8px;}
 
   /* ---------- modal ---------- */
   .modal-overlay{position:fixed;inset:0;background:rgba(5,8,3,.6);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
@@ -562,13 +551,6 @@ function toast(msg, ms=2600){
    STATE
 ================================================================== */
 const SUPPORTS_FS_ACCESS = !!window.showDirectoryPicker; // Chromium-only folder access
-// Used to decide whether to offer the Dropbox-streaming option: it exists specifically
-// to route around iOS's inability to hold a big audiobook blob in memory/IndexedDB, so
-// there's no reason to clutter the desktop flow (where local files + caching just work
-// fine) with it. iPadOS reports as "Mac" in the UA string but is touch-only, hence the
-// maxTouchPoints check alongside it.
-const IS_MOBILE = /iPhone|iPod|iPad|Android/i.test(navigator.userAgent) ||
-  (/Mac/i.test(navigator.platform || '') && navigator.maxTouchPoints > 1);
 
 let state = {
   loaded: false,
@@ -620,14 +602,6 @@ async function requestPersistentStorage(){
 // moving or being deleted) and falls back to a live FileSystemFileHandle
 // (Chromium only) when no cached copy exists yet — caching it afterward.
 async function getEntryFile(bookId, idx, entry){
-  // Dropbox-streamed entries never touch IndexedDB — hand back a lightweight
-  // ranged-fetch stand-in (used by chapter parsing). Playback itself
-  // (loadEntry/ensureDurationsKnown) points audioEl straight at remoteUrl
-  // and never calls this.
-  if (entry.remoteUrl){
-    if (entry._remoteSize == null) entry._remoteSize = await fetchRemoteSize(entry.remoteUrl);
-    return makeRemoteFileLike(entry.remoteUrl, entry.name, entry._remoteSize || 0);
-  }
   const key = entry.blobKey || blobKey(bookId, idx);
   try{
     const cached = await idbGetBlob(key);
@@ -986,178 +960,7 @@ async function handleFilesSelected(fileList){
   else render();
 }
 
-// ------------------------------------------------------------------
-// DROPBOX STREAMING
-// Exists for iOS specifically: iOS Safari can't reliably hold a big
-// audiobook as a blob (the whole point of the local-file/caching path
-// above), so instead of copying the file onto the device at all, we
-// point the <audio> element straight at Dropbox and let the browser's
-// own HTTP range-request handling do the streaming. Nothing is ever
-// written into IndexedDB for these entries.
-// ------------------------------------------------------------------
-function dropboxDirectUrl(rawUrl){
-  let u;
-  try{ u = new URL(String(rawUrl||'').trim()); } catch(e){ return null; }
-  if (!/(^|\.)dropbox\.com$/i.test(u.hostname) && !/(^|\.)dropboxusercontent\.com$/i.test(u.hostname)) return null;
-  // dl=1 tells Dropbox to serve raw file bytes (with Range support) instead
-  // of the HTML preview page — the standard trick for hotlinking Dropbox
-  // content into an <audio>/<video> element.
-  u.searchParams.set('dl', '1');
-  return u.toString();
-}
-// Same idea as dropboxDirectUrl but for the manual-resolve tab only: raw=1
-// tells Dropbox to render the file inline instead of triggering a download,
-// so the tab actually navigates to the final dropboxusercontent.com URL and
-// the address bar updates (dl=1 just downloads in place — no navigation, so
-// there's nothing to copy out of the address bar).
-function dropboxRawUrl(rawUrl){
-  let u;
-  try{ u = new URL(String(rawUrl||'').trim()); } catch(e){ return null; }
-  if (!/(^|\.)dropbox\.com$/i.test(u.hostname) && !/(^|\.)dropboxusercontent\.com$/i.test(u.hostname)) return null;
-  u.searchParams.delete('dl');
-  u.searchParams.set('raw', '1');
-  return u.toString();
-}
-function dropboxFileNameFromUrl(rawUrl){
-  try{
-    const u = new URL(String(rawUrl||'').trim());
-    const last = decodeURIComponent(u.pathname.split('/').filter(Boolean).pop() || '');
-    return last || 'Dropbox file';
-  } catch(e){ return 'Dropbox file'; }
-}
-// Figures out the remote file's total size via a 1-byte range request (falls
-// back to HEAD). Needed up front so the chapter parser's byte-offset math
-// (which mirrors the local-file path exactly) has something to work against.
-async function fetchRemoteSize(url){
-  try{
-    const res = await fetch(url, { headers: { Range: 'bytes=0-0' } });
-    const cr = res.headers.get('Content-Range');
-    if (cr){ const m = /\/(\d+)$/.exec(cr); if (m) return parseInt(m[1], 10); }
-    const cl = res.headers.get('Content-Length');
-    if (res.ok && cl) return parseInt(cl, 10);
-  } catch(e){}
-  try{
-    const res = await fetch(url, { method: 'HEAD' });
-    const cl = res.headers.get('Content-Length');
-    if (cl) return parseInt(cl, 10);
-  } catch(e){}
-  return null;
-}
-// A minimal Blob/File-alike backed by ranged HTTP fetches instead of local
-// bytes, so the existing chapter parser (findTopLevelBox/readSlice, which
-// only ever calls .size and .slice().arrayBuffer()) can read the moov atom
-// out of a remote file without downloading the whole thing.
-function makeRemoteFileLike(url, name, size){
-  return {
-    name, size, isRemote: true,
-    slice(start, end){
-      const endByte = Math.max(start, (end == null ? size : end) - 1);
-      return { async arrayBuffer(){
-        const res = await fetch(url, { headers: { Range: `bytes=${start}-${endByte}` } });
-        if (!res.ok) throw new Error('Remote range fetch failed: ' + res.status);
-        return await res.arrayBuffer();
-      }};
-    },
-  };
-}
-// iOS home-screen ("standalone") web apps have a WebKit bug where <audio>/
-// <video> refuse to play a src URL that 302-redirects cross-origin — and
-// Dropbox's dl=1 links always redirect from www.dropbox.com to a signed,
-// long-lived dl.dropboxusercontent.com URL. A plain Safari tab follows that
-// redirect fine; the installed app's media pipeline doesn't, and fails the
-// whole load with SRC_NOT_SUPPORTED even though the file itself is playable.
-// Fix: resolve the redirect ourselves with a fetch (which the standalone
-// shell handles correctly) and hand audioEl the final URL directly, so it
-// never has to follow a redirect itself. Cached per entry since the
-// resolved URL doesn't change for the life of the session.
-async function resolveDropboxPlaybackUrl(entry){
-  if (entry._resolvedUrl) return entry._resolvedUrl;
-  let resolved = entry.remoteUrl;
-  try{
-    const res = await fetch(entry.remoteUrl, { headers: { Range: 'bytes=0-0' } });
-    if (res && res.url) resolved = res.url;
-  } catch(e){
-    try{
-      const res = await fetch(entry.remoteUrl, { method: 'HEAD' });
-      if (res && res.url) resolved = res.url;
-    } catch(e2){}
-  }
-  entry._resolvedUrl = resolved;
-  return resolved;
-}
-// Manual fallback for when the fetch-based resolve above doesn't work (e.g.
-// Dropbox throttles/blocks the range request, or some other CORS wrinkle).
-// A hidden <iframe> can't help here — once it navigates cross-origin, reading
-// its post-redirect location back out via JS throws a SecurityError, same-
-// origin policy blocks it categorically, iframe or not. A real browser tab is
-// the only place the resolved URL is actually visible: it shows up in the
-// address bar, and the person can copy it by hand.
-function openDropboxLinkForResolve(rawText){
-  const lines = String(rawText||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-  if (!lines.length){ toast('Paste a Dropbox link first.'); return; }
-  const direct = dropboxRawUrl(lines[0]);
-  if (!direct){ toast("That doesn't look like a Dropbox link."); return; }
-  window.open(direct, '_blank', 'noopener');
-  toast(lines.length > 1
-    ? 'Opened the first link — copy the resolved URL, then repeat for each track.'
-    : 'Opened in a new tab — copy the URL it lands on from the address bar.');
-}
-// Takes the original share link(s) plus the URL(s) the person copied by hand
-// out of the tab opened above, and links the book directly to those —
-// skipping the runtime redirect-follow fetch entirely, since these are
-// already fully resolved.
-async function addDropboxLinksManual(bookId, rawText, resolvedText){
-  const lines = String(rawText||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-  const resolvedLines = String(resolvedText||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-  if (!lines.length){ toast('Paste the original Dropbox link(s) up above first.'); return; }
-  if (!resolvedLines.length){ toast('Paste the resolved URL(s) you copied from the tab.'); return; }
-  if (resolvedLines.length !== lines.length){
-    toast(`${lines.length} original link(s) but ${resolvedLines.length} resolved URL(s) — need one resolved URL per original link, same order.`);
-    return;
-  }
-  for (const line of resolvedLines){
-    try{ new URL(line); } catch(e){ toast('One of the resolved URLs doesn\'t look like a valid link.'); return; }
-  }
-  const entries = lines.map((line, i) => ({
-    name: dropboxFileNameFromUrl(line),
-    path: dropboxFileNameFromUrl(line),
-    remoteUrl: resolvedLines[i],
-    _resolvedUrl: resolvedLines[i],
-  }));
-  const mode = entries.length > 1 ? 'multi' : 'single';
-  const match = { mode, entries, matchedAt: Date.now(), source: 'dropbox' };
-  state.matches[bookId] = match;
-  await idbSet(matchKey(bookId), match);
-  await idbDelete(chapKey(bookId));
-  state.modal = null;
-  toast('Linked with the manually resolved URL(s).');
-  if (state.view === 'player' && state.currentBookId === bookId) await startPlaybackSession(bookId, match, findItem(bookId));
-  else render();
-}
-async function addDropboxLinks(bookId, rawText){
-  const lines = String(rawText||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-  if (!lines.length){ toast('Paste a Dropbox link first.'); return; }
-  const directUrls = [];
-  for (const line of lines){
-    const direct = dropboxDirectUrl(line);
-    if (!direct){ toast("That doesn't look like a Dropbox link."); return; }
-    directUrls.push(direct);
-  }
-  const entries = directUrls.map((url, i) => ({
-    name: dropboxFileNameFromUrl(lines[i]),
-    path: dropboxFileNameFromUrl(lines[i]),
-    remoteUrl: url,
-  }));
-  const mode = entries.length > 1 ? 'multi' : 'single';
-  const match = { mode, entries, matchedAt: Date.now(), source: 'dropbox' };
-  state.matches[bookId] = match;
-  await idbSet(matchKey(bookId), match);
-  await idbDelete(chapKey(bookId)); // force re-parse of chapters for the new file(s)
-  state.modal = null;
-  toast('Linked — this book will stream from Dropbox from now on.');
-  if (state.view === 'player' && state.currentBookId === bookId) await startPlaybackSession(bookId, match, findItem(bookId));
-  else render();
-}
+
 
 async function loadMatchIfNeeded(bookId){
   if (state.matches[bookId]) return state.matches[bookId];
@@ -1548,10 +1351,7 @@ async function ensureDurationsKnown(){
     const entry = player.match.entries[i];
     if (typeof entry.durationSec === 'number'){ player.entryDurations[i] = entry.durationSec; continue; }
     try{
-      // Remote (Dropbox) entries probe the URL directly — no blob, nothing
-      // ever hits IndexedDB for these. Same redirect-resolution as loadEntry.
-      const url = entry.remoteUrl ? await resolveDropboxPlaybackUrl(entry)
-        : URL.createObjectURL(await getEntryFile(player.bookId, i, entry));
+      const url = URL.createObjectURL(await getEntryFile(player.bookId, i, entry));
       const d = await new Promise((resolve) => {
         const a = new Audio();
         a.preload = 'metadata';
@@ -1564,7 +1364,7 @@ async function ensureDurationsKnown(){
         // instead of just leaving that one track's duration unknown.
         setTimeout(() => resolve(0), 10000);
       });
-      if (!entry.remoteUrl) URL.revokeObjectURL(url);
+      URL.revokeObjectURL(url);
       entry.durationSec = d;
       player.entryDurations[i] = d;
     } catch(e){ player.entryDurations[i] = 0; }
@@ -1575,13 +1375,7 @@ async function ensureDurationsKnown(){
 
 async function loadEntry(idx, seekTo){
   const entry = player.match.entries[idx];
-  // Dropbox entries stream straight from the URL — audioEl's own network
-  // layer issues the Range requests, so this never touches getEntryFile()/
-  // IndexedDB/blob memory at all, which is the whole point on iOS. The URL
-  // handed to audioEl must already be redirect-free — see
-  // resolveDropboxPlaybackUrl for why.
-  const url = entry.remoteUrl ? await resolveDropboxPlaybackUrl(entry)
-    : URL.createObjectURL(await getEntryFile(player.bookId, idx, entry));
+  const url = URL.createObjectURL(await getEntryFile(player.bookId, idx, entry));
   if (audioEl.src && audioEl.src.startsWith('blob:')) URL.revokeObjectURL(audioEl.src);
   audioEl.src = url;
   audioEl.playbackRate = player.rate;
@@ -2161,21 +1955,6 @@ function renderPlayer(){
         <button class="btn btn-accent" data-action="add-files" data-id="${esc(item.id)}">Add file(s)…</button>
         ${state.rootDirHandle ? `<button class="btn btn-ghost" style="margin-top:8px;" data-action="open-match-modal" data-id="${esc(item.id)}">Match from connected folder</button>`
           : (SUPPORTS_FS_ACCESS ? `<button class="btn btn-ghost" style="margin-top:8px;" data-action="connect-folder">Or connect a folder to auto-match</button>` : '')}
-        ${IS_MOBILE ? `<div class="dropbox-box">
-          <div class="divider-label" style="margin-top:0;">Or stream from Dropbox</div>
-          <p>Paste a Dropbox share link. Nothing downloads to this device — it streams straight from Dropbox, so large files work fine on iOS. For a multi-file book, paste one link per line, in track order.</p>
-          <textarea class="dropbox-input" id="dropbox-link-input" rows="2" placeholder="https://www.dropbox.com/scl/fi/…/book.m4b?rlkey=…"></textarea>
-          <button class="btn btn-ghost" style="margin-top:8px;width:100%;" data-action="add-dropbox-link" data-id="${esc(item.id)}">Stream from Dropbox</button>
-          <details class="dropbox-resolve">
-            <summary>Link added but won't play? Resolve it by hand</summary>
-            <div class="body">
-              <p>Tap "Open link" — it opens the link above in a new tab and follows Dropbox's redirect. Once it lands (or starts downloading), copy the URL from the address bar and paste it below. For a multi-file book, open and copy each line in order.</p>
-              <button class="btn btn-subtle btn-sm" style="width:100%;" data-action="open-dropbox-resolve" data-id="${esc(item.id)}">Open link in new tab</button>
-              <textarea class="dropbox-input" id="dropbox-resolved-input" rows="2" style="margin-top:8px;" placeholder="https://dl.dropboxusercontent.com/…"></textarea>
-              <button class="btn btn-ghost" style="margin-top:8px;width:100%;" data-action="save-dropbox-resolved" data-id="${esc(item.id)}">Save resolved link(s)</button>
-            </div>
-          </details>
-        </div>` : ''}
       </div>
     </div>`;
   }
@@ -2599,19 +2378,6 @@ document.addEventListener('click', async (e) => {
   if (action === 'view-book'){ player.scrubMode = 'book'; render(); return; }
   if (action === 'view-chapter'){ player.scrubMode = 'chapter'; render(); return; }
   if (action === 'add-files'){ return triggerAddFiles(id); }
-  if (action === 'add-dropbox-link'){
-    const el = document.getElementById('dropbox-link-input');
-    return addDropboxLinks(id, el ? el.value : '');
-  }
-  if (action === 'open-dropbox-resolve'){
-    const el = document.getElementById('dropbox-link-input');
-    return openDropboxLinkForResolve(el ? el.value : '');
-  }
-  if (action === 'save-dropbox-resolved'){
-    const rawEl = document.getElementById('dropbox-link-input');
-    const resEl = document.getElementById('dropbox-resolved-input');
-    return addDropboxLinksManual(id, rawEl ? rawEl.value : '', resEl ? resEl.value : '');
-  }
   if (action === 'open-match-modal'){ state.modal = { id }; render(); return; }
   if (action === 'open-sleep-modal'){ state.modal = { kind:'sleep' }; render(); return; }
   if (action === 'close-modal'){ state.modal = null; render(); return; }
