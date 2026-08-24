@@ -1005,6 +1005,19 @@ function dropboxDirectUrl(rawUrl){
   u.searchParams.set('dl', '1');
   return u.toString();
 }
+// Same idea as dropboxDirectUrl but for the manual-resolve tab only: raw=1
+// tells Dropbox to render the file inline instead of triggering a download,
+// so the tab actually navigates to the final dropboxusercontent.com URL and
+// the address bar updates (dl=1 just downloads in place — no navigation, so
+// there's nothing to copy out of the address bar).
+function dropboxRawUrl(rawUrl){
+  let u;
+  try{ u = new URL(String(rawUrl||'').trim()); } catch(e){ return null; }
+  if (!/(^|\.)dropbox\.com$/i.test(u.hostname) && !/(^|\.)dropboxusercontent\.com$/i.test(u.hostname)) return null;
+  u.searchParams.delete('dl');
+  u.searchParams.set('raw', '1');
+  return u.toString();
+}
 function dropboxFileNameFromUrl(rawUrl){
   try{
     const u = new URL(String(rawUrl||'').trim());
@@ -1082,7 +1095,7 @@ async function resolveDropboxPlaybackUrl(entry){
 function openDropboxLinkForResolve(rawText){
   const lines = String(rawText||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
   if (!lines.length){ toast('Paste a Dropbox link first.'); return; }
-  const direct = dropboxDirectUrl(lines[0]);
+  const direct = dropboxRawUrl(lines[0]);
   if (!direct){ toast("That doesn't look like a Dropbox link."); return; }
   window.open(direct, '_blank', 'noopener');
   toast(lines.length > 1
