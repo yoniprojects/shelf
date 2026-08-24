@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>Audiobooks — Shelf & Spine</title>
+<title>Audiobooks â€” Shelf & Spine</title>
 <link rel="icon" type="image/png" href="https://i.imgur.com/htlhPe9.png?v=2" />
 <link rel="apple-touch-icon" href="https://i.imgur.com/htlhPe9.png?v=2" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -39,7 +39,7 @@
   body{
     margin:0;font-family:'Inter',sans-serif;color:var(--ink);overflow-wrap:anywhere;
     background-color:var(--bg);
-    /* Web/desktop background — swapped below for mobile widths. */
+    /* Web/desktop background â€” swapped below for mobile widths. */
     background-image:url("https://i.imgur.com/2ylXdqZ.png");
     background-attachment:fixed;background-size:cover;background-position:center;background-repeat:no-repeat;
     min-height:100vh;
@@ -124,7 +124,7 @@
   .prog-pct{font-size:11px;font-weight:700;color:var(--accent);min-width:32px;text-align:right;}
   .feature-meta{font-size:11px;color:var(--muted-dim);margin-top:2px;}
 
-  /* Ring sits in the "dead space" at the cover's bottom-left corner — no extra layout height. */
+  /* Ring sits in the "dead space" at the cover's bottom-left corner â€” no extra layout height. */
   .cover-ring{position:absolute;left:-9px;bottom:-9px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 3px 6px rgba(0,0,0,.5));}
   .cover-ring svg{display:block;}
   .cover-ring .ring-pct{position:absolute;font-size:9px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;}
@@ -256,7 +256,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
 /* ==================================================================
-   FIREBASE — same project as the main Shelf & Spine app. This app only
+   FIREBASE â€” same project as the main Shelf & Spine app. This app only
    ever READS the "shelf-spine" collection (your books/wishlist) and
    WRITES to its own "audiobooks-app" collection (playback progress).
    It never touches your tracker data.
@@ -286,7 +286,7 @@ const PROGRESS_DOC = db.collection("audiobooks-app").doc(getCurrentUserId());
    TINY INDEXEDDB HELPER
    Everything stored here is LOCAL TO THIS DEVICE/BROWSER on purpose:
    directory handles and file handles can't be serialized or sent
-   anywhere — each device has to be pointed at its own copy of the
+   anywhere â€” each device has to be pointed at its own copy of the
    files. Only playback *position* syncs, via Firestore above.
 ================================================================== */
 const IDB_NAME = "audiobooks-app-db";
@@ -401,12 +401,12 @@ function starsHTML(value, size){
   let out = `<span class="mini-stars" style="font-size:${size}px">`;
   for (let n=1;n<=5;n++){
     const frac = Math.max(0, Math.min(1, value-(n-1)));
-    out += `<span class="star-slot"><span class="star-base">★</span><span class="star-fill" style="width:${Math.round(frac*100)}%">★</span></span>`;
+    out += `<span class="star-slot"><span class="star-base">â˜…</span><span class="star-fill" style="width:${Math.round(frac*100)}%">â˜…</span></span>`;
   }
   return out + `</span>`;
 }
 
-// Tappable version of starsHTML — used in the player, where you're actually
+// Tappable version of starsHTML â€” used in the player, where you're actually
 // rating the book you're listening to. Each star is split into 4 quarter-width
 // hit zones so quarter-star taps work the same way the fill already renders them.
 function starsEditableHTML(bookId, value, size){
@@ -416,8 +416,8 @@ function starsEditableHTML(bookId, value, size){
   for (let n=1;n<=5;n++){
     const frac = Math.max(0, Math.min(1, value-(n-1)));
     out += `<span class="star-slot">
-      <span class="star-base">★</span>
-      <span class="star-fill" style="width:${Math.round(frac*100)}%">★</span>
+      <span class="star-base">â˜…</span>
+      <span class="star-fill" style="width:${Math.round(frac*100)}%">â˜…</span>
       <span class="star-hit star-hit-q1" data-action="set-rating" data-id="${esc(bookId)}" data-val="${n-0.75}"></span>
       <span class="star-hit star-hit-q2" data-action="set-rating" data-id="${esc(bookId)}" data-val="${n-0.5}"></span>
       <span class="star-hit star-hit-q3" data-action="set-rating" data-id="${esc(bookId)}" data-val="${n-0.25}"></span>
@@ -438,16 +438,16 @@ function starsEditableHTML(bookId, value, size){
 // Both this app and index.html call db.enablePersistence(), which means the
 // onSnapshot listener that populates state.allBooks can fire from this
 // device's local IndexedDB cache before it's actually synced with the
-// server (snapshot.metadata.fromCache === true) — e.g. right after opening
+// server (snapshot.metadata.fromCache === true) â€” e.g. right after opening
 // the page, after being backgrounded a while, or on a flaky connection. If
-// that cache happens to be stale (behind what's really on the server —
+// that cache happens to be stale (behind what's really on the server â€”
 // including from another device's more recent edit), writing state.allBooks
 // straight back would silently overwrite the server with old data, the same
 // class of bug as the original all-Audio wipeout, just via a different
 // route. So every write here re-fetches the doc fresh from the server
 // first and merges the patch into THAT, never into the cached local copy.
 function saveBookPatch(itemId, patch){
-  // Optimistic local update so the UI feels instant — this is fine to base
+  // Optimistic local update so the UI feels instant â€” this is fine to base
   // on state.allBooks since it only affects this device's own rendering
   // until the real write below resolves.
   const optimisticAllBooks = state.allBooks.map(b => b.id === itemId ? { ...b, ...patch } : b);
@@ -465,7 +465,7 @@ function saveBookPatch(itemId, patch){
   });
 }
 // Writes the new rating straight to the tracker doc, mirroring writeBookPercent's
-// pattern — this is the one place ratings flow app → main site instead of the
+// pattern â€” this is the one place ratings flow app â†’ main site instead of the
 // other way around, so it stays a deliberate, separate write.
 function setRating(bookId, value){
   value = Math.max(0, Math.min(5, Math.round(Number(value)*4)/4 || 0));
@@ -478,7 +478,7 @@ function setRating(bookId, value){
 }
 // Mirrors the tracker's own saveCompleteBookFromModal() exactly: same fields
 // (status/dateFinished/rating/priority/dueDate cleared), same required-rating
-// check, and the same write — straight to BOOKS_DOC, which is the very same
+// check, and the same write â€” straight to BOOKS_DOC, which is the very same
 // Firestore doc (shelf-spine/<profile>) the tracker itself reads and writes.
 // So completing a book here is indistinguishable, on the other end, from
 // completing it there.
@@ -499,7 +499,7 @@ function saveCompleteBook(itemId){
   render();
   writePromise
     .then(() => toast('Marked as complete.'))
-    .catch(err => { console.error('Failed to mark complete:', err); toast('Could not sync completion — try again.'); });
+    .catch(err => { console.error('Failed to mark complete:', err); toast('Could not sync completion â€” try again.'); });
 }
 // Same day/month order convention as the main tracker, keyed off the same profile.
 function formatDueDate(iso){
@@ -565,7 +565,7 @@ const IS_MOBILE = /iPhone|iPod|iPad|Android/i.test(navigator.userAgent) ||
 
 let state = {
   loaded: false,
-  allBooks: [],        // EVERY book from the tracker doc, all formats — the full
+  allBooks: [],        // EVERY book from the tracker doc, all formats â€” the full
                         // set that must be preserved on every write. Never filtered.
   books: [],          // format === "Audio" tracker books (view-only subset of allBooks)
   wishlist: [],        // format === "Audio" wishlist items
@@ -576,11 +576,11 @@ let state = {
   scan: null,            // {files:[...], folders: Map} built by scanning rootDirHandle
   scanning: false,
   matches: {},            // bookId -> match object (loaded lazily from IndexedDB)
-  // NOTE: always boot into 'gallery' even if the URL hash says #player — we resume
+  // NOTE: always boot into 'gallery' even if the URL hash says #player â€” we resume
   // into the player explicitly further down, once books/progress have actually
   // loaded (see the boot sequence at the bottom of the file). Setting view:'player'
   // here directly, before any data existed, used to strand the player on a blank/
-  // "add files" screen with nothing to resume — see the resumeIntoPlayer() note.
+  // "add files" screen with nothing to resume â€” see the resumeIntoPlayer() note.
   view: 'gallery',
   currentBookId: lsGet('audiobooks:lastBook') || null,
   modal: null,
@@ -611,9 +611,9 @@ async function requestPersistentStorage(){
 // Resolves the actual playable file for one match entry. Always prefers the
 // cached on-device copy (works in every browser, survives the source file
 // moving or being deleted) and falls back to a live FileSystemFileHandle
-// (Chromium only) when no cached copy exists yet — caching it afterward.
+// (Chromium only) when no cached copy exists yet â€” caching it afterward.
 async function getEntryFile(bookId, idx, entry){
-  // Dropbox-streamed entries never touch IndexedDB — hand back a lightweight
+  // Dropbox-streamed entries never touch IndexedDB â€” hand back a lightweight
   // ranged-fetch stand-in (used by chapter parsing). Playback itself
   // (loadEntry/ensureDurationsKnown) points audioEl straight at remoteUrl
   // and never calls this.
@@ -631,7 +631,7 @@ async function getEntryFile(bookId, idx, entry){
     idbSetBlob(key, file).catch(()=>{});
     return file;
   }
-  throw new Error("This file isn't cached on this device yet — open Match to add it.");
+  throw new Error("This file isn't cached on this device yet â€” open Match to add it.");
 }
 // After a Chromium folder-scan match, copy each file into the local cache in
 // the background so playback no longer depends on the live folder handle.
@@ -674,7 +674,7 @@ function findItem(id){ return allAudioItems().find(i => i.id === id) || null; }
 ================================================================== */
 // Resolved the first time each Firestore collection has actually returned data
 // (from cache or network). Playback resume waits on these so it never mistakes
-// "hasn't loaded yet" for "there's no saved position" — see the note further
+// "hasn't loaded yet" for "there's no saved position" â€” see the note further
 // down about why the reset-to-0 bug happened.
 let booksReadyResolve, progressReadyResolve;
 const booksReadyPromise = new Promise(res => { booksReadyResolve = res; });
@@ -687,8 +687,8 @@ function loadBooks(){
     const wishlist = Array.isArray(data.wishlist) ? data.wishlist : [];
     state.allBooks = books;
     state.books = books.filter(b => b.format === 'Audio');
-    // Wishlist items never carry a `format` field on the tracker side — format
-    // is only chosen once a book moves to Currently Reading — so show all of
+    // Wishlist items never carry a `format` field on the tracker side â€” format
+    // is only chosen once a book moves to Currently Reading â€” so show all of
     // them here; which format they end up with is decided in the move-to-
     // reading popup below (pre-filled to Audio, same as clicking "Read" there).
     state.wishlist = wishlist;
@@ -731,7 +731,7 @@ function persistProgressNow(bookId, patch){
 
 // Pushes the audiobook's % done back into the main tracker's own book record,
 // so the "Currently Reading" card on the main site reflects listening progress
-// too. Only for books currently in "reading" status there — this never touches
+// too. Only for books currently in "reading" status there â€” this never touches
 // wishlist items or the star rating / due date, which flow the other way.
 let bookSyncDebounce = null;
 function syncPercentToMainSite(bookId, pct){
@@ -762,7 +762,7 @@ async function restoreRootDir(){
     if (!handle) return;
     state.rootDirHandle = handle;
     state.rootDirName = handle.name;
-    // Don't call requestPermission here — it needs a user gesture.
+    // Don't call requestPermission here â€” it needs a user gesture.
     // Just check silently; we'll prompt to reconnect if it's not granted.
     const perm = await handle.queryPermission({ mode: 'read' });
     state.dirPermissionOk = perm === 'granted';
@@ -772,7 +772,7 @@ async function restoreRootDir(){
 
 async function connectFolder(){
   if (!window.showDirectoryPicker){
-    toast("This browser doesn't support folder access — try Chrome, Edge, or a Chromium-based browser.");
+    toast("This browser doesn't support folder access â€” try Chrome, Edge, or a Chromium-based browser.");
     return;
   }
   try{
@@ -797,7 +797,7 @@ async function reconnectFolder(){
     render();
     if (state.dirPermissionOk) { toast('Reconnected.'); await rescanLibrary(); }
     else toast("Permission wasn't granted.");
-  } catch(e){ console.error(e); toast('Could not reconnect — try choosing the folder again.'); }
+  } catch(e){ console.error(e); toast('Could not reconnect â€” try choosing the folder again.'); }
 }
 
 function extOf(name){ const m=/\.([a-z0-9]+)$/i.exec(name); return m?m[1].toLowerCase():''; }
@@ -965,7 +965,7 @@ async function handleFilesSelected(fileList){
   const entries = [];
   for (let i=0;i<files.length;i++){
     await idbSetBlob(blobKey(bookId, i), files[i]);
-    entries.push({ name: files[i].name, path: files[i].name }); // no handle — blob is the source of truth
+    entries.push({ name: files[i].name, path: files[i].name }); // no handle â€” blob is the source of truth
   }
   const match = { mode, entries, matchedAt: Date.now() };
   state.matches[bookId] = match;
@@ -974,7 +974,7 @@ async function handleFilesSelected(fileList){
   requestPersistentStorage();
   refreshStorageEstimate();
   state.modal = null;
-  toast('Added — this book will open straight into the player from now on.');
+  toast('Added â€” this book will open straight into the player from now on.');
   if (state.view === 'player' && state.currentBookId === bookId) await startPlaybackSession(bookId, match, findItem(bookId));
   else render();
 }
@@ -993,7 +993,7 @@ function dropboxDirectUrl(rawUrl){
   try{ u = new URL(String(rawUrl||'').trim()); } catch(e){ return null; }
   if (!/(^|\.)dropbox\.com$/i.test(u.hostname) && !/(^|\.)dropboxusercontent\.com$/i.test(u.hostname)) return null;
   // dl=1 tells Dropbox to serve raw file bytes (with Range support) instead
-  // of the HTML preview page — the standard trick for hotlinking Dropbox
+  // of the HTML preview page â€” the standard trick for hotlinking Dropbox
   // content into an <audio>/<video> element.
   u.searchParams.set('dl', '1');
   return u.toString();
@@ -1041,7 +1041,7 @@ function makeRemoteFileLike(url, name, size){
   };
 }
 // iOS home-screen ("standalone") web apps have a WebKit bug where <audio>/
-// <video> refuse to play a src URL that 302-redirects cross-origin — and
+// <video> refuse to play a src URL that 302-redirects cross-origin â€” and
 // Dropbox's dl=1 links always redirect from www.dropbox.com to a signed,
 // long-lived dl.dropboxusercontent.com URL. A plain Safari tab follows that
 // redirect fine; the installed app's media pipeline doesn't, and fails the
@@ -1053,14 +1053,24 @@ function makeRemoteFileLike(url, name, size){
 async function resolveDropboxPlaybackUrl(entry){
   if (entry._resolvedUrl) return entry._resolvedUrl;
   let resolved = entry.remoteUrl;
+  let lastErr = null;
   try{
     const res = await fetch(entry.remoteUrl, { headers: { Range: 'bytes=0-0' } });
     if (res && res.url) resolved = res.url;
   } catch(e){
+    lastErr = e;
     try{
       const res = await fetch(entry.remoteUrl, { method: 'HEAD' });
       if (res && res.url) resolved = res.url;
-    } catch(e2){}
+      lastErr = null;
+    } catch(e2){ lastErr = e2; }
+  }
+  // DIAGNOSTIC: if both attempts failed (almost certainly a CORS error on the
+  // www.dropbox.com hop â€” see comment above), surface it on-screen instead of
+  // silently falling back to the still-redirecting URL. Remove this toast
+  // once the root cause is confirmed.
+  if (lastErr && resolved === entry.remoteUrl){
+    toast(`Dropbox redirect resolve failed: ${lastErr.name||''} ${lastErr.message||lastErr}`, 15000);
   }
   entry._resolvedUrl = resolved;
   return resolved;
@@ -1085,7 +1095,7 @@ async function addDropboxLinks(bookId, rawText){
   await idbSet(matchKey(bookId), match);
   await idbDelete(chapKey(bookId)); // force re-parse of chapters for the new file(s)
   state.modal = null;
-  toast('Linked — this book will stream from Dropbox from now on.');
+  toast('Linked â€” this book will stream from Dropbox from now on.');
   if (state.view === 'player' && state.currentBookId === bookId) await startPlaybackSession(bookId, match, findItem(bookId));
   else render();
 }
@@ -1100,7 +1110,7 @@ async function loadMatchIfNeeded(bookId){
 
 <script>
 /* ==================================================================
-   MP4/M4B CHAPTER PARSING (best-effort — falls back gracefully)
+   MP4/M4B CHAPTER PARSING (best-effort â€” falls back gracefully)
    Supports the two common formats: Nero "chpl" atoms, and QuickTime
    text-track chapters (tref -> chap). Neither is loaded until you
    open a book, and only the small "moov" atom is read into memory.
@@ -1134,7 +1144,7 @@ async function findTopLevelBox(file, type){
 // Parses a fully-loaded buffer of sibling boxes starting at `start`, up to `end`.
 // `boxStart` (the position of the box's own size field, i.e. its very start)
 // is kept alongside `start`/`end` (the payload range) so callers can copy a
-// box *verbatim*, header included — needed when byte-exact content matters
+// box *verbatim*, header included â€” needed when byte-exact content matters
 // (e.g. `stsd`'s codec config) rather than just parsing fields out of it.
 function parseBoxList(buf, start, end){
   const boxes = [];
@@ -1367,8 +1377,8 @@ let player = {
   isReady: false,
   isPlaying: false,
   seeking: false,
-  scrubMode: 'book',     // 'book' | 'chapter' — which range the scrubber/time labels reflect
-  sleepTimer: null,      // {mode:'book'|'speed'|'chapter', ...} — see setSleepTimer* below
+  scrubMode: 'book',     // 'book' | 'chapter' â€” which range the scrubber/time labels reflect
+  sleepTimer: null,      // {mode:'book'|'speed'|'chapter', ...} â€” see setSleepTimer* below
 };
 
 function entryStartOffset(idx){
@@ -1466,11 +1476,11 @@ async function ensureDurationsKnown(){
   // all: loadEntry() is about to load that exact file into the real audioEl
   // anyway, and that element's own 'loadedmetadata' event gives us the total
   // duration for free. Skipping this avoids spinning up a second, off-DOM
-  // Audio() element purely to ask it the same question — which is the probe
+  // Audio() element purely to ask it the same question â€” which is the probe
   // that mobile Safari can silently never fire 'loadedmetadata' on, hanging
   // this whole function (and, with it, the play button and end-time label)
   // forever. Multi-file books (ripped-CD folders) still need it, since we
-  // have to know every *other* track's length up front to compute offsets —
+  // have to know every *other* track's length up front to compute offsets â€”
   // that path keeps the probe but now bounds it with a timeout.
   if (player.match.mode === 'single'){
     return;
@@ -1479,7 +1489,7 @@ async function ensureDurationsKnown(){
     const entry = player.match.entries[i];
     if (typeof entry.durationSec === 'number'){ player.entryDurations[i] = entry.durationSec; continue; }
     try{
-      // Remote (Dropbox) entries probe the URL directly — no blob, nothing
+      // Remote (Dropbox) entries probe the URL directly â€” no blob, nothing
       // ever hits IndexedDB for these. Same redirect-resolution as loadEntry.
       const url = entry.remoteUrl ? await resolveDropboxPlaybackUrl(entry)
         : URL.createObjectURL(await getEntryFile(player.bookId, i, entry));
@@ -1506,10 +1516,10 @@ async function ensureDurationsKnown(){
 
 async function loadEntry(idx, seekTo){
   const entry = player.match.entries[idx];
-  // Dropbox entries stream straight from the URL — audioEl's own network
+  // Dropbox entries stream straight from the URL â€” audioEl's own network
   // layer issues the Range requests, so this never touches getEntryFile()/
   // IndexedDB/blob memory at all, which is the whole point on iOS. The URL
-  // handed to audioEl must already be redirect-free — see
+  // handed to audioEl must already be redirect-free â€” see
   // resolveDropboxPlaybackUrl for why.
   const url = entry.remoteUrl ? await resolveDropboxPlaybackUrl(entry)
     : URL.createObjectURL(await getEntryFile(player.bookId, idx, entry));
@@ -1535,7 +1545,7 @@ async function openPlayer(itemId){
   render();
 
   if (!match){
-    // No confident auto-match yet — offer manual picking, don't block navigation.
+    // No confident auto-match yet â€” offer manual picking, don't block navigation.
     return;
   }
   await startPlaybackSession(itemId, match, item);
@@ -1563,7 +1573,7 @@ async function startPlaybackSession(itemId, match, item){
     }
   }
 
-  // Wait for the real saved position to arrive before deciding where to start —
+  // Wait for the real saved position to arrive before deciding where to start â€”
   // otherwise a book opened right after a fresh page load can read an empty
   // {} (progress hasn't synced from Firestore yet), start at 0:00, and then
   // that 0:00 gets saved right back over your actual progress.
@@ -1576,7 +1586,7 @@ async function startPlaybackSession(itemId, match, item){
   }
   await loadEntry(startEntry, startTime);
   if (player.match.mode === 'single'){
-    // No pre-probe ran for single-file books (see ensureDurationsKnown) — the
+    // No pre-probe ran for single-file books (see ensureDurationsKnown) â€” the
     // real audioEl just loaded this exact file, so its duration IS the book's
     // total length... usually. See the size-based fallback below.
     player.entryDurations[0] = audioEl.duration || 0;
@@ -1589,7 +1599,7 @@ async function startPlaybackSession(itemId, match, item){
 }
 
 // Feeds the book's title/author/cover into the OS-level Now Playing widget
-// (lock screen, Control Center, AirPods) — without this, iOS just shows the
+// (lock screen, Control Center, AirPods) â€” without this, iOS just shows the
 // page title and app icon for every book, since that's its fallback when a
 // page never sets navigator.mediaSession.metadata.
 function updateMediaSessionMetadata(item){
@@ -1607,7 +1617,7 @@ function updateMediaSessionMetadata(item){
 
 // Wires the lock screen's play/pause/skip controls to the same functions the
 // in-app buttons use, so they stay in sync (iOS still LABELS its skip buttons
-// "10" regardless — that's a fixed OS icon it won't let sites relabel — but
+// "10" regardless â€” that's a fixed OS icon it won't let sites relabel â€” but
 // tapping them now actually skips the app's real 30s).
 if ('mediaSession' in navigator){
   navigator.mediaSession.setActionHandler('play', () => { if (player.isReady && audioEl.paused) togglePlay(); });
@@ -1625,7 +1635,7 @@ function syncPlayerFromRemoteIfIdle(){
 }
 
 // audioEl.error (a MediaError) is far more diagnostic than a play()
-// rejection itself — it's what actually failed inside the decoder.
+// rejection itself â€” it's what actually failed inside the decoder.
 // Centralized here so every call site (initial play, entry transitions,
 // skip, background errors) reports failures the same way instead of some
 // paths swallowing them silently.
@@ -1649,7 +1659,7 @@ async function attemptPlay(){
   } catch(e){
     console.warn('Playback failed.', e, audioEl.error);
     player.isPlaying = false;
-    toast(`Playback failed — ${describeMediaError(e)}`, 12000);
+    toast(`Playback failed â€” ${describeMediaError(e)}`, 12000);
     render();
     return false;
   }
@@ -1703,7 +1713,7 @@ function setRate(delta){
   render(); saveProgressNow();
 }
 // `val` is on whatever scale the visible slider currently uses (book-cumulative
-// or chapter-relative) — converts it to the right local audioEl.currentTime,
+// or chapter-relative) â€” converts it to the right local audioEl.currentTime,
 // crossing entries if needed in Book mode.
 async function scrubTo(val){
   if (player.scrubMode === 'chapter'){
@@ -1752,12 +1762,12 @@ function saveProgressNow(){
 }
 
 /* ==================================================================
-   SLEEP TIMER ("listen for X minutes…")
+   SLEEP TIMER ("listen for X minutesâ€¦")
    Three independent stopping conditions:
    - 'book':    stop once X minutes of book CONTENT have played, no
                 matter the playback speed (checked against cumulativeSec,
                 which already tracks file position, not wall-clock time).
-   - 'speed':   stop once X real minutes of listening have elapsed —
+   - 'speed':   stop once X real minutes of listening have elapsed â€”
                 a classic wall-clock sleep timer. How much of the book
                 that covers depends on the current speed.
    - 'chapter': stop once N more chapters have gone by.
@@ -1797,7 +1807,7 @@ function clearSleepTimer(){
 function fireSleepTimer(){
   clearSleepTimer();
   if (player.isPlaying){ audioEl.pause(); player.isPlaying = false; saveProgressNow(); }
-  toast('Sleep timer ended — playback paused.');
+  toast('Sleep timer ended â€” playback paused.');
   render();
 }
 function checkSleepTimer(){
@@ -1812,7 +1822,7 @@ function setSleepTimerBook(minutes){
   player.sleepTimer = { mode:'book', targetCumulativeSec: cumulativeSec() + minutes*60 };
   startSleepBadgeInterval();
   state.modal = null;
-  toast(`Sleep timer set — ${minutes}m of book left to play.`);
+  toast(`Sleep timer set â€” ${minutes}m of book left to play.`);
   render();
 }
 function setSleepTimerSpeed(minutes){
@@ -1822,7 +1832,7 @@ function setSleepTimerSpeed(minutes){
   player.sleepTimer = { mode:'speed', endsAtMs, timeoutId };
   startSleepBadgeInterval();
   state.modal = null;
-  toast(`Sleep timer set — ${minutes}m of listening.`);
+  toast(`Sleep timer set â€” ${minutes}m of listening.`);
   render();
 }
 function setSleepTimerChapters(n){
@@ -1830,7 +1840,7 @@ function setSleepTimerChapters(n){
   player.sleepTimer = { mode:'chapter', targetChapterIdx: currentChapterIndex() + n };
   startSleepBadgeInterval();
   state.modal = null;
-  toast(`Sleep timer set — ${n} chapter${n>1?'s':''} left.`);
+  toast(`Sleep timer set â€” ${n} chapter${n>1?'s':''} left.`);
   render();
 }
 
@@ -1844,7 +1854,7 @@ audioEl.addEventListener('timeupdate', () => {
 audioEl.addEventListener('ended', async () => {
   if (player.match && player.entryIndex < player.match.entries.length-1){
     // 'pause' can fire just before 'ended', which would already have set
-    // player.isPlaying = false — so don't rely on goToEntry's wasPlaying
+    // player.isPlaying = false â€” so don't rely on goToEntry's wasPlaying
     // check here. Always try to resume into the next part, and let
     // attemptPlay() surface (rather than swallow) a failure to load/decode
     // that specific segment, instead of the book just going silent.
@@ -1861,7 +1871,7 @@ audioEl.addEventListener('durationchange', () => {
   // Mobile Safari can report duration as NaN/Infinity on loadedmetadata for
   // some m4b files (typically ones not "faststart"-optimized), then correct
   // itself once it's actually parsed more of the file. Single-mode books read
-  // their totalSec once, right after loadedmetadata (see startPlaybackSession) —
+  // their totalSec once, right after loadedmetadata (see startPlaybackSession) â€”
   // this catches the correction so the book doesn't stay stuck at "0:00 left".
   if (player.match && player.match.mode === 'single' && isFinite(audioEl.duration) && audioEl.duration > 0){
     if (player.entryDurations[0] !== audioEl.duration){
@@ -1874,7 +1884,7 @@ audioEl.addEventListener('durationchange', () => {
 audioEl.addEventListener('play', () => { player.isPlaying = true; if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing'; render(); });
 audioEl.addEventListener('pause', () => { player.isPlaying = false; if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused'; });
 // Catches decode/network failures that happen mid-playback (not just at an
-// explicit play() call or a part transition) — e.g. a file that loads its
+// explicit play() call or a part transition) â€” e.g. a file that loads its
 // metadata fine but fails partway through actually decoding. Without this,
 // that failure previously had no listener at all: audio just stopped and
 // the UI kept showing "playing" forever.
@@ -1882,14 +1892,14 @@ audioEl.addEventListener('error', () => {
   if (!player.isReady) return; // ignore errors from src changes during loadEntry() itself
   console.warn('audioEl error event mid-playback.', audioEl.error);
   player.isPlaying = false;
-  toast(`Playback stopped — ${describeMediaError(null)}`, 12000);
+  toast(`Playback stopped â€” ${describeMediaError(null)}`, 12000);
   render();
 });
 
 // STALL WATCHDOG: the failure mode above (an explicit 'error' event) turns
 // out not to be the only silent one. Some malformed segments cause mobile
 // Safari to accept play() successfully (no rejection, no 'error' event) and
-// then simply never advance currentTime again — no native event fires for
+// then simply never advance currentTime again â€” no native event fires for
 // this at all on some builds. Without this, that looks exactly like a
 // healthy, playing player forever: pause icon showing, nothing wrong on
 // screen, audio just never comes. Polling currentTime is the only reliable
@@ -1905,12 +1915,12 @@ setInterval(() => {
     const hasNextEntry = player.match && player.entryIndex < player.match.entries.length - 1;
     if (nearOwnEnd && hasNextEntry){
       // Some mobile Safari builds never fire 'ended' for a track that's
-      // essentially exhausted — readyState stays HAVE_ENOUGH_DATA and
+      // essentially exhausted â€” readyState stays HAVE_ENOUGH_DATA and
       // currentTime just parks a fraction of a second short of duration
       // forever. Treat "stalled right at this entry's own tail" as an
       // implicit ended instead of surfacing it as a hard failure, since a
       // real ended event would have done exactly this anyway.
-      console.warn('Stall right at entry end with no ended event — treating as implicit end, advancing.', {
+      console.warn('Stall right at entry end with no ended event â€” treating as implicit end, advancing.', {
         entryIndex: player.entryIndex, currentTime: audioEl.currentTime, duration: dur,
       });
       (async () => {
@@ -1929,7 +1939,7 @@ setInterval(() => {
       networkState: audioEl.networkState,
     });
     player.isPlaying = false;
-    toast(`Playback stalled at ${fmtHMS(audioEl.currentTime)} of ${isFinite(dur)?fmtHMS(dur):'?'} in part ${player.entryIndex+1} (readyState ${audioEl.readyState}, networkState ${audioEl.networkState}) — tap play to retry. [${BUILD_TAG}]`, 15000);
+    toast(`Playback stalled at ${fmtHMS(audioEl.currentTime)} of ${isFinite(dur)?fmtHMS(dur):'?'} in part ${player.entryIndex+1} (readyState ${audioEl.readyState}, networkState ${audioEl.networkState}) â€” tap play to retry. [${BUILD_TAG}]`, 15000);
     render();
     watchdogLastTime = audioEl.currentTime;
     return;
@@ -1950,7 +1960,7 @@ function closePlayer(){
 
 <script>
 /* ==================================================================
-   RENDER — GALLERY
+   RENDER â€” GALLERY
 ================================================================== */
 function coverHtml(item, sizeClass){
   if (item.coverUrl){
@@ -1960,7 +1970,7 @@ function coverHtml(item, sizeClass){
 }
 function matchBadge(item){
   const m = state.matches[item.id];
-  return m ? `<span class="pill on badge">🔗</span>` : `<span class="pill off badge">＋</span>`;
+  return m ? `<span class="pill on badge">ðŸ”—</span>` : `<span class="pill off badge">ï¼‹</span>`;
 }
 function progressFor(item){
   const p = state.progress[item.id];
@@ -1979,25 +1989,25 @@ function renderConnBanner(){
   }
   if (!state.rootDirHandle){
     return `<div class="conn-banner">
-      <div class="icon">📁</div>
+      <div class="icon">ðŸ“</div>
       <div class="txt"><div class="ttl">Connect your audiobook folder</div>
-      <div class="sub">Point this at the folder on your device to auto-match your library, or add files per book instead. Either way, matched files are cached here — playback keeps working even if the folder moves or you switch browsers.</div>${storageLine}</div>
+      <div class="sub">Point this at the folder on your device to auto-match your library, or add files per book instead. Either way, matched files are cached here â€” playback keeps working even if the folder moves or you switch browsers.</div>${storageLine}</div>
       <button class="btn btn-accent" data-action="connect-folder">Choose folder</button>
     </div>`;
   }
   if (!state.dirPermissionOk){
     return `<div class="conn-banner warn">
-      <div class="icon">⚠️</div>
+      <div class="icon">âš ï¸</div>
       <div class="txt"><div class="ttl">Reconnect to "${esc(state.rootDirName)}"</div>
-      <div class="sub">Needed to scan for new books — anything already matched keeps playing from its cached copy.</div>${storageLine}</div>
+      <div class="sub">Needed to scan for new books â€” anything already matched keeps playing from its cached copy.</div>${storageLine}</div>
       <button class="btn btn-accent" data-action="reconnect-folder">Reconnect</button>
     </div>`;
   }
   return `<div class="conn-banner ok">
-    <div class="icon">🎧</div>
+    <div class="icon">ðŸŽ§</div>
     <div class="txt"><div class="ttl">Connected to "${esc(state.rootDirName)}"</div>
     <div class="sub">${state.scan ? state.scan.files.length + ' audio files found on this device.' : ''}</div>${storageLine}</div>
-    <button class="btn btn-subtle btn-sm" data-action="rescan" ${state.scanning?'disabled':''}>${state.scanning?'Scanning…':'Rescan'}</button>
+    <button class="btn btn-subtle btn-sm" data-action="rescan" ${state.scanning?'disabled':''}>${state.scanning?'Scanningâ€¦':'Rescan'}</button>
     <button class="btn btn-subtle btn-sm" data-action="connect-folder">Change folder</button>
   </div>`;
 }
@@ -2035,8 +2045,8 @@ function renderCoverCard(item){
     <div style="position:relative;">${coverHtml(item,'cover')}${isWishlist ? '' : matchBadge(item)}</div>
     <div class="title">${esc(item.title)}</div>
     <div class="author">${esc(item.author||'')}</div>
-    ${isWishlist ? `<div class="mini-pill">Start reading…</div>`
-      : (prog ? `<div class="mini-pct">${prog.pct}%${prog.pct>=100?' · Finished':''}</div>` : `<div class="mini-pill">${state.matches[item.id] ? 'Not started' : 'Tap to add'}</div>`)}
+    ${isWishlist ? `<div class="mini-pill">Start readingâ€¦</div>`
+      : (prog ? `<div class="mini-pct">${prog.pct}%${prog.pct>=100?' Â· Finished':''}</div>` : `<div class="mini-pill">${state.matches[item.id] ? 'Not started' : 'Tap to add'}</div>`)}
   </div>`;
 }
 
@@ -2047,11 +2057,11 @@ function renderGallery(){
   const finished = items.filter(i => i.section === 'finished');
 
   if (!state.loaded){
-    return `<div class="wrap"><div class="empty-state"><div class="icon">🎧</div><p>Loading your library…</p></div></div>`;
+    return `<div class="wrap"><div class="empty-state"><div class="icon">ðŸŽ§</div><p>Loading your libraryâ€¦</p></div></div>`;
   }
   if (!items.length){
     return `<div class="wrap">${renderConnBanner()}
-      <div class="empty-state"><div class="icon">🎧</div>
+      <div class="empty-state"><div class="icon">ðŸŽ§</div>
       <p>No audiobooks yet. Mark a book's format as "Audio" in your tracker, or add something to your wishlist, and it'll show up here.</p></div>
     </div>`;
   }
@@ -2073,7 +2083,7 @@ function renderGallery(){
 
 <script>
 /* ==================================================================
-   RENDER — PLAYER
+   RENDER â€” PLAYER
 ================================================================== */
 function renderPlayer(){
   const item = findItem(state.currentBookId);
@@ -2082,20 +2092,20 @@ function renderPlayer(){
 
   if (!match){
     return `<div class="player-wrap">
-      <button class="player-back" data-action="close-player">‹ Library</button>
+      <button class="player-back" data-action="close-player">â€¹ Library</button>
       ${coverHtml(item,'player-cover')}
       <div class="player-title">${esc(item.title)}</div>
       <div class="player-author">${esc(item.author||'')}</div>
       ${item.source === 'book' ? `<div class="player-rating-row">${starsEditableHTML(item.id, (item.raw&&item.raw.rating)||0)}</div>` : ''}
       <div class="match-box">
-        <p>Add this book's audio file(s) once, and it'll open straight into the player from now on — even on another browser, even if the original file moves.</p>
-        <button class="btn btn-accent" data-action="add-files" data-id="${esc(item.id)}">Add file(s)…</button>
+        <p>Add this book's audio file(s) once, and it'll open straight into the player from now on â€” even on another browser, even if the original file moves.</p>
+        <button class="btn btn-accent" data-action="add-files" data-id="${esc(item.id)}">Add file(s)â€¦</button>
         ${state.rootDirHandle ? `<button class="btn btn-ghost" style="margin-top:8px;" data-action="open-match-modal" data-id="${esc(item.id)}">Match from connected folder</button>`
           : (SUPPORTS_FS_ACCESS ? `<button class="btn btn-ghost" style="margin-top:8px;" data-action="connect-folder">Or connect a folder to auto-match</button>` : '')}
         ${IS_MOBILE ? `<div class="dropbox-box">
           <div class="divider-label" style="margin-top:0;">Or stream from Dropbox</div>
-          <p>Paste a Dropbox share link. Nothing downloads to this device — it streams straight from Dropbox, so large files work fine on iOS. For a multi-file book, paste one link per line, in track order.</p>
-          <textarea class="dropbox-input" id="dropbox-link-input" rows="2" placeholder="https://www.dropbox.com/scl/fi/…/book.m4b?rlkey=…"></textarea>
+          <p>Paste a Dropbox share link. Nothing downloads to this device â€” it streams straight from Dropbox, so large files work fine on iOS. For a multi-file book, paste one link per line, in track order.</p>
+          <textarea class="dropbox-input" id="dropbox-link-input" rows="2" placeholder="https://www.dropbox.com/scl/fi/â€¦/book.m4b?rlkey=â€¦"></textarea>
           <button class="btn btn-ghost" style="margin-top:8px;width:100%;" data-action="add-dropbox-link" data-id="${esc(item.id)}">Stream from Dropbox</button>
         </div>` : ''}
       </div>
@@ -2104,12 +2114,12 @@ function renderPlayer(){
 
   if (!player.isReady || player.bookId !== state.currentBookId){
     return `<div class="player-wrap">
-      <button class="player-back" data-action="close-player">‹ Library</button>
+      <button class="player-back" data-action="close-player">â€¹ Library</button>
       ${coverHtml(item,'player-cover')}
       <div class="player-title">${esc(item.title)}</div>
       <div class="player-author">${esc(item.author||'')}</div>
       ${item.source === 'book' ? `<div class="player-rating-row">${starsEditableHTML(item.id, (item.raw&&item.raw.rating)||0)}</div>` : ''}
-      <p style="text-align:center;color:var(--muted);margin-top:20px;">Loading audio…</p>
+      <p style="text-align:center;color:var(--muted);margin-top:20px;">Loading audioâ€¦</p>
     </div>`;
   }
 
@@ -2124,22 +2134,22 @@ function renderPlayer(){
 
   return `<div class="player-wrap">
     <div style="display:flex;align-items:center;justify-content:space-between;">
-      <button class="player-back" data-action="close-player">‹ Library</button>
-      <button class="btn-icon" data-action="open-sleep-modal" title="Sleep timer" style="font-size:19px;line-height:1;${player.sleepTimer?'color:var(--accent);':''}">☾</button>
+      <button class="player-back" data-action="close-player">â€¹ Library</button>
+      <button class="btn-icon" data-action="open-sleep-modal" title="Sleep timer" style="font-size:19px;line-height:1;${player.sleepTimer?'color:var(--accent);':''}">â˜¾</button>
     </div>
     ${player.sleepTimer ? `<div id="sleep-badge" style="text-align:right;font-size:11px;color:var(--accent);margin-top:-4px;">${esc(sleepTimerLabel())}</div>` : ''}
     ${coverHtml(item,'player-cover')}
     <div class="player-title">${esc(item.title)}</div>
     <div class="player-author">${esc(item.author||'')}</div>
     ${item.source === 'book' ? `<div class="player-rating-row">${starsEditableHTML(item.id, (item.raw&&item.raw.rating)||0)}</div>` : ''}
-    ${list.length ? `<div class="player-chapter-label">${chIdx>=0?`Chapter ${chIdx+1} · ${chIdx+1}/${list.length}`:''}</div>` : ''}
+    ${list.length ? `<div class="player-chapter-label">${chIdx>=0?`Chapter ${chIdx+1} Â· ${chIdx+1}/${list.length}`:''}</div>` : ''}
 
     <div class="player-panel">
       <div class="player-pct" id="pct-label">${pct}% through the book</div>
       <div class="toggle-row">
         <div class="toggle-group">
           <button class="toggle-btn ${player.scrubMode==='book'?'active':''}" data-action="view-book">${BOOK_ICON} Book</button>
-          ${list.length ? `<button class="toggle-btn ${player.scrubMode==='chapter'?'active':''}" data-action="view-chapter">☰ Chapter</button>` : ''}
+          ${list.length ? `<button class="toggle-btn ${player.scrubMode==='chapter'?'active':''}" data-action="view-chapter">â˜° Chapter</button>` : ''}
         </div>
       </div>
       <div class="scrub-row">
@@ -2159,13 +2169,13 @@ function renderPlayer(){
         <button class="skip-btn" data-action="skip-fwd"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg><span>30s</span></button>
       </div>
       <div class="speed-row">
-        <button class="speed-btn" data-action="rate-down">–</button>
+        <button class="speed-btn" data-action="rate-down">â€“</button>
         <div class="speed-val">${player.rate.toFixed(2)}x</div>
         <button class="speed-btn" data-action="rate-up">+</button>
       </div>
       ${(pct>=100 && item.source==='book' && item.raw && item.raw.status==='reading') ? `
       <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line);text-align:center;">
-        <button class="btn btn-accent" data-action="open-complete-modal" data-id="${esc(item.id)}">✓ Mark book as complete</button>
+        <button class="btn btn-accent" data-action="open-complete-modal" data-id="${esc(item.id)}">âœ“ Mark book as complete</button>
       </div>` : ''}
     </div>
 
@@ -2177,7 +2187,7 @@ function renderPlayer(){
     </div>` : ''}
 
     <div style="text-align:center;margin-top:16px;">
-      <button class="btn-icon" data-action="open-match-modal" data-id="${esc(item.id)}" style="font-size:11.5px;">🔗 Re-match file</button>
+      <button class="btn-icon" data-action="open-match-modal" data-id="${esc(item.id)}" style="font-size:11.5px;">ðŸ”— Re-match file</button>
     </div>
   </div>`;
 }
@@ -2205,14 +2215,14 @@ function renderScrubOnly(){
   const chapLabel = document.querySelector('.player-chapter-label');
   if (chapLabel){
     const list = chapterLabelList();
-    if (chIdx>=0) chapLabel.textContent = `Chapter ${chIdx+1} · ${chIdx+1}/${list.length}`;
+    if (chIdx>=0) chapLabel.textContent = `Chapter ${chIdx+1} Â· ${chIdx+1}/${list.length}`;
   }
 }
 </script>
 
 <script>
 /* ==================================================================
-   RENDER — MATCH MODAL
+   RENDER â€” MATCH MODAL
 ================================================================== */
 function renderMatchModal(itemId){
   const item = findItem(itemId);
@@ -2221,19 +2231,19 @@ function renderMatchModal(itemId){
   const topFiles = cands.files.slice(0,6);
   return `<div class="modal-overlay">
     <div class="modal-card">
-      <div class="modal-head"><h3>Match "${esc(item.title)}"</h3><button class="modal-close" data-action="close-modal">✕</button></div>
+      <div class="modal-head"><h3>Match "${esc(item.title)}"</h3><button class="modal-close" data-action="close-modal">âœ•</button></div>
       <div class="modal-body">
-        <button class="btn btn-accent" style="width:100%;margin-bottom:14px;" data-action="add-files" data-id="${esc(item.id)}">📂 Add file(s) from this device</button>
+        <button class="btn btn-accent" style="width:100%;margin-bottom:14px;" data-action="add-files" data-id="${esc(item.id)}">ðŸ“‚ Add file(s) from this device</button>
         ${!state.scan ? (SUPPORTS_FS_ACCESS ? `<p style="color:var(--muted);font-size:13px;">Or connect a folder (top of the library) to auto-match your whole collection.</p>` : '') : `
         ${topFolders.length ? `<div class="divider-label">Matching folders (multi-file book)</div>
           ${topFolders.map(c => `<div class="cand-row" data-action="pick-folder" data-path="${esc(c.folder.path)}" data-id="${esc(item.id)}">
-            <div class="cand-icon">📁</div>
-            <div class="cand-text"><div class="cand-name">${esc(c.folder.name)}</div><div class="cand-path">${esc(c.folder.path)} · ${c.folder.fileNames.length} files</div></div>
+            <div class="cand-icon">ðŸ“</div>
+            <div class="cand-text"><div class="cand-name">${esc(c.folder.name)}</div><div class="cand-path">${esc(c.folder.path)} Â· ${c.folder.fileNames.length} files</div></div>
             <div class="cand-score">${Math.round(c.score*100)}%</div>
           </div>`).join('')}` : ''}
         ${topFiles.length ? `<div class="divider-label">Matching single files</div>
           ${topFiles.map(c => `<div class="cand-row" data-action="pick-file" data-path="${esc(c.file.path)}" data-id="${esc(item.id)}">
-            <div class="cand-icon">🎵</div>
+            <div class="cand-icon">ðŸŽµ</div>
             <div class="cand-text"><div class="cand-name">${esc(c.file.name)}</div><div class="cand-path">${esc(c.file.parentPath)}</div></div>
             <div class="cand-score">${Math.round(c.score*100)}%</div>
           </div>`).join('')}` : ''}
@@ -2241,7 +2251,7 @@ function renderMatchModal(itemId){
         `}
         ${state.matches[itemId] ? `<div class="divider-label">Current match</div>
           <div class="cand-row" style="cursor:default;">
-            <div class="cand-icon">${state.matches[itemId].mode==='multi'?'📁':'🎵'}</div>
+            <div class="cand-icon">${state.matches[itemId].mode==='multi'?'ðŸ“':'ðŸŽµ'}</div>
             <div class="cand-text"><div class="cand-name">${esc(state.matches[itemId].entries.length)} file(s) linked</div></div>
             <button class="btn btn-sm btn-subtle" data-action="clear-match" data-id="${esc(item.id)}">Unlink</button>
           </div>` : ''}
@@ -2260,8 +2270,8 @@ function renderSleepModal(){
   return `<div class="modal-overlay">
     <div class="modal-card" style="width:380px;">
       <div class="modal-head">
-        <h3>☾ Sleep timer</h3>
-        <button class="modal-close" data-action="close-modal">×</button>
+        <h3>â˜¾ Sleep timer</h3>
+        <button class="modal-close" data-action="close-modal">Ã—</button>
       </div>
       <div class="modal-body">
         ${timer ? `<div style="background:var(--panel-2);border-radius:10px;padding:11px 14px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
@@ -2270,7 +2280,7 @@ function renderSleepModal(){
         </div>` : ''}
 
         <div class="divider-label" style="margin-top:0;">By book minutes</div>
-        <p style="font-size:12px;color:var(--muted);margin:0 0 10px;line-height:1.45;">Stops after this many minutes of the book itself play — the same no matter your speed.</p>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 10px;line-height:1.45;">Stops after this many minutes of the book itself play â€” the same no matter your speed.</p>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:18px;">
           <input type="number" id="sleep-book-input" min="1" max="600" value="30" style="width:64px;border:1.5px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;background:var(--panel-2);color:var(--ink);outline:none;">
           <span style="font-size:12.5px;color:var(--muted);">min</span>
@@ -2278,7 +2288,7 @@ function renderSleepModal(){
         </div>
 
         <div class="divider-label">By speed <span style="color:var(--muted-dim);font-weight:600;text-transform:none;">(real listening time)</span></div>
-        <p style="font-size:12px;color:var(--muted);margin:0 0 10px;line-height:1.45;">Stops after this many real minutes of listening — at ${player.rate.toFixed(2)}x that covers more of the book than the same time at 1x.</p>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 10px;line-height:1.45;">Stops after this many real minutes of listening â€” at ${player.rate.toFixed(2)}x that covers more of the book than the same time at 1x.</p>
         <div style="display:flex;gap:8px;align-items:center;${hasChapters?'margin-bottom:18px;':''}">
           <input type="number" id="sleep-speed-input" min="1" max="600" value="30" style="width:64px;border:1.5px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;background:var(--panel-2);color:var(--ink);outline:none;">
           <span style="font-size:12.5px;color:var(--muted);">min</span>
@@ -2297,7 +2307,7 @@ function renderSleepModal(){
   </div>`;
 }
 
-// Local, non-committing star picker for the complete-book modal — unlike
+// Local, non-committing star picker for the complete-book modal â€” unlike
 // starsEditableHTML (which writes straight to Firestore on click, for the
 // always-visible player rating), this only updates the modal's own draft
 // until "Complete Book" is pressed, matching the tracker's own completion
@@ -2309,8 +2319,8 @@ function starsPickerHTML(value, size){
   for (let n=1;n<=5;n++){
     const frac = Math.max(0, Math.min(1, value-(n-1)));
     out += `<span class="star-slot">
-      <span class="star-base">★</span>
-      <span class="star-fill" style="width:${Math.round(frac*100)}%">★</span>
+      <span class="star-base">â˜…</span>
+      <span class="star-fill" style="width:${Math.round(frac*100)}%">â˜…</span>
       <span class="star-hit star-hit-q1" data-action="pick-complete-rating" data-val="${n-0.75}"></span>
       <span class="star-hit star-hit-q2" data-action="pick-complete-rating" data-val="${n-0.5}"></span>
       <span class="star-hit star-hit-q3" data-action="pick-complete-rating" data-val="${n-0.25}"></span>
@@ -2334,7 +2344,7 @@ function renderCompleteModal(itemId){
     <div class="modal-card" style="width:380px;">
       <div class="modal-head">
         <h3>Complete book</h3>
-        <button class="modal-close" data-action="close-modal">×</button>
+        <button class="modal-close" data-action="close-modal">Ã—</button>
       </div>
       <div class="modal-body">
         <label style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">Date finished</label>
@@ -2362,7 +2372,7 @@ function wishSelectOptions(list, current){
 }
 const modalInputStyle = "width:100%;border:1.5px solid var(--line);border-radius:9px;padding:9px 11px;font-size:13.5px;background:var(--panel-2);color:var(--ink);outline:none;";
 
-// Mirrors the tracker's own moveWishFormHTML() — same fields, same defaults —
+// Mirrors the tracker's own moveWishFormHTML() â€” same fields, same defaults â€”
 // except Format is pre-filled to "Audio" instead of "Physical", since a book
 // chosen from here is (presumably) about to be listened to, not read.
 function renderMoveWishModal(wishId){
@@ -2372,7 +2382,7 @@ function renderMoveWishModal(wishId){
     <div class="modal-card" style="width:420px;">
       <div class="modal-head">
         <h3>Move to Currently Reading</h3>
-        <button class="modal-close" data-action="close-modal">×</button>
+        <button class="modal-close" data-action="close-modal">Ã—</button>
       </div>
       <div class="modal-body">
         <div style="font-size:12.5px;color:var(--muted);margin-bottom:16px;line-height:1.5;">
@@ -2416,7 +2426,7 @@ function openMoveWishModal(wishId){
 }
 // Mirrors the tracker's own completeMoveWish() field-for-field: same new-book
 // shape, same defaults (status "reading", priority "Interested", a 14-day due
-// date if Borrowed), and the same two writes — books AND wishlist, to the
+// date if Borrowed), and the same two writes â€” books AND wishlist, to the
 // same BOOKS_DOC/shelf-spine doc the tracker itself reads and writes. So a
 // book moved from here shows up on the tracker's Currently Reading list (and
 // disappears from its Wishlist tab) exactly as if "Read" had been clicked there.
@@ -2441,12 +2451,12 @@ function confirmMoveWish(wishId){
   };
   const newWishlist = state.wishlist.filter(x => x.id !== wishId);
   state.wishlist = newWishlist;
-  if (format === 'Audio') state.books = [...state.books, newBook]; // optimistic local update — this view only ever shows Audio books
+  if (format === 'Audio') state.books = [...state.books, newBook]; // optimistic local update â€” this view only ever shows Audio books
   state.modal = null;
   render();
 
   // Always re-fetch from the server (not the local cache) right before
-  // merging — see saveBookPatch's comment above for why: this device's
+  // merging â€” see saveBookPatch's comment above for why: this device's
   // cached copy of the doc can be stale, and state.books here only ever
   // holds the Audio-format subset (this app's own filter) anyway, so
   // writing it back wholesale would silently drop every non-audio book
@@ -2459,7 +2469,7 @@ function confirmMoveWish(wishId){
     state.allBooks = mergedFullBooks;
     return BOOKS_DOC.set({ books: mergedFullBooks, wishlist: newWishlist }, { merge: true });
   }).then(() => toast(`${w.title} moved to Currently Reading.`))
-    .catch(err => { console.error('Failed to move wishlist item:', err); toast('Could not sync — try again.'); });
+    .catch(err => { console.error('Failed to move wishlist item:', err); toast('Could not sync â€” try again.'); });
 }
 
 /* ==================================================================
@@ -2474,7 +2484,7 @@ function render(){
         <div><div class="word">Audiobooks</div><div class="sub">Shelf & Spine</div></div>
       </div>
       <div style="display:flex;align-items:center;gap:14px;">
-        <a class="back-link" href="index.html?home=1">Back to Shelf ›</a>
+        <a class="back-link" href="index.html?home=1">Back to Shelf â€º</a>
       </div>
     </div>
   </div>` + (state.view === 'player' ? renderPlayer() : renderGallery());
@@ -2490,7 +2500,7 @@ function render(){
 
 document.addEventListener('click', async (e) => {
   // Backdrop click: closes the modal only when the click lands directly on
-  // the overlay itself (not a descendant) — checked before the data-action
+  // the overlay itself (not a descendant) â€” checked before the data-action
   // lookup below, and independent of it, since the overlay no longer carries
   // its own data-action (that approach required bubbling all the way up to
   // this listener, which the modal card's own click handling was blocking).
@@ -2583,7 +2593,7 @@ document.addEventListener('click', async (e) => {
 });
 
 // Double-tap/double-click a rating to type an exact number instead of tapping stars.
-// Deliberately no visual affordance for this — it's just there if you know it's there.
+// Deliberately no visual affordance for this â€” it's just there if you know it's there.
 document.addEventListener('dblclick', (e) => {
   const el = e.target.closest('[data-rating-for]');
   if (!el) return;
@@ -2592,7 +2602,7 @@ document.addEventListener('dblclick', (e) => {
   const book = state.books.find(b => b.id === bookId);
   if (!book) return;
   const current = Number(book.rating) || 0;
-  const input = window.prompt('Rating (0–5):', current || '');
+  const input = window.prompt('Rating (0â€“5):', current || '');
   if (input === null) return;
   const val = parseFloat(input);
   if (isNaN(val)) return;
@@ -2639,12 +2649,12 @@ if (SUPPORTS_FS_ACCESS){
   restoreRootDir().then(() => { if (state.dirPermissionOk) rescanLibrary(); });
 }
 // Resume straight into the player on reload, the same way the old code tried
-// to do it by guessing at initial state — except this actually waits for the
+// to do it by guessing at initial state â€” except this actually waits for the
 // book list to load first, so it can find the book and hand off to the normal
 // openPlayer() flow (which itself waits for progress before picking a start
 // time). This was the real source of the "resets to 0" bug: previously the
 // page would jump into the player view immediately on load, before the match
-// or the saved position had loaded from anywhere — so it looked stuck or blank,
+// or the saved position had loaded from anywhere â€” so it looked stuck or blank,
 // and anything played from there saved right over the real progress.
 if (location.hash === '#player' && state.currentBookId){
   booksReadyPromise.then(() => {
