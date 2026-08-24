@@ -2150,6 +2150,16 @@ function renderMatchModal(itemId){
 let ffmpegInstance = null;
 async function loadFfmpegEngine(onLog){
   if (ffmpegInstance) return ffmpegInstance;
+  // Safari/WKWebView never expose real SharedArrayBuffer outside a
+  // cross-origin-isolated page (COOP/COEP headers), which isn't possible
+  // here. ffmpeg.wasm references SharedArrayBuffer directly even in its
+  // single-thread core, causing a bare "Can't find variable" ReferenceError
+  // rather than a graceful fallback. We only ever use the single-thread
+  // core (no real multithreading), so aliasing it to ArrayBuffer is enough
+  // to satisfy the reference.
+  if (typeof window.SharedArrayBuffer === 'undefined') {
+    window.SharedArrayBuffer = window.ArrayBuffer;
+  }
   await new Promise((resolve, reject) => {
     if (window.FFmpeg) return resolve();
     const s = document.createElement('script');
