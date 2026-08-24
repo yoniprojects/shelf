@@ -1514,6 +1514,12 @@ function buildSegmentBlob(file, table, startIdx, endIdx){
 
 function isMobileBrowser(){ return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent); }
 const MOBILE_SPLIT_THRESHOLD_SEC = 3.5 * 3600; // plan's "provisional ~3-4h" proxy for "moov will likely be too big"
+// Second, independent trigger alongside the duration threshold above — see
+// the needsSplitCheck fallback in startPlaybackSession. Rough proxy: ~3.5h
+// at a modest audiobook bitrate (~80kbps) lands around 125MB; rounded down
+// a bit to catch books slightly under the duration threshold whose reported
+// duration also can't be trusted.
+const MOBILE_SPLIT_SIZE_THRESHOLD_BYTES = 110 * 1024 * 1024;
 const splitBlobKey = (bookId, i) => `blob:${getCurrentUserId()}:${bookId}:split:${i}`;
 
 // Splits a single-file book into cached multi-part entries for mobile
@@ -1526,7 +1532,25 @@ async function ensureMobileSplit(bookId, singleMatch, totalDurationSec, chapters
     const table = await readAudioSampleTable(file);
     if (!table) return null;
 
-    const points = chooseSplitPoints(totalDurationSec, chapters);
+    // Don't trust the passed-in totalDurationSec (ultimately audioEl.duration
+    // for the ORIGINAL oversized single file) for choosing split points.
+    // That's exactly the file mobile Safari's metadata parser struggles
+    // with — and empirically, for a long enough book, it can misreport a
+    // short/partial duration (e.g. ~40 minutes for an 8h52m book) rather
+    // than erroring outright. If we split based on that wrong number, every
+    // real chapter boundary beyond it looks like it's "past the end of the
+    // book" and gets rejected, collapsing to a single giant part — silently
+    // reproducing the exact problem splitting exists to avoid.
+    // table.totalTicks/table.timescale comes from our own box-reader, which
+    // parses the real stts table directly and has proven accurate.
+    const realTotalDurationSec = table.totalTicks / table.timescale;
+    if (Math.abs(realTotalDurationSec - totalDurationSec) > 60){
+      console.warn('audioEl.duration disagreed with the real parsed audio duration — using the parsed one.', {
+        audioElDuration: totalDurationSec, realTotalDurationSec,
+      });
+    }
+
+    const points = chooseSplitPoints(realTotalDurationSec, chapters);
     const boundaryIdx = points.map(sec => findSampleIndexAtOrAfterTicks(table.cumTicks, Math.round(sec * table.timescale)));
     boundaryIdx[boundaryIdx.length-1] = table.sampleCount;
 
@@ -1824,7 +1848,7 @@ async function startPlaybackSession(itemId, match, item){
   if (player.match.mode === 'single'){
     // No pre-probe ran for single-file books (see ensureDurationsKnown) — the
     // real audioEl just loaded this exact file, so its duration IS the book's
-    // total length.
+    // total length... usually. See the size-based fallback below.
     player.entryDurations[0] = audioEl.duration || 0;
     player.totalSec = player.entryDurations[0];
 
@@ -1834,7 +1858,21 @@ async function startPlaybackSession(itemId, match, item){
     // switch straight to that — everything downstream (chapters, resume
     // position, scrubbing) treats this exactly like a ripped-CD folder,
     // since it's the same `mode: 'multi'` match shape.
-    if (isMobileBrowser() && player.totalSec > MOBILE_SPLIT_THRESHOLD_SEC){
+    let needsSplitCheck = isMobileBrowser() && player.totalSec > MOBILE_SPLIT_THRESHOLD_SEC;
+    if (isMobileBrowser() && !needsSplitCheck){
+      // player.totalSec can't be trusted to rule this out on its own — for a
+      // long enough book, audioEl.duration is exactly the value mobile
+      // Safari's parser can misreport (a short/partial duration instead of
+      // the real one), which would otherwise make this check silently never
+      // fire for the very books that need splitting. File size is an
+      // independent signal that doesn't depend on the browser having parsed
+      // the moov correctly, so use it as a second trigger.
+      try {
+        const f = await getEntryFile(itemId, 0, match.entries[0]);
+        if (f && f.size > MOBILE_SPLIT_SIZE_THRESHOLD_BYTES) needsSplitCheck = true;
+      } catch(e){ /* if we can't stat it, fall through with whatever duration told us */ }
+    }
+    if (needsSplitCheck){
       const splitMatch = await ensureMobileSplit(itemId, match, player.totalSec, player.chapters);
       if (splitMatch){
         toast('This book was optimized for mobile playback — it will open straight into the player from now on.', 5000);
@@ -2173,7 +2211,7 @@ audioEl.addEventListener('error', () => {
 // healthy, playing player forever: pause icon showing, nothing wrong on
 // screen, audio just never comes. Polling currentTime is the only reliable
 // way to catch it.
-const BUILD_TAG = 'watchdog-v4-split-diagnostics';
+const BUILD_TAG = 'v5-real-duration-fix';
 console.log('audiobooks.html build:', BUILD_TAG);
 let watchdogLastTime = -1;
 setInterval(() => {
