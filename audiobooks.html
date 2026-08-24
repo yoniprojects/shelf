@@ -212,6 +212,13 @@
   .dropbox-box p{font-size:12px;color:var(--muted);margin:0 0 10px;line-height:1.5;}
   .dropbox-input{width:100%;resize:vertical;min-height:44px;border:1.5px solid var(--line);border-radius:9px;padding:9px 11px;font-size:12.5px;font-family:inherit;background:var(--panel-2);color:var(--ink);outline:none;}
   .dropbox-input:focus{border-color:var(--accent-dark);}
+  .dropbox-resolve{margin-top:12px;text-align:left;}
+  .dropbox-resolve summary{font-size:11.5px;font-weight:700;color:var(--muted);cursor:pointer;list-style:none;}
+  .dropbox-resolve summary::-webkit-details-marker{display:none;}
+  .dropbox-resolve summary:hover{color:var(--ink);}
+  .dropbox-resolve summary:before{content:'⌄ ';display:inline-block;transform:rotate(-90deg);margin-right:2px;}
+  .dropbox-resolve[open] summary:before{transform:rotate(0deg);}
+  .dropbox-resolve .body{margin-top:8px;}
 
   /* ---------- modal ---------- */
   .modal-overlay{position:fixed;inset:0;background:rgba(5,8,3,.6);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
@@ -1053,41 +1060,66 @@ function makeRemoteFileLike(url, name, size){
 async function resolveDropboxPlaybackUrl(entry){
   if (entry._resolvedUrl) return entry._resolvedUrl;
   let resolved = entry.remoteUrl;
-  // Already a resolved dropboxusercontent.com link (e.g. the user copied it
-  // from Safari's address bar post-redirect) — nothing to resolve, and
-  // trying to fetch() it cross-origin would be pointless at best. Just use
-  // it directly.
-  let host = '';
-  try{ host = new URL(entry.remoteUrl).hostname; } catch(e){}
-  if (/(^|\.)dropboxusercontent\.com$/i.test(host)){
-    entry._resolvedUrl = resolved;
-    return resolved;
-  }
-  // Otherwise this is a www.dropbox.com share link, which 302-redirects to
-  // a dropboxusercontent.com URL. In theory we could resolve that redirect
-  // ourselves via fetch() and hand audioEl the final URL — but Dropbox only
-  // sends Access-Control-Allow-Origin on the FINAL response in that chain,
-  // not the intermediate 302 (confirmed via community reports of the exact
-  // same failure). Modern browsers CORS-check every hop of a redirect
-  // chain, so this fetch is expected to fail here — it's a best-effort
-  // attempt in case that ever changes, not something to rely on.
-  let lastErr = null;
   try{
     const res = await fetch(entry.remoteUrl, { headers: { Range: 'bytes=0-0' } });
     if (res && res.url) resolved = res.url;
   } catch(e){
-    lastErr = e;
     try{
       const res = await fetch(entry.remoteUrl, { method: 'HEAD' });
       if (res && res.url) resolved = res.url;
-      lastErr = null;
-    } catch(e2){ lastErr = e2; }
-  }
-  if (lastErr && resolved === entry.remoteUrl){
-    toast(`This Dropbox link needs resolving first — open it in Safari, then paste the resulting dl.dropboxusercontent.com URL instead.`, 15000);
+    } catch(e2){}
   }
   entry._resolvedUrl = resolved;
   return resolved;
+}
+// Manual fallback for when the fetch-based resolve above doesn't work (e.g.
+// Dropbox throttles/blocks the range request, or some other CORS wrinkle).
+// A hidden <iframe> can't help here — once it navigates cross-origin, reading
+// its post-redirect location back out via JS throws a SecurityError, same-
+// origin policy blocks it categorically, iframe or not. A real browser tab is
+// the only place the resolved URL is actually visible: it shows up in the
+// address bar, and the person can copy it by hand.
+function openDropboxLinkForResolve(rawText){
+  const lines = String(rawText||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  if (!lines.length){ toast('Paste a Dropbox link first.'); return; }
+  const direct = dropboxDirectUrl(lines[0]);
+  if (!direct){ toast("That doesn't look like a Dropbox link."); return; }
+  window.open(direct, '_blank', 'noopener');
+  toast(lines.length > 1
+    ? 'Opened the first link — copy the resolved URL, then repeat for each track.'
+    : 'Opened in a new tab — copy the URL it lands on from the address bar.');
+}
+// Takes the original share link(s) plus the URL(s) the person copied by hand
+// out of the tab opened above, and links the book directly to those —
+// skipping the runtime redirect-follow fetch entirely, since these are
+// already fully resolved.
+async function addDropboxLinksManual(bookId, rawText, resolvedText){
+  const lines = String(rawText||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  const resolvedLines = String(resolvedText||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  if (!lines.length){ toast('Paste the original Dropbox link(s) up above first.'); return; }
+  if (!resolvedLines.length){ toast('Paste the resolved URL(s) you copied from the tab.'); return; }
+  if (resolvedLines.length !== lines.length){
+    toast(`${lines.length} original link(s) but ${resolvedLines.length} resolved URL(s) — need one resolved URL per original link, same order.`);
+    return;
+  }
+  for (const line of resolvedLines){
+    try{ new URL(line); } catch(e){ toast('One of the resolved URLs doesn\'t look like a valid link.'); return; }
+  }
+  const entries = lines.map((line, i) => ({
+    name: dropboxFileNameFromUrl(line),
+    path: dropboxFileNameFromUrl(line),
+    remoteUrl: resolvedLines[i],
+    _resolvedUrl: resolvedLines[i],
+  }));
+  const mode = entries.length > 1 ? 'multi' : 'single';
+  const match = { mode, entries, matchedAt: Date.now(), source: 'dropbox' };
+  state.matches[bookId] = match;
+  await idbSet(matchKey(bookId), match);
+  await idbDelete(chapKey(bookId));
+  state.modal = null;
+  toast('Linked with the manually resolved URL(s).');
+  if (state.view === 'player' && state.currentBookId === bookId) await startPlaybackSession(bookId, match, findItem(bookId));
+  else render();
 }
 async function addDropboxLinks(bookId, rawText){
   const lines = String(rawText||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -2119,9 +2151,17 @@ function renderPlayer(){
         ${IS_MOBILE ? `<div class="dropbox-box">
           <div class="divider-label" style="margin-top:0;">Or stream from Dropbox</div>
           <p>Paste a Dropbox share link. Nothing downloads to this device — it streams straight from Dropbox, so large files work fine on iOS. For a multi-file book, paste one link per line, in track order.</p>
-          <p style="margin-top:-4px;">If playback fails after linking: open the share link in Safari first, let it finish loading, then copy the <b>resulting address-bar URL</b> (it'll start with something like <code>dl.dropboxusercontent.com</code>) and paste that here instead — it skips a redirect step that the installed app can't always follow.</p>
           <textarea class="dropbox-input" id="dropbox-link-input" rows="2" placeholder="https://www.dropbox.com/scl/fi/…/book.m4b?rlkey=…"></textarea>
           <button class="btn btn-ghost" style="margin-top:8px;width:100%;" data-action="add-dropbox-link" data-id="${esc(item.id)}">Stream from Dropbox</button>
+          <details class="dropbox-resolve">
+            <summary>Link added but won't play? Resolve it by hand</summary>
+            <div class="body">
+              <p>Tap "Open link" — it opens the link above in a new tab and follows Dropbox's redirect. Once it lands (or starts downloading), copy the URL from the address bar and paste it below. For a multi-file book, open and copy each line in order.</p>
+              <button class="btn btn-subtle btn-sm" style="width:100%;" data-action="open-dropbox-resolve" data-id="${esc(item.id)}">Open link in new tab</button>
+              <textarea class="dropbox-input" id="dropbox-resolved-input" rows="2" style="margin-top:8px;" placeholder="https://dl.dropboxusercontent.com/…"></textarea>
+              <button class="btn btn-ghost" style="margin-top:8px;width:100%;" data-action="save-dropbox-resolved" data-id="${esc(item.id)}">Save resolved link(s)</button>
+            </div>
+          </details>
         </div>` : ''}
       </div>
     </div>`;
@@ -2549,6 +2589,15 @@ document.addEventListener('click', async (e) => {
   if (action === 'add-dropbox-link'){
     const el = document.getElementById('dropbox-link-input');
     return addDropboxLinks(id, el ? el.value : '');
+  }
+  if (action === 'open-dropbox-resolve'){
+    const el = document.getElementById('dropbox-link-input');
+    return openDropboxLinkForResolve(el ? el.value : '');
+  }
+  if (action === 'save-dropbox-resolved'){
+    const rawEl = document.getElementById('dropbox-link-input');
+    const resEl = document.getElementById('dropbox-resolved-input');
+    return addDropboxLinksManual(id, rawEl ? rawEl.value : '', resEl ? resEl.value : '');
   }
   if (action === 'open-match-modal'){ state.modal = { id }; render(); return; }
   if (action === 'open-sleep-modal'){ state.modal = { kind:'sleep' }; render(); return; }
