@@ -2227,81 +2227,80 @@ async function runSplit(){
     sp.status = 'loading-engine';
     sp.statusText = 'Loading splitting engine (first time only, needs internet)…';
     render();
-    let duration = null;
+
+    // Every earlier version of this feature tried to first figure out the
+    // file's total duration in JS (by parsing ffmpeg's own log text) so it
+    // could compute part boundaries itself. That was fragile in a few
+    // different ways (stale logger closures on retry, "Duration: N/A" on
+    // large files with front-loaded metadata, etc). ffmpeg has a built-in
+    // way to do this that sidesteps needing to know the duration at all:
+    // the `segment` muxer. Point it at a target segment length and a
+    // printf-style output pattern and it counts/names the parts itself.
+    let partsWritten = 0;
     const ffmpeg = await loadFfmpegEngine((e) => {
-      if (duration == null){
-        const d = parseDurationFromLog(e.message || '');
-        if (d) duration = d;
-      }
+      const msg = e.message || '';
+      // ffmpeg logs a line like "Opening 'out003.mp3' for writing" each
+      // time it starts a new segment — used only for a live progress count,
+      // not for correctness.
+      if (/Opening '.*?' for writing/.test(msg)) partsWritten++;
     });
 
     sp.status = 'probing';
     sp.statusText = 'Reading file…';
     render();
     const { fetchFile } = window.FFmpeg;
-    const inputName = 'input' + (extOf(sp.file.name) ? '.'+extOf(sp.file.name) : '');
+    const ext = extOf(sp.file.name) ? '.' + extOf(sp.file.name) : '';
+    const inputName = 'input' + ext;
     ffmpeg.FS('writeFile', inputName, await fetchFile(sp.file));
 
-    // A quick, cheap no-output run just to make ffmpeg print the Duration:
-    // line into the logger above. -t 0.001 keeps it near-instant.
-    if (duration == null){
-      // Default probesize/analyzeduration (~5MB / ~5s) is often not enough for a
-      // large audiobook file (esp. m4b/m4a with cover art up front), and ffmpeg
-      // falls back to printing "Duration: N/A" instead of a real timestamp. Force
-      // a much larger scan window so it actually finds the real duration.
-      try{
-        await ffmpeg.run(
-          '-probesize', '100000000',       // 100MB
-          '-analyzeduration', '100000000', // 100s (in microseconds)
-          '-i', inputName, '-t', '0.001', '-f', 'null', '-'
-        );
-      } catch(e){}
-    }
-    if (!duration || !isFinite(duration) || duration <= 0){
-      throw new Error("Couldn't read this file's length. It may be corrupted or an unsupported format.");
-    }
+    sp.status = 'splitting';
+    sp.statusText = 'Splitting…';
+    render();
 
     const targetSec = Math.max(0.25, Number(sp.targetHours)||2) * 3600;
-    const numParts = Math.max(1, Math.round(duration / targetSec));
-    const partLen = duration / numParts;
+    const outPattern = 'out%03d' + ext;
+    try{
+      await ffmpeg.run(
+        '-probesize', '100000000',       // 100MB — large enough to find real
+        '-analyzeduration', '100000000', // stream info even on big files
+        '-i', inputName,
+        '-f', 'segment',
+        '-segment_time', String(targetSec),
+        '-reset_timestamps', '1',
+        '-c', 'copy',                    // stream-copy: no re-encode, no quality loss
+        outPattern
+      );
+    } catch(err){
+      throw new Error("Couldn't read or split this file. It may be corrupted or an unsupported format.");
+    }
 
-    if (numParts <= 1){
+    const outFiles = ffmpeg.FS('readdir', '/')
+      .filter(f => /^out\d+/.test(f))
+      .sort();
+
+    if (outFiles.length <= 1){
+      // ffmpeg still writes one file even when there was nothing to split
+      // (file shorter than the target length) — clean up and tell the user.
+      outFiles.forEach(f => { try{ ffmpeg.FS('unlink', f); }catch(e){} });
+      ffmpeg.FS('unlink', inputName);
       sp.status = 'error';
-      sp.statusText = `This file is only ${fmtHMS(duration)} long — shorter than your target part length, so there's nothing to split. Try a smaller target length if you still want to break it up.`;
+      sp.statusText = "This file is shorter than your target part length, so there's nothing to split. Try a smaller target length if you still want to break it up.";
       render();
       return;
     }
 
-    const results = [];
-    for (let i=0;i<numParts;i++){
-      sp.status = 'splitting';
-      sp.statusText = `Splitting part ${i+1} of ${numParts}…`;
-      sp.progressPct = Math.round((i/numParts)*100);
-      render();
-
-      const start = i*partLen;
-      const outName = 'out' + i + (extOf(sp.file.name) ? '.'+extOf(sp.file.name) : '');
-      const args = [
-        '-probesize', '100000000',
-        '-analyzeduration', '100000000',
-        '-ss', String(start), '-i', inputName
-      ];
-      if (i < numParts-1) args.push('-t', String(partLen));
-      // -c copy: repackage, don't re-encode — fast, no quality loss, low memory.
-      args.push('-c', 'copy', '-avoid_negative_ts', 'make_zero', outName);
-      await ffmpeg.run(...args);
-
+    const results = outFiles.map((outName, i) => {
       const data = ffmpeg.FS('readFile', outName);
       const blob = new Blob([data.buffer], { type: sp.file.type || 'audio/mpeg' });
-      const name = splitterPartName(sp.file.name, i, numParts);
-      results.push({ name, size: blob.size, blob });
-      ffmpeg.FS('unlink', outName); // free memory before the next part
-    }
+      const name = splitterPartName(sp.file.name, i, outFiles.length);
+      ffmpeg.FS('unlink', outName); // free memory as we go
+      return { name, size: blob.size, blob };
+    });
 
     ffmpeg.FS('unlink', inputName);
     sp.parts = results;
     sp.status = 'done';
-    sp.statusText = `Done — split into ${numParts} parts.`;
+    sp.statusText = `Done — split into ${outFiles.length} parts.`;
     sp.progressPct = 100;
     render();
   } catch(err){
