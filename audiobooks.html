@@ -1040,6 +1040,31 @@ function makeRemoteFileLike(url, name, size){
     },
   };
 }
+// iOS home-screen ("standalone") web apps have a WebKit bug where <audio>/
+// <video> refuse to play a src URL that 302-redirects cross-origin — and
+// Dropbox's dl=1 links always redirect from www.dropbox.com to a signed,
+// long-lived dl.dropboxusercontent.com URL. A plain Safari tab follows that
+// redirect fine; the installed app's media pipeline doesn't, and fails the
+// whole load with SRC_NOT_SUPPORTED even though the file itself is playable.
+// Fix: resolve the redirect ourselves with a fetch (which the standalone
+// shell handles correctly) and hand audioEl the final URL directly, so it
+// never has to follow a redirect itself. Cached per entry since the
+// resolved URL doesn't change for the life of the session.
+async function resolveDropboxPlaybackUrl(entry){
+  if (entry._resolvedUrl) return entry._resolvedUrl;
+  let resolved = entry.remoteUrl;
+  try{
+    const res = await fetch(entry.remoteUrl, { headers: { Range: 'bytes=0-0' } });
+    if (res && res.url) resolved = res.url;
+  } catch(e){
+    try{
+      const res = await fetch(entry.remoteUrl, { method: 'HEAD' });
+      if (res && res.url) resolved = res.url;
+    } catch(e2){}
+  }
+  entry._resolvedUrl = resolved;
+  return resolved;
+}
 async function addDropboxLinks(bookId, rawText){
   const lines = String(rawText||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
   if (!lines.length){ toast('Paste a Dropbox link first.'); return; }
@@ -1455,8 +1480,9 @@ async function ensureDurationsKnown(){
     if (typeof entry.durationSec === 'number'){ player.entryDurations[i] = entry.durationSec; continue; }
     try{
       // Remote (Dropbox) entries probe the URL directly — no blob, nothing
-      // ever hits IndexedDB for these.
-      const url = entry.remoteUrl || URL.createObjectURL(await getEntryFile(player.bookId, i, entry));
+      // ever hits IndexedDB for these. Same redirect-resolution as loadEntry.
+      const url = entry.remoteUrl ? await resolveDropboxPlaybackUrl(entry)
+        : URL.createObjectURL(await getEntryFile(player.bookId, i, entry));
       const d = await new Promise((resolve) => {
         const a = new Audio();
         a.preload = 'metadata';
@@ -1482,8 +1508,11 @@ async function loadEntry(idx, seekTo){
   const entry = player.match.entries[idx];
   // Dropbox entries stream straight from the URL — audioEl's own network
   // layer issues the Range requests, so this never touches getEntryFile()/
-  // IndexedDB/blob memory at all, which is the whole point on iOS.
-  const url = entry.remoteUrl || URL.createObjectURL(await getEntryFile(player.bookId, idx, entry));
+  // IndexedDB/blob memory at all, which is the whole point on iOS. The URL
+  // handed to audioEl must already be redirect-free — see
+  // resolveDropboxPlaybackUrl for why.
+  const url = entry.remoteUrl ? await resolveDropboxPlaybackUrl(entry)
+    : URL.createObjectURL(await getEntryFile(player.bookId, idx, entry));
   if (audioEl.src && audioEl.src.startsWith('blob:')) URL.revokeObjectURL(audioEl.src);
   audioEl.src = url;
   audioEl.playbackRate = player.rate;
