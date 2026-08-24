@@ -9,13 +9,6 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Audiobooks" />
 <meta name="theme-color" content="#0F160C" />
-<!-- GitHub Pages can't send the Cross-Origin-Opener-Policy / Cross-Origin-Embedder-Policy
-     headers that SharedArrayBuffer requires (needed by the audiobook splitter's ffmpeg.wasm
-     engine). This service worker patches those headers onto our own responses client-side so
-     the page becomes cross-origin isolated anyway. It's a no-op everywhere else on the site;
-     it only reloads the page once, the first time, to pick up the new headers. See:
-     https://github.com/gzuidhof/coi-serviceworker -->
-<script src="coi-serviceworker.js"></script>
 <script>
   // Same "resume where I left off" convention as the rest of the site.
   (function(){
@@ -254,9 +247,6 @@
        already filter the selection ourselves in isAudioFile()/handleFilesSelected,
        so it's safe to let the OS picker show everything. -->
   <input type="file" id="fileInput" multiple style="display:none" />
-  <!-- Single-file picker for the splitter tool. Same no-"accept" reasoning as
-       fileInput above — filtering happens ourselves in isAudioFile(). -->
-  <input type="file" id="splitterFileInput" style="display:none" />
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -585,16 +575,6 @@ let state = {
   modal: null,
   pendingLocateId: null,   // bookId waiting on the universal <input type=file> picker
   storageEstimate: null,   // {usage, quota} from navigator.storage.estimate()
-  splitter: {              // in-app large-file splitter (see SPLITTER section)
-    file: null,
-    targetHours: 2,
-    status: 'idle',        // idle | loading-engine | probing | splitting | done | error
-    statusText: '',
-    progressPct: 0,
-    parts: [],              // [{name, size, blob}] once done
-    zipping: false,         // true while the "download all as zip" is being built
-    zipProgressPct: 0,
-  },
 };
 
 function fmtBytes(n){
@@ -2128,339 +2108,6 @@ function renderMatchModal(itemId){
 }
 </script>
 
-<script>
-/* ==================================================================
-   SPLITTER — in-app tool to break one very large audio file into
-   several smaller ones, entirely on-device.
-
-   Why this exists: iOS Safari's <audio>/blob-URL playback path has a
-   real ceiling on very large single files (see the loadedmetadata/
-   stall workarounds elsewhere in this file) — an 8+ hour audiobook in
-   one file is squarely in the zone that trips it. Splitting into
-   several ~2 hour parts sidesteps the whole problem, and this app
-   already natively supports multi-file books (the "ripped CD folder"
-   path — matches.mode:'multi'), so split parts slot right back in as
-   one continuous book.
-
-   How it works: loads ffmpeg.wasm (only when this tool is opened —
-   never on normal app boot) and uses stream-copy (-c copy), which
-   repackages the existing audio data into new files without decoding
-   or re-encoding it. That keeps quality identical, keeps the split
-   fast, and avoids ever holding fully-decoded PCM in memory (an 8hr
-   file as raw PCM would be multiple GB — plenty to crash an iOS tab
-   on its own). The one file still has to be loaded into ffmpeg's
-   in-memory filesystem once to do this, so it's not free, but it's a
-   single one-time pass rather than what playback was doing.
-
-   ffmpeg.wasm needs an internet connection the first time it's used
-   per session (to fetch the ~25MB core from a CDN); after that it's
-   cached for the rest of the tab's lifetime.
-================================================================== */
-let ffmpegInstance = null;
-// The logger is only registered once, when the ffmpeg instance is first
-// created (createFFmpeg's `logger` option can't be changed afterwards).
-// Since the instance is cached and reused across every split attempt in
-// the same tab, a logger callback passed in on a later call would
-// otherwise never actually run — its closure gets silently discarded and
-// the current attempt's `duration` variable never gets set, always
-// producing "Couldn't read this file's length" on any retry. Route logs
-// through this reassignable dispatcher instead so each call's handler
-// actually receives them.
-let ffmpegLogHandler = null;
-async function loadFfmpegEngine(onLog){
-  ffmpegLogHandler = onLog || null;
-  if (ffmpegInstance) return ffmpegInstance;
-  await new Promise((resolve, reject) => {
-    if (window.FFmpeg) return resolve();
-    const s = document.createElement('script');
-    s.src = 'https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js';
-    s.onload = resolve;
-    s.onerror = () => reject(new Error('Could not load the splitting engine. Check your internet connection and try again.'));
-    document.head.appendChild(s);
-  });
-  const { createFFmpeg } = window.FFmpeg;
-  const ffmpeg = createFFmpeg({
-    log: false,
-    corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
-    logger: (e) => { if (ffmpegLogHandler) ffmpegLogHandler(e); },
-  });
-  await ffmpeg.load();
-  ffmpegInstance = ffmpeg;
-  return ffmpeg;
-}
-
-// Parses ffmpeg's own stderr banner ("Duration: 08:12:33.44, ...") instead of
-// probing with an off-DOM Audio() element — that's the exact technique that
-// silently hangs on large files on mobile Safari (see ensureDurationsKnown's
-// comment above), so it's worth avoiding here too even though this code path
-// isn't iOS-exclusive.
-function parseDurationFromLog(msg){
-  const m = /Duration:\s*(\d+):(\d\d):(\d\d)\.(\d+)/.exec(msg);
-  if (!m) return null;
-  return (+m[1])*3600 + (+m[2])*60 + (+m[3]) + (+m[4])/100;
-}
-
-function splitterPartName(originalName, i, total){
-  const dot = originalName.lastIndexOf('.');
-  const base = dot > 0 ? originalName.slice(0, dot) : originalName;
-  const ext = dot > 0 ? originalName.slice(dot) : '';
-  const num = String(i+1).padStart(total >= 10 ? 2 : 1, '0');
-  return `${base} - Part ${num}${ext}`;
-}
-
-function pickSplitterFile(){
-  document.getElementById('splitterFileInput').click();
-}
-function handleSplitterFile(file){
-  if (!file) return;
-  if (!isAudioFile(file.name)){ toast('That doesn\'t look like an audio file.'); return; }
-  state.splitter.file = file;
-  state.splitter.status = 'idle';
-  state.splitter.parts = [];
-  render();
-}
-
-async function runSplit(){
-  const sp = state.splitter;
-  if (!sp.file || sp.status === 'loading-engine' || sp.status === 'probing' || sp.status === 'splitting') return;
-  sp.parts = [];
-  sp.progressPct = 0;
-  try{
-    sp.status = 'loading-engine';
-    sp.statusText = 'Loading splitting engine (first time only, needs internet)…';
-    render();
-
-    // Every earlier version of this feature tried to first figure out the
-    // file's total duration in JS (by parsing ffmpeg's own log text) so it
-    // could compute part boundaries itself. That was fragile in a few
-    // different ways (stale logger closures on retry, "Duration: N/A" on
-    // large files with front-loaded metadata, etc). ffmpeg has a built-in
-    // way to do this that sidesteps needing to know the duration at all:
-    // the `segment` muxer. Point it at a target segment length and a
-    // printf-style output pattern and it counts/names the parts itself.
-    let partsWritten = 0;
-    const ffmpeg = await loadFfmpegEngine((e) => {
-      const msg = e.message || '';
-      // ffmpeg logs a line like "Opening 'out003.mp3' for writing" each
-      // time it starts a new segment — used only for a live progress count,
-      // not for correctness.
-      if (/Opening '.*?' for writing/.test(msg)) partsWritten++;
-    });
-
-    sp.status = 'probing';
-    sp.statusText = 'Reading file…';
-    render();
-    const { fetchFile } = window.FFmpeg;
-    const ext = extOf(sp.file.name) ? '.' + extOf(sp.file.name) : '';
-    const inputName = 'input' + ext;
-    ffmpeg.FS('writeFile', inputName, await fetchFile(sp.file));
-
-    sp.status = 'splitting';
-    sp.statusText = 'Splitting…';
-    render();
-
-    const targetSec = Math.max(0.25, Number(sp.targetHours)||2) * 3600;
-    const outPattern = 'out%03d' + ext;
-    try{
-      await ffmpeg.run(
-        '-probesize', '100000000',       // 100MB — large enough to find real
-        '-analyzeduration', '100000000', // stream info even on big files
-        '-i', inputName,
-        '-f', 'segment',
-        '-segment_time', String(targetSec),
-        '-reset_timestamps', '1',
-        '-c', 'copy',                    // stream-copy: no re-encode, no quality loss
-        outPattern
-      );
-    } catch(err){
-      throw new Error("Couldn't read or split this file. It may be corrupted or an unsupported format.");
-    }
-
-    const outFiles = ffmpeg.FS('readdir', '/')
-      .filter(f => /^out\d+/.test(f))
-      .sort();
-
-    if (outFiles.length <= 1){
-      // ffmpeg still writes one file even when there was nothing to split
-      // (file shorter than the target length) — clean up and tell the user.
-      outFiles.forEach(f => { try{ ffmpeg.FS('unlink', f); }catch(e){} });
-      ffmpeg.FS('unlink', inputName);
-      sp.status = 'error';
-      sp.statusText = "This file is shorter than your target part length, so there's nothing to split. Try a smaller target length if you still want to break it up.";
-      render();
-      return;
-    }
-
-    const results = outFiles.map((outName, i) => {
-      const data = ffmpeg.FS('readFile', outName);
-      const blob = new Blob([data.buffer], { type: sp.file.type || 'audio/mpeg' });
-      const name = splitterPartName(sp.file.name, i, outFiles.length);
-      ffmpeg.FS('unlink', outName); // free memory as we go
-      return { name, size: blob.size, blob };
-    });
-
-    ffmpeg.FS('unlink', inputName);
-    sp.parts = results;
-    sp.status = 'done';
-    sp.statusText = `Done — split into ${outFiles.length} parts.`;
-    sp.progressPct = 100;
-    render();
-  } catch(err){
-    console.error('Splitter error:', err);
-    sp.status = 'error';
-    sp.statusText = (err && err.message) ? err.message : 'Something went wrong while splitting this file.';
-    render();
-  }
-}
-
-function downloadSplitterPart(idx){
-  const part = state.splitter.parts[idx];
-  if (!part) return;
-  const url = URL.createObjectURL(part.blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = part.name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
-}
-
-// Lazy-loaded exactly like the ffmpeg engine above — only fetched the first
-// time someone actually taps "Download all as ZIP", and cached on
-// window.JSZip for the rest of the tab's lifetime.
-let jszipLoadPromise = null;
-async function loadJSZip(){
-  if (window.JSZip) return window.JSZip;
-  if (!jszipLoadPromise){
-    jszipLoadPromise = new Promise((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-      s.onload = () => resolve(window.JSZip);
-      s.onerror = () => { jszipLoadPromise = null; reject(new Error('Could not load the zip engine. Check your internet connection and try again.')); };
-      document.head.appendChild(s);
-    });
-  }
-  return jszipLoadPromise;
-}
-
-async function downloadAllSplitterParts(){
-  const sp = state.splitter;
-  if (!sp.parts.length || sp.zipping) return;
-  try{
-    sp.zipping = true;
-    sp.zipProgressPct = 0;
-    render();
-
-    const JSZip = await loadJSZip();
-    const zip = new JSZip();
-    sp.parts.forEach(p => zip.file(p.name, p.blob));
-
-    // STORE (no compression) — the parts are already-compressed audio, so
-    // re-compressing just burns CPU/battery for no size benefit.
-    const blob = await zip.generateAsync(
-      { type: 'blob', compression: 'STORE' },
-      (meta) => { sp.zipProgressPct = Math.round(meta.percent); render(); }
-    );
-
-    const dot = sp.file ? sp.file.name.lastIndexOf('.') : -1;
-    const base = (sp.file && dot > 0) ? sp.file.name.slice(0, dot) : (sp.file ? sp.file.name : 'audiobook parts');
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${base} - parts.zip`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
-  } catch(err){
-    console.error('Zip error:', err);
-    toast((err && err.message) ? err.message : 'Something went wrong creating the zip.');
-  } finally {
-    sp.zipping = false;
-    render();
-  }
-}
-
-function openSplitter(){
-  state.view = 'splitter';
-  render();
-}
-function closeSplitter(){
-  state.view = 'gallery';
-  render();
-}
-
-function renderSplitter(){
-  const sp = state.splitter;
-  const busy = sp.status === 'loading-engine' || sp.status === 'probing' || sp.status === 'splitting';
-  return `<div class="wrap">
-    <button class="player-back" data-action="close-splitter" style="margin-bottom:14px;">‹ Library</button>
-    <h2 class="display" style="font-size:20px;margin-bottom:6px;">Split a large file</h2>
-    <p style="color:var(--muted);font-size:13px;line-height:1.5;margin-bottom:20px;">
-      Break one very long audiobook file into a few smaller parts, right on this device — no quality loss.
-      Useful for 8+ hour files, which can be unreliable to play as a single file on iOS.
-      Downloaded parts can be re-added to this same book from its player screen ("Add file(s)…") and will play back-to-back as one book.
-    </p>
-
-    <div class="match-box">
-      ${!sp.file ? `
-        <button class="btn btn-accent" data-action="pick-splitter-file">Choose audio file…</button>
-      ` : `
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
-          <div style="font-size:22px;">🎧</div>
-          <div style="min-width:0;">
-            <div style="font-weight:700;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(sp.file.name)}</div>
-            <div style="font-size:11.5px;color:var(--muted-dim);">${fmtBytes(sp.file.size)}</div>
-          </div>
-        </div>
-
-        ${sp.status !== 'done' ? `
-          <label style="display:block;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px;">Target length per part</label>
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
-            <input type="number" min="0.25" step="0.25" value="${esc(sp.targetHours)}" id="splitter-hours-input"
-              ${busy ? 'disabled' : ''}
-              style="width:80px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:8px 10px;font-size:14px;" />
-            <span style="font-size:13px;color:var(--muted);">hours</span>
-          </div>
-
-          <div style="display:flex;gap:10px;">
-            <button class="btn btn-accent" data-action="run-split" ${busy ? 'disabled' : ''}>${busy ? 'Working…' : 'Split file'}</button>
-            <button class="btn btn-subtle" data-action="pick-splitter-file" ${busy ? 'disabled' : ''}>Choose different file</button>
-          </div>
-        ` : ''}
-
-        ${sp.status !== 'idle' ? `
-          <div style="margin-top:16px;">
-            ${busy ? `<div class="prog-bar" style="margin-bottom:8px;"><div class="prog-fill" style="width:${sp.progressPct}%;"></div></div>` : ''}
-            <div style="font-size:12.5px;color:${sp.status==='error'?'var(--bad)':'var(--muted)'};line-height:1.5;">${esc(sp.statusText)}</div>
-          </div>
-        ` : ''}
-
-        ${sp.status === 'done' ? `
-          <div style="margin-top:18px;display:flex;flex-direction:column;gap:8px;">
-            ${sp.parts.map((p,i) => `
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--panel-2);border-radius:9px;padding:9px 12px;">
-                <div style="min-width:0;">
-                  <div style="font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(p.name)}</div>
-                  <div style="font-size:11px;color:var(--muted-dim);">${fmtBytes(p.size)}</div>
-                </div>
-                <button class="btn btn-sm btn-ghost" data-action="download-split-part" data-id="${i}">Download</button>
-              </div>
-            `).join('')}
-            ${sp.parts.length > 1 ? `
-              <button class="btn btn-accent" style="margin-top:4px;" data-action="download-all-parts-zip" ${sp.zipping ? 'disabled' : ''}>
-                ${sp.zipping ? `Zipping… ${sp.zipProgressPct}%` : 'Download all as ZIP'}
-              </button>
-            ` : ''}
-            <button class="btn btn-subtle" style="margin-top:8px;" data-action="pick-splitter-file">Split another file</button>
-          </div>
-        ` : ''}
-      `}
-    </div>
-  </div>`;
-}
-</script>
 
 <script>
 function renderSleepModal(){
@@ -2684,13 +2331,10 @@ function render(){
         <div><div class="word">Audiobooks</div><div class="sub">Shelf & Spine</div></div>
       </div>
       <div style="display:flex;align-items:center;gap:14px;">
-        ${state.view !== 'splitter' ? `<button class="btn-icon" title="Split a large audiobook file" data-action="open-splitter" style="display:flex;align-items:center;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
-        </button>` : ''}
         <a class="back-link" href="index.html?home=1">Back to Shelf ›</a>
       </div>
     </div>
-  </div>` + (state.view === 'player' ? renderPlayer() : state.view === 'splitter' ? renderSplitter() : renderGallery());
+  </div>` + (state.view === 'player' ? renderPlayer() : renderGallery());
 
   const modalRoot = document.getElementById('modal-root');
   modalRoot.innerHTML = state.modal
@@ -2783,16 +2427,6 @@ document.addEventListener('click', async (e) => {
     if (folder){ await setMultiMatch(id, folder); state.modal = null; toast('Matched.'); if (state.view==='player' && state.currentBookId===id) await startPlaybackSession(id, state.matches[id], findItem(id)); else render(); }
     return;
   }
-  if (action === 'open-splitter') return openSplitter();
-  if (action === 'close-splitter') return closeSplitter();
-  if (action === 'pick-splitter-file') return pickSplitterFile();
-  if (action === 'run-split'){
-    const hoursEl = document.getElementById('splitter-hours-input');
-    if (hoursEl){ const v = parseFloat(hoursEl.value); if (v > 0) state.splitter.targetHours = v; }
-    return runSplit();
-  }
-  if (action === 'download-split-part') return downloadSplitterPart(parseInt(t.dataset.id, 10));
-  if (action === 'download-all-parts-zip') return downloadAllSplitterParts();
   if (action === 'pick-file'){
     const path = t.dataset.path;
     const file = state.scan.files.find(f => f.path === path);
@@ -2847,10 +2481,6 @@ document.addEventListener('keydown', (e) => {
 
 document.getElementById('fileInput').addEventListener('change', (e) => {
   handleFilesSelected(e.target.files);
-});
-document.getElementById('splitterFileInput').addEventListener('change', (e) => {
-  handleSplitterFile(e.target.files && e.target.files[0]);
-  e.target.value = ''; // allow picking the same file again
 });
 
 /* ---------------- boot ---------------- */
