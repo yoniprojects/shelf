@@ -1,0 +1,13 @@
+{
+  "name": "Shelf & Spine",
+  "short_name": "Shelf & Spine",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F8F3E6",
+  "theme_color": "#20331F",
+  "icons": [
+    { "src": "https://i.imgur.com/htlhPe9.png?v=2", "sizes": "192x192", "type": "image/png" },
+    { "src": "https://i.imgur.com/htlhPe9.png?v=2", "sizes": "512x512", "type": "image/png" }
+  ]
+}
