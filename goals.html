@@ -407,7 +407,10 @@
     <!-- Goals Add Modal -->
     <div class="goals-modal-overlay" id="goals-modal-overlay">
         <div class="goals-modal-content">
-            <h2 id="goals-modal-title">Add Reading Goal</h2>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:22px;">
+                <h2 id="goals-modal-title" style="margin:0;">Add Reading Goal</h2>
+                <button id="goals-modal-delete-btn" title="Delete this entire goal" style="display:none; background:var(--danger-color); color:#5e3a3a; border:none; width:34px; height:34px; min-width:34px; padding:0; margin:0; border-radius:8px; font-size:15px; cursor:pointer; box-shadow:none; flex-shrink:0;" onclick="deleteGoalEntirely()">🗑️</button>
+            </div>
 
             <div class="form-group">
                 <label>Book</label>
@@ -500,7 +503,6 @@
             </div>
 
             <div class="goals-modal-buttons">
-                <button class="btn-cancel" id="goals-modal-delete-btn" style="display:none; background-color:var(--danger-color); color:#5e3a3a;" onclick="deleteGoalEntirely()">Delete Goal</button>
                 <button class="btn-cancel" onclick="closeGoalModal()">Cancel</button>
                 <button class="btn-save" id="goals-modal-save-btn" onclick="saveGoal()">Add Goal</button>
             </div>
