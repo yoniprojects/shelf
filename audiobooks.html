@@ -414,10 +414,10 @@ function starsEditableHTML(bookId, value, size){
     out += `<span class="star-slot">
       <span class="star-base">★</span>
       <span class="star-fill" style="width:${Math.round(frac*100)}%">★</span>
-      <span class="star-hit star-hit-q1" data-action="set-rating" data-id="${esc(bookId)}" data-val="${n-0.75}"></span>
-      <span class="star-hit star-hit-q2" data-action="set-rating" data-id="${esc(bookId)}" data-val="${n-0.5}"></span>
-      <span class="star-hit star-hit-q3" data-action="set-rating" data-id="${esc(bookId)}" data-val="${n-0.25}"></span>
-      <span class="star-hit star-hit-q4" data-action="set-rating" data-id="${esc(bookId)}" data-val="${n}"></span>
+      <span class="star-hit star-hit-q1"></span>
+      <span class="star-hit star-hit-q2"></span>
+      <span class="star-hit star-hit-q3"></span>
+      <span class="star-hit star-hit-q4"></span>
     </span>`;
   }
   out += `</span>`;
@@ -442,6 +442,18 @@ function starsEditableHTML(bookId, value, size){
 // class of bug as the original all-Audio wipeout, just via a different
 // route. So every write here re-fetches the doc fresh from the server
 // first and merges the patch into THAT, never into the cached local copy.
+// Every saveBookPatch() call chains onto this instead of firing its own
+// independent get+set. Without this, two calls that overlap in time (e.g.
+// the debounced percent sync from timeupdate and an immediate one fired by
+// pausing a moment later) can each GET the doc before the other's SET has
+// landed on the server — so both build their write from the SAME pre-write
+// snapshot, and whichever SET happens to reach the server last simply wins,
+// even if it was built from the OLDER percentage. That's a genuine
+// server-side regression, not just a display glitch: every reader of this
+// doc (this page, the main tracker, another device) sees the value actually
+// go backwards. Chaining forces each get+set pair to fully finish before the
+// next one starts, so every write is always based on the true latest state.
+let bookPatchChain = Promise.resolve();
 function saveBookPatch(itemId, patch){
   // Optimistic local update so the UI feels instant — this is fine to base
   // on state.allBooks since it only affects this device's own rendering
@@ -450,7 +462,7 @@ function saveBookPatch(itemId, patch){
   state.allBooks = optimisticAllBooks;
   state.books = optimisticAllBooks.filter(b => b.format === 'Audio');
 
-  return BOOKS_DOC.get({ source: 'server' }).then(snap => {
+  const run = () => BOOKS_DOC.get({ source: 'server' }).then(snap => {
     const data = snap.exists ? snap.data() : {};
     const freshBooks = Array.isArray(data.books) ? data.books : [];
     const newAllBooks = freshBooks.map(b => b.id === itemId ? { ...b, ...patch } : b);
@@ -459,6 +471,12 @@ function saveBookPatch(itemId, patch){
     render();
     return BOOKS_DOC.set({ books: newAllBooks }, { merge: true });
   });
+
+  const outcome = bookPatchChain.then(run, run);
+  // Keep the chain alive even if this write fails, so one rejected save
+  // doesn't jam every save queued after it.
+  bookPatchChain = outcome.catch(() => {});
+  return outcome;
 }
 // Writes the new rating straight to the tracker doc, mirroring writeBookPercent's
 // pattern — this is the one place ratings flow app → main site instead of the
@@ -664,8 +682,26 @@ const progressReadyPromise = new Promise(res => { progressReadyResolve = res; })
 function loadBooks(){
   BOOKS_DOC.onSnapshot((snap) => {
     const data = snap.exists ? snap.data() : {};
-    const books = Array.isArray(data.books) ? data.books : [];
+    const incomingBooks = Array.isArray(data.books) ? data.books : [];
     const wishlist = Array.isArray(data.wishlist) ? data.wishlist : [];
+    // Firestore's local persistence can deliver a snapshot that's older than
+    // what's already in memory here — e.g. a cached read right after
+    // reconnecting/foregrounding, before the server's true current state has
+    // arrived. Blindly assigning state.allBooks from every snapshot let a
+    // stale one silently undo listening progress this device had just shown.
+    // Guard just the progressPercent field — the one this page itself writes
+    // and can race against — using the timestamp written alongside it: if we
+    // already hold a percent for a book that's newer than (or as new as) the
+    // incoming one, keep ours. Every other field (rating, status, due date,
+    // etc — all edited elsewhere) still comes straight from the snapshot.
+    const prevById = new Map(state.allBooks.map(b => [b.id, b]));
+    const books = incomingBooks.map(b => {
+      const prev = prevById.get(b.id);
+      if (prev && (prev.progressPercentUpdatedAt||0) > (b.progressPercentUpdatedAt||0)){
+        return { ...b, progressPercent: prev.progressPercent, progressPercentUpdatedAt: prev.progressPercentUpdatedAt };
+      }
+      return b;
+    });
     state.allBooks = books;
     state.books = books.filter(b => b.format === 'Audio');
     // Wishlist items never carry a `format` field on the tracker side — format
@@ -715,20 +751,40 @@ function persistProgressNow(bookId, patch){
 // too. Only for books currently in "reading" status there — this never touches
 // wishlist items or the star rating / due date, which flow the other way.
 let bookSyncDebounce = null;
+let bookSyncFirstPendingAt = 0;
+// A plain trailing debounce (reset the timer on every call) never fires
+// during continuous playback: timeupdate keeps landing well inside the
+// 1500ms window, so the timer keeps getting pushed out and the main site's
+// percent can go a whole long session without updating — the "quite behind"
+// symptom. BOOK_SYNC_MAX_WAIT_MS caps how long a pending sync can be
+// postponed from the FIRST call in the current burst, so it still flushes
+// periodically even while playback never pauses.
+const BOOK_SYNC_MAX_WAIT_MS = 20000;
 function syncPercentToMainSite(bookId, pct){
   const book = state.books.find(b => b.id === bookId);
   if (!book || book.status !== 'reading' || Math.round(Number(book.progressPercent)||0) === pct) return;
+  const now = Date.now();
+  if (!bookSyncFirstPendingAt) bookSyncFirstPendingAt = now;
   clearTimeout(bookSyncDebounce);
-  bookSyncDebounce = setTimeout(() => writeBookPercent(bookId, pct), 1500);
+  const wait = Math.max(0, Math.min(1500, BOOK_SYNC_MAX_WAIT_MS - (now - bookSyncFirstPendingAt)));
+  bookSyncDebounce = setTimeout(() => {
+    bookSyncFirstPendingAt = 0;
+    writeBookPercent(bookId, pct);
+  }, wait);
 }
 function syncPercentToMainSiteNow(bookId, pct){
   const book = state.books.find(b => b.id === bookId);
   if (!book || book.status !== 'reading' || Math.round(Number(book.progressPercent)||0) === pct) return;
   clearTimeout(bookSyncDebounce);
+  bookSyncFirstPendingAt = 0;
   writeBookPercent(bookId, pct);
 }
 function writeBookPercent(bookId, pct){
-  saveBookPatch(bookId, { progressPercent: pct }) // keeps local copy in sync so the ring/badge don't flicker
+  // progressPercentUpdatedAt travels with the percent itself (not the book's
+  // general updatedAt, which other fields like rating/status touch too) so
+  // loadBooks() can tell a fresh percent from a stale one on its own, without
+  // being confused by edits made elsewhere in the tracker.
+  saveBookPatch(bookId, { progressPercent: pct, progressPercentUpdatedAt: Date.now() }) // keeps local copy in sync so the ring/badge don't flicker
     .catch(err => console.error('Failed to sync % to main site:', err));
 }
 </script>
@@ -1800,6 +1856,18 @@ setInterval(() => {
   watchdogLastTime = audioEl.currentTime;
 }, 4000);
 window.addEventListener('beforeunload', () => { if (player.bookId) saveProgressNow(); });
+// beforeunload is unreliable on mobile (iOS Safari in particular often
+// never fires it when a tab is backgrounded, swiped away, or the OS just
+// kills it to reclaim memory) — which is what let progress drift behind:
+// the last debounced save (saveProgress, 900ms) could still be pending
+// when that happened. visibilitychange -> 'hidden' fires far more
+// consistently in exactly those cases, so flush there too. pagehide is a
+// second backstop for a few cases visibilitychange still misses (e.g. some
+// in-app browser / bfcache navigations).
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && player.bookId) saveProgressNow();
+});
+window.addEventListener('pagehide', () => { if (player.bookId) saveProgressNow(); });
 
 function closePlayer(){
   if (player.isPlaying) audioEl.pause();
@@ -2373,7 +2441,6 @@ document.addEventListener('click', async (e) => {
   if (action === 'skip-fwd') return skip(30);
   if (action === 'rate-up') return setRate(1);
   if (action === 'rate-down') return setRate(-1);
-  if (action === 'set-rating') return setRating(id, parseFloat(t.dataset.val));
   if (action === 'jump-chapter') return jumpToChapter(parseInt(t.dataset.idx,10));
   if (action === 'view-book'){ player.scrubMode = 'book'; render(); return; }
   if (action === 'view-chapter'){ player.scrubMode = 'chapter'; render(); return; }
