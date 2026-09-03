@@ -176,6 +176,27 @@
   .filters-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
   .filters-row .input{width:auto;flex:0 0 auto;font-size:12.5px;padding:7px 10px;}
   .filters-row input.input{flex:1;min-width:180px;}
+  .gallery-filters-wrap .filters-row{margin-bottom:10px;align-items:center;}
+  .filter-toggle-btn{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;}
+  .filter-count-badge{background:var(--gold);color:#fff;border-radius:999px;padding:1px 7px;font-size:10.5px;font-weight:800;}
+  .active-filter-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px;}
+  .active-chip{display:inline-flex;align-items:center;gap:6px;background:var(--oxblood);color:#fff;border-radius:999px;padding:5px 6px 5px 12px;font-size:11.5px;font-weight:600;}
+  .active-chip button{border:none;background:rgba(255,255,255,.25);color:#fff;width:16px;height:16px;border-radius:50%;font-size:11px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;font-family:inherit;flex-shrink:0;}
+  .active-chip button:hover{background:rgba(255,255,255,.45);}
+  .filter-panel{background:#fff;border-radius:12px;padding:16px 18px 2px;box-shadow:0 2px 8px rgba(47,63,42,.10);margin-bottom:16px;}
+  .filter-panel-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 24px;}
+  .filter-section{padding-bottom:14px;margin-bottom:14px;border-bottom:1px dotted var(--line);}
+  .filter-section-label{font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.4px;text-transform:uppercase;margin-bottom:8px;}
+  .filter-chip-row{display:flex;flex-wrap:wrap;gap:6px;}
+  .filter-chip{border:1.5px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;}
+  .filter-chip:hover{border-color:var(--oxblood);}
+  .filter-chip.active{background:var(--oxblood);border-color:var(--oxblood);color:#fff;}
+  .filter-range-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .filter-range-row .input{width:78px;flex:0 0 auto;}
+  .filter-range-row input[type="date"].input{width:auto;}
+  .filter-range-sep{color:var(--muted);font-size:12px;}
+  .filter-checkbox-row{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink);font-weight:600;cursor:pointer;}
+  .gallery-results-count{font-size:11.5px;color:var(--muted);font-weight:600;margin:2px 0 14px;}
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
   .cal-dow{text-align:center;font-size:11px;font-weight:700;color:var(--muted);}
   .cal-cell{background:#fff;border-radius:8px;min-height:78px;padding:6px;border:1px solid var(--line);display:flex;flex-direction:column;justify-content:space-between;}
@@ -209,6 +230,7 @@
   .wish-card{width:240px;background:#fff;border-radius:14px;padding:16px;box-shadow:0 2px 8px rgba(47,63,42,.10);display:flex;flex-direction:column;}
   .wish-card .cover{width:100%;height:auto!important;aspect-ratio:2/3;}
   .wish-card .cover.has-img img{object-fit:contain;}
+  .wish-format-badge{position:absolute;top:8px;right:8px;background:rgba(27,34,22,.72);color:#fff;border-radius:999px;padding:3px 8px;font-size:13px;line-height:1;display:flex;align-items:center;gap:3px;z-index:3;box-shadow:0 2px 6px rgba(0,0,0,.25);white-space:nowrap;}
   .wish-body{display:flex;flex-direction:column;flex:1;}
   .wish-top{display:flex;justify-content:space-between;align-items:flex-start;}
   .wish-title{font-weight:700;font-size:14.5px;line-height:1.3;}
@@ -325,6 +347,15 @@
     }
     .filters-row #gallery-q{
       grid-column:1 / -1;
+    }
+    .filter-panel-grid{
+      grid-template-columns:1fr;
+    }
+    .filter-panel{
+      padding:14px 14px 2px;
+    }
+    .filter-range-row .input{
+      width:64px;
     }
     .flexwrap:not(.gallery-grid){
       display:flex;
@@ -555,9 +586,30 @@ let state = {
   modal: null,
   profiles: [],
 };
+function defaultGalleryFilters(){
+  return {
+    query: "",
+    status: new Set(), genre: new Set(), subGenre: new Set(), format: new Set(),
+    source: new Set(), language: new Set(), priority: new Set(), series: new Set(),
+    recommendedBy: new Set(),
+    reread: "", // "" | "yes" | "no"
+    ratingMin: 0, ratingMax: 5, includeUnrated: true,
+    pagesMin: "", pagesMax: "",
+    dateFrom: "", dateTo: "",
+  };
+}
+function cloneGalleryFilters(f){
+  return {
+    ...f,
+    status: new Set(f.status), genre: new Set(f.genre), subGenre: new Set(f.subGenre),
+    format: new Set(f.format), source: new Set(f.source), language: new Set(f.language),
+    priority: new Set(f.priority), series: new Set(f.series), recommendedBy: new Set(f.recommendedBy),
+  };
+}
 let ui = {
   sortKey: "title",
-  galleryQuery: "", galleryStatus: "", galleryGenre: "", galleryRating: "",
+  galleryFilters: defaultGalleryFilters(),
+  galleryFilterDraft: null,
   shelfGenre: "",
   calMonth: (()=>{ const d=new Date(); d.setDate(1); return d; })(),
   calPicked: null,
@@ -841,6 +893,14 @@ function coverHTML(book, h){
     return `<div class="cover has-img" style="height:${h}px;background:linear-gradient(150deg, ${c}, ${c}99)"><img src="${esc(book.coverUrl)}" alt="${esc(book.title)} cover" loading="lazy" onerror="console.warn('[cover-debug] failed to load:', this.src); this.insertAdjacentHTML('afterend', '<div style=\\'position:absolute;inset:0;background:rgba(200,0,0,.85);color:#fff;font-size:9px;word-break:break-all;padding:4px;overflow:auto;z-index:5;\\'>FAILED:<br>'+this.src+'</div>'); this.parentElement.classList.remove('has-img'); this.remove();" /><span style="display:none">${esc(book.title)}</span></div>`;
   }
   return `<div class="cover" style="height:${h}px;background:linear-gradient(150deg, ${c}, ${c}99)"><span>${esc(book.title)}</span></div>`;
+}
+function wishFormatBadgeHTML(w){
+  const fmt = w.wantFormat;
+  const bookIcon = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`;
+  const headphonesIcon = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>`;
+  const content = fmt==="book" ? bookIcon : fmt==="audio" ? headphonesIcon : `${bookIcon}<span style="color:#fff;font-size:11px;">/</span>${headphonesIcon}`;
+  const title = fmt==="book" ? "Wants: Physical / Digital" : fmt==="audio" ? "Wants: Audio" : "Wants: Physical/Digital or Audio";
+  return `<div class="wish-format-badge" title="${esc(title)}">${content}</div>`;
 }
 function selectOptions(list, current){
   return list.map(v=>`<option value="${esc(v)}" ${v===current?"selected":""}>${esc(v)}</option>`).join("");
@@ -1320,7 +1380,7 @@ function renderDashboard(){
         ${finishedThisMonth.length > 0 ? `
           <div style="display:flex;flex-direction:column;gap:14px;max-height:360px;overflow-y:auto;padding-right:4px;">
             ${finishedThisMonth.map(b => `
-              <div style="padding-bottom:10px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:flex-start;">
+              <div data-action="open-book" data-id="${b.id}" style="padding-bottom:10px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:flex-start;cursor:pointer;">
                 <div style="width:50px;flex-shrink:0;">${coverHTML(b, 70)}</div>
                 <div style="flex:1;min-width:0;">
                   <div style="font-weight:700;font-size:13px;line-height:1.2;" title="${esc(b.title)}">${esc(b.title)}</div>
@@ -1452,18 +1512,102 @@ function renderTracker(){
 }
 
 /* ---------------- gallery ---------------- */
+function galleryFilterOptions(books){
+  const uniq = (arr) => Array.from(new Set(arr.filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+  return {
+    genres: uniq(books.map(b=>b.genre)),
+    subGenres: uniq(books.map(b=>b.subGenre)),
+    series: uniq(books.map(b=>b.seriesName)),
+    recommenders: uniq(books.map(b=>b.recommendedBy)),
+  };
+}
+
+// AND across filter groups, OR within a group (e.g. Genre: Fantasy OR Mystery, AND Format: Physical)
+function bookMatchesGalleryFilters(b, f, q){
+  if(q){
+    const hay = `${b.title} ${b.author} ${b.review||""} ${b.notes||""} ${b.recommendedBy||""} ${b.seriesName||""}`.toLowerCase();
+    if(!hay.includes(q)) return false;
+  }
+  if(f.status.size && !f.status.has(b.status)) return false;
+  if(f.genre.size && !f.genre.has(b.genre||"")) return false;
+  if(f.subGenre.size && !f.subGenre.has(b.subGenre||"")) return false;
+  if(f.format.size && !f.format.has(b.format||"")) return false;
+  if(f.source.size && !f.source.has(b.source||"")) return false;
+  if(f.language.size && !f.language.has(b.language||"")) return false;
+  if(f.priority.size && !f.priority.has(b.priority||"")) return false;
+  if(f.series.size){
+    const key = b.seriesName ? b.seriesName : "__none__";
+    if(!f.series.has(key)) return false;
+  }
+  if(f.recommendedBy.size && !f.recommendedBy.has(b.recommendedBy||"")) return false;
+  if(f.reread==="yes" && !(b.rereads && b.rereads.length)) return false;
+  if(f.reread==="no" && (b.rereads && b.rereads.length)) return false;
+  const r = Number(b.rating)||0;
+  if(r===0){
+    if(!f.includeUnrated) return false;
+  } else if(r < f.ratingMin || r > f.ratingMax){
+    return false;
+  }
+  if(f.pagesMin!=="" || f.pagesMax!==""){
+    const p = Number(b.pagesHours);
+    const valid = b.pagesHours!=="" && b.pagesHours!=null && !isNaN(p);
+    if(!valid) return false;
+    if(f.pagesMin!=="" && p < Number(f.pagesMin)) return false;
+    if(f.pagesMax!=="" && p > Number(f.pagesMax)) return false;
+  }
+  if(f.dateFrom && (!b.dateFinished || b.dateFinished < f.dateFrom)) return false;
+  if(f.dateTo && (!b.dateFinished || b.dateFinished > f.dateTo)) return false;
+  return true;
+}
+
+function galleryActiveChips(f){
+  const chips = [];
+  if(f.query.trim()) chips.push({group:"query", value:"", label:`Search: "${f.query.trim()}"`});
+  f.status.forEach(v=>chips.push({group:"status", value:v, label:STATUS[v]||v}));
+  f.genre.forEach(v=>chips.push({group:"genre", value:v, label:v}));
+  f.subGenre.forEach(v=>chips.push({group:"subGenre", value:v, label:v}));
+  f.format.forEach(v=>chips.push({group:"format", value:v, label:v}));
+  f.source.forEach(v=>chips.push({group:"source", value:v, label:v}));
+  f.language.forEach(v=>chips.push({group:"language", value:v, label:v}));
+  f.priority.forEach(v=>chips.push({group:"priority", value:v, label:v}));
+  f.series.forEach(v=>chips.push({group:"series", value:v, label: v==="__none__" ? "No series" : v}));
+  f.recommendedBy.forEach(v=>chips.push({group:"recommendedBy", value:v, label:`Rec. by ${v}`}));
+  if(f.reread) chips.push({group:"reread", value:"", label: f.reread==="yes" ? "Rereads only" : "Never reread"});
+  if(f.ratingMin>0 || f.ratingMax<5) chips.push({group:"rating-range", value:"", label:`Rating ${fmtRating(f.ratingMin)}–${fmtRating(f.ratingMax)}★`});
+  if(!f.includeUnrated) chips.push({group:"rating-unrated", value:"", label:"Exclude unrated"});
+  if(f.pagesMin!=="" || f.pagesMax!==""){
+    const label = (f.pagesMin!=="" && f.pagesMax!=="") ? `Length ${f.pagesMin}–${f.pagesMax}`
+      : f.pagesMin!=="" ? `Length ≥ ${f.pagesMin}` : `Length ≤ ${f.pagesMax}`;
+    chips.push({group:"pages-range", value:"", label});
+  }
+  if(f.dateFrom || f.dateTo){
+    const label = (f.dateFrom && f.dateTo) ? `Finished ${fmtDate(f.dateFrom)} – ${fmtDate(f.dateTo)}`
+      : f.dateFrom ? `Finished after ${fmtDate(f.dateFrom)}` : `Finished before ${fmtDate(f.dateTo)}`;
+    chips.push({group:"date-range", value:"", label});
+  }
+  return chips;
+}
+
+function filterChipGroupHTML(label, group, options, selectedSet, labelFn){
+  if(!options.length) return "";
+  return `
+    <div class="filter-section">
+      <div class="filter-section-label">${esc(label)}</div>
+      <div class="filter-chip-row">
+        ${options.map(v=>`<button type="button" class="filter-chip ${selectedSet.has(v)?"active":""}" data-action="gallery-toggle-chip" data-group="${group}" data-value="${esc(v)}">${esc(labelFn?labelFn(v):v)}</button>`).join("")}
+      </div>
+    </div>`;
+}
+
 function renderGallery(){
   const books = state.books;
   if(books.length===0) return emptyState("Once you log books, they'll show up here as a browsable cover gallery.");
-  const genres = sortSuggestionsByInput([...new Set(books.map(b=>b.genre).filter(Boolean))], ui.galleryGenre);
-  const q = ui.galleryQuery.toLowerCase();
-  const filtered = books.filter(b=>{
-    if(q && !`${b.title} ${b.author}`.toLowerCase().includes(q)) return false;
-    if(ui.galleryStatus && b.status!==ui.galleryStatus) return false;
-    if(ui.galleryGenre && b.genre!==ui.galleryGenre) return false;
-    if(ui.galleryRating){ const n = Number(ui.galleryRating); if(n>=5 ? b.rating!==5 : (b.rating < n || b.rating >= n+1)) return false; }
-    return true;
-  });
+  const f = ui.galleryFilters;
+  const q = f.query.trim().toLowerCase();
+  const opts = galleryFilterOptions(books);
+  const filtered = books.filter(b=>bookMatchesGalleryFilters(b, f, q));
+  const chips = galleryActiveChips(f);
+
   const cards = filtered.map(b=>`
     <div class="cover-card" data-action="open-book" data-id="${b.id}">
       ${coverHTML(b,176)}
@@ -1471,23 +1615,78 @@ function renderGallery(){
       <div class="author">${esc(b.author)}</div>
       ${starsHTML(b.rating,false,null,11)}
     </div>`).join("");
+
   return `
-    <div class="filters-row">
-      <input class="input" id="gallery-q" placeholder="Search title or author…" value="${esc(ui.galleryQuery)}" />
-      <select class="input" id="gallery-status">
-        <option value="">All statuses</option>
-        ${Object.entries(STATUS).map(([k,v])=>`<option value="${k}" ${ui.galleryStatus===k?"selected":""}>${v}</option>`).join("")}
-      </select>
-      <select class="input" id="gallery-genre">
-        <option value="">All genres</option>
-        ${genres.map(g=>`<option value="${esc(g)}" ${ui.galleryGenre===g?"selected":""}>${esc(g)}</option>`).join("")}
-      </select>
-      <select class="input" id="gallery-rating">
-        <option value="">Any rating</option>
-        ${[5,4,3,2,1].map(n=>`<option value="${n}" ${ui.galleryRating==String(n)?"selected":""}>${n===5?"5 stars":n+"–"+(n+1)+" stars"}</option>`).join("")}
-      </select>
+    <div class="gallery-filters-wrap">
+      <div class="filters-row">
+        <input class="input" id="gallery-q" placeholder="Search title, author, notes…" value="${esc(f.query)}" />
+        <button class="btn btn-subtle filter-toggle-btn" data-action="gallery-open-filters">Filters ${chips.length?`<span class="filter-count-badge">${chips.length}</span>`:""}</button>
+      </div>
+      ${chips.length ? `<div class="active-filter-chips">${chips.map(c=>`<span class="active-chip">${esc(c.label)}<button type="button" data-action="gallery-remove-filter" data-group="${c.group}" data-value="${esc(c.value)}" aria-label="Remove filter">×</button></span>`).join("")}</div>` : ""}
+      <div class="gallery-results-count">Showing ${filtered.length} of ${books.length} book${books.length===1?"":"s"}</div>
     </div>
     ${filtered.length===0 ? emptyState("No books match those filters. Try clearing one.") : `<div class="flexwrap gallery-grid">${cards}</div>`}
+  `;
+}
+function galleryFilterPanelModalHTML(){
+  const books = state.books;
+  const f = ui.galleryFilterDraft || (ui.galleryFilterDraft = cloneGalleryFilters(ui.galleryFilters));
+  const opts = galleryFilterOptions(books);
+  const seriesOptions = opts.series.length ? [...opts.series, "__none__"] : [];
+  return `
+    <div class="filter-panel-grid">
+      ${filterChipGroupHTML("Status", "status", Object.keys(STATUS), f.status, v=>STATUS[v])}
+      ${filterChipGroupHTML("Genre", "genre", opts.genres, f.genre)}
+      ${filterChipGroupHTML("Sub-genre", "subGenre", opts.subGenres, f.subGenre)}
+      ${filterChipGroupHTML("Format", "format", FORMATS, f.format)}
+      ${filterChipGroupHTML("Source", "source", SOURCES, f.source)}
+      ${filterChipGroupHTML("Language", "language", LANGUAGES, f.language)}
+      ${filterChipGroupHTML("Priority", "priority", PRIORITIES, f.priority)}
+      ${filterChipGroupHTML("Series", "series", seriesOptions, f.series, v=>v==="__none__"?"No series":v)}
+      ${filterChipGroupHTML("Recommended by", "recommendedBy", opts.recommenders, f.recommendedBy)}
+      <div class="filter-section">
+        <div class="filter-section-label">Rereads</div>
+        <div class="filter-chip-row">
+          <button type="button" class="filter-chip ${f.reread==="yes"?"active":""}" data-action="gallery-set-reread" data-value="yes">Rereads only</button>
+          <button type="button" class="filter-chip ${f.reread==="no"?"active":""}" data-action="gallery-set-reread" data-value="no">Never reread</button>
+        </div>
+      </div>
+      <div class="filter-section">
+        <div class="filter-section-label">Rating</div>
+        <div class="filter-range-row">
+          <input class="input" type="number" id="gallery-rating-min" min="0" max="5" step="0.5" value="${f.ratingMin}" />
+          <span class="filter-range-sep">to</span>
+          <input class="input" type="number" id="gallery-rating-max" min="0" max="5" step="0.5" value="${f.ratingMax}" />
+          <span class="filter-range-sep">★</span>
+        </div>
+        <label class="filter-checkbox-row" style="margin-top:8px;">
+          <input type="checkbox" id="gallery-include-unrated" ${f.includeUnrated?"checked":""} /> Include unrated books
+        </label>
+      </div>
+      <div class="filter-section">
+        <div class="filter-section-label">Length (pages)</div>
+        <div class="filter-range-row">
+          <input class="input" type="number" min="0" id="gallery-pages-min" placeholder="Min" value="${esc(f.pagesMin)}" />
+          <span class="filter-range-sep">to</span>
+          <input class="input" type="number" min="0" id="gallery-pages-max" placeholder="Max" value="${esc(f.pagesMax)}" />
+        </div>
+      </div>
+      <div class="filter-section">
+        <div class="filter-section-label">Date finished</div>
+        <div class="filter-range-row">
+          <input class="input" type="date" id="gallery-date-from" value="${esc(f.dateFrom)}" />
+          <span class="filter-range-sep">to</span>
+          <input class="input" type="date" id="gallery-date-to" value="${esc(f.dateTo)}" />
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px;">
+      <button type="button" class="btn-danger" data-action="gallery-clear-filters-draft">Clear filters</button>
+      <div style="display:flex;gap:10px;">
+        <button type="button" class="btn btn-ghost" data-action="gallery-cancel-filters">Cancel</button>
+        <button type="button" class="btn btn-primary" data-action="gallery-apply-filters">Search</button>
+      </div>
+    </div>
   `;
 }
 
@@ -1629,7 +1828,10 @@ function renderWishlist(){
   }
   const cards = items.map(w=>`
     <div class="wish-card">
-      ${coverHTML(w, 150)}
+      <div style="position:relative;cursor:pointer;" data-action="open-wish-detail" data-id="${w.id}">
+        ${coverHTML(w, 150)}
+        ${wishFormatBadgeHTML(w)}
+      </div>
       <div class="wish-body">
         <div class="wish-top" style="margin-top:14px;">
           <div>
@@ -2121,7 +2323,7 @@ function bulkEditFormHTML(count){
   `;
 }
 function wishFormHTML(w){
-  const item = w || { id:uid(), title:"", author:"", priority:"Interested", coverUrl:"", pagesHours:"", genre:"", subGenre:"", seriesName:"", seriesNumber:"" };
+  const item = w || { id:uid(), title:"", author:"", priority:"Interested", coverUrl:"", pagesHours:"", genre:"", subGenre:"", seriesName:"", seriesNumber:"", wantFormat:"", description:"" };
   const allGenres = sortSuggestionsByInput(Array.from(new Set([...DEFAULT_GENRES, ...state.books.map(x=>x.genre).filter(Boolean)])), item.genre);
   const allSubGenres = sortSuggestionsByInput(Array.from(new Set(state.books.map(x=>x.subGenre).filter(Boolean))), item.subGenre);
   const allSeries = sortSuggestionsByInput(allSeriesNames(), item.seriesName||"");
@@ -2168,6 +2370,16 @@ function wishFormHTML(w){
       </label>
       <label class="field"># in series<input class="input" id="f-series-number" value="${esc(item.seriesNumber||"")}" placeholder="e.g. 1" /></label>
     </div>
+    <div class="field">
+      <div>Want to read as</div>
+      <div class="filter-chip-row" style="margin-top:6px;">
+        <button type="button" class="filter-chip ${!item.wantFormat?"active":""}" data-action="wish-set-want-format" data-value="" id="wf-want-format-none">📖 / 🎧 Either</button>
+        <button type="button" class="filter-chip ${item.wantFormat==="book"?"active":""}" data-action="wish-set-want-format" data-value="book" id="wf-want-format-book">📖 Physical / Digital</button>
+        <button type="button" class="filter-chip ${item.wantFormat==="audio"?"active":""}" data-action="wish-set-want-format" data-value="audio" id="wf-want-format-audio">🎧 Audio</button>
+      </div>
+      <input type="hidden" id="wf-want-format" value="${esc(item.wantFormat||"")}" />
+    </div>
+    <label class="field">Description<textarea class="input" id="wf-description" placeholder="Synopsis here">${esc(item.description||"")}</textarea></label>
     <div id="series-box">${seriesBoxHTML(item.seriesName, item.id)}</div>
     <div style="display:flex;justify-content:flex-end;gap:10px;">
       <button class="btn btn-ghost" data-action="close-modal">Cancel</button>
@@ -2175,13 +2387,38 @@ function wishFormHTML(w){
     </div>
   `;
 }
+function wishDetailHTML(item){
+  return `
+    <div style="display:grid;grid-template-columns:1fr 140px;gap:22px;align-items:start;">
+      <div>
+        <div class="display" style="font-size:20px;">${esc(item.title)}</div>
+        <div style="color:var(--muted);margin-bottom:8px;">${esc(item.author)}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;">
+          ${item.priority?pillHTML(item.priority):""}
+          ${item.genre?pillHTML(item.genre):""}
+          ${item.subGenre?pillHTML(item.subGenre):""}
+        </div>
+        ${item.pagesHours?`<div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">${esc(item.pagesHours)} pages</div>`:""}
+        ${item.description
+          ? `<div style="font-size:13px;line-height:1.55;white-space:pre-wrap;">${esc(item.description)}</div>`
+          : `<div style="font-size:12.5px;color:var(--muted);font-style:italic;">No description yet.</div>`}
+      </div>
+      <div>${coverHTML(item,190)}</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:18px;">
+      <button class="btn btn-primary" data-action="edit-wish" data-id="${item.id}">Edit</button>
+      <button class="btn btn-subtle" data-action="move-wish" data-id="${item.id}">Read</button>
+    </div>
+  `;
+}
 function moveWishFormHTML(w){
+  const defaultFormat = w.wantFormat==="audio" ? "Audio" : "Digital";
   return `
     <input type="hidden" id="mw-id" value="${w.id}" />
     <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px;">Moving <strong>${esc(w.title)}</strong> to Currently Reading. A few more details:</div>
     <div class="grid2">
       <label class="field">Source<select class="input" id="mw-source">${selectOptions(SOURCES,"Purchased")}</select></label>
-      <label class="field">Format<select class="input" id="mw-format">${selectOptions(FORMATS,"Physical")}</select></label>
+      <label class="field">Format<select class="input" id="mw-format">${selectOptions(FORMATS,defaultFormat)}</select></label>
       <label class="field">Language<select class="input" id="mw-language">${selectOptions(LANGUAGES,"English")}</select></label>
       <label class="field">Recommended by<input class="input" id="mw-recby" placeholder="Optional" /></label>
     </div>
@@ -2346,6 +2583,7 @@ function renderModal(){
   else if(m.type==="progress-form"){ title = "Update progress"; body = progressFormHTML(m.payload); }
   else if(m.type==="book-detail"){ title="Book details"; body = bookDetailHTML(m.payload); wide=true; }
   else if(m.type==="wish-form"){ title = m.payload ? "Edit wishlist item" : "Add to wishlist"; body = wishFormHTML(m.payload); }
+  else if(m.type==="wish-detail"){ title = "Wishlist item"; body = wishDetailHTML(m.payload); wide = true; }
   else if(m.type==="move-wish-form"){ title = "Move to Currently Reading"; body = moveWishFormHTML(m.payload); }
   else if(m.type==="bulk-edit-form"){ title = "Bulk edit books"; body = bulkEditFormHTML(ui.selected.size); }
   else if(m.type==="goodreads-import"){ title = "Import from Goodreads"; body = goodreadsImportHTML(); }
@@ -2353,6 +2591,7 @@ function renderModal(){
   else if(m.type==="backup-import"){ title = "Restore Backup"; body = backupImportModalHTML(); }
   else if(m.type==="goal-form"){ title = "Yearly Reading Goal"; body = goalFormHTML(m.payload); }
   else if(m.type==="switch-user"){ title = "Switch User"; body = switchUserModalHTML(); }
+  else if(m.type==="gallery-filters"){ title = "Filters"; body = galleryFilterPanelModalHTML(); wide=true; }
   root.innerHTML = `
     <div class="modal-overlay" data-action="overlay-close">
       <div class="modal-card ${wide?"wide":""}" data-stop>
@@ -2653,6 +2892,8 @@ function saveWishFromForm(){
     subGenre: document.getElementById("f-subgenre").value.trim(),
     seriesName: (document.getElementById("f-series-name")?.value || "").trim(),
     seriesNumber: (document.getElementById("f-series-number")?.value || "").trim(),
+    wantFormat: (document.getElementById("wf-want-format")?.value || ""),
+    description: (document.getElementById("wf-description")?.value || "").trim(),
   };
   if(!w.title) return;
   if(existing) state.wishlist = state.wishlist.map(x=>x.id===id?w:x);
@@ -2811,7 +3052,7 @@ if(PIE_HOVER_CAPABLE){
 /* ---------------- event delegation ---------------- */
 document.addEventListener("click", (e)=>{
   const overlay = e.target.closest("[data-action='overlay-close']");
-  if(overlay && !e.target.closest("[data-stop]")){ state.modal=null; goodreadsParsed=null; render(); return; }
+  if(overlay && !e.target.closest("[data-stop]")){ state.modal=null; goodreadsParsed=null; ui.galleryFilterDraft=null; render(); return; }
 
   const star = e.target.closest("[data-star]");
   if(star){
@@ -2863,7 +3104,7 @@ document.addEventListener("click", (e)=>{
   else if(action==="save-book"){ saveBookFromForm(); }
   else if(action==="save-complete-book"){ saveCompleteBookFromModal(); }
   else if(action==="mark-dnf"){ markDNFFromModal(id); }
-  else if(action==="close-modal"){ state.modal = null; goodreadsParsed = null; renderModal(); }
+  else if(action==="close-modal"){ state.modal = null; goodreadsParsed = null; ui.galleryFilterDraft = null; renderModal(); }
   else if(action==="sort"){ ui.sortKey = el.getAttribute("data-key"); render(); }
   else if(action==="dash-genre-view"){ ui.dashGenreView = el.getAttribute("data-view"); render(); }
   else if(action==="refresh-fun-facts"){
@@ -2877,6 +3118,7 @@ document.addEventListener("click", (e)=>{
   else if(action==="cal-day"){ ui.calPicked = el.getAttribute("data-day"); render(); }
   else if(action==="add-wish"){ state.modal = {type:"wish-form", payload:null}; renderModal(); }
   else if(action==="edit-wish"){ state.modal = {type:"wish-form", payload: state.wishlist.find(w=>w.id===id)}; renderModal(); }
+  else if(action==="open-wish-detail"){ state.modal = {type:"wish-detail", payload: state.wishlist.find(w=>w.id===id)}; renderModal(); }
   else if(action==="save-wish"){ saveWishFromForm(); }
   else if(action==="delete-wish"){ deleteWish(id); }
   else if(action==="move-wish"){ state.modal = {type:"move-wish-form", payload: state.wishlist.find(w=>w.id===id)}; renderModal(); }
@@ -2892,6 +3134,16 @@ document.addEventListener("click", (e)=>{
     const urlInput = document.getElementById("f-cover-url"); if(urlInput) urlInput.value = "";
     const prev = document.getElementById("cover-preview");
     if(prev){ prev.classList.add("empty"); prev.innerHTML = "📖"; }
+  }
+  else if(action==="wish-set-want-format"){
+    const val = el.getAttribute("data-value");
+    const hidden = document.getElementById("wf-want-format");
+    if(hidden) hidden.value = val;
+    ["wf-want-format-none","wf-want-format-book","wf-want-format-audio"].forEach(id=>{
+      const btn = document.getElementById(id);
+      if(btn) btn.classList.remove("active");
+    });
+    el.classList.add("active");
   }
   else if(action==="gb-search"){
     const q = (document.getElementById("gb-search-q")?.value || "").trim();
@@ -2976,6 +3228,53 @@ document.addEventListener("click", (e)=>{
   }
   else if(action==="open-switch-user"){ ui.mobileMoreOpen = false; state.modal = {type:"switch-user", payload:null}; renderModal(); }
   else if(action==="select-user"){ switchUser(el.getAttribute("data-user-id")); }
+  else if(action==="gallery-open-filters"){
+    ui.galleryFilterDraft = cloneGalleryFilters(ui.galleryFilters);
+    state.modal = {type:"gallery-filters", payload:null};
+    renderModal();
+  }
+  else if(action==="gallery-cancel-filters"){
+    ui.galleryFilterDraft = null;
+    state.modal = null;
+    renderModal();
+  }
+  else if(action==="gallery-apply-filters"){
+    ui.galleryFilters = ui.galleryFilterDraft || ui.galleryFilters;
+    ui.galleryFilterDraft = null;
+    state.modal = null;
+    render();
+  }
+  else if(action==="gallery-clear-filters-draft"){
+    ui.galleryFilterDraft = defaultGalleryFilters();
+    renderModal();
+  }
+  else if(action==="gallery-toggle-chip"){
+    const group = el.getAttribute("data-group");
+    const val = el.getAttribute("data-value");
+    const draft = ui.galleryFilterDraft;
+    const set = draft && draft[group];
+    if(set instanceof Set){ if(set.has(val)) set.delete(val); else set.add(val); renderModal(); }
+  }
+  else if(action==="gallery-set-reread"){
+    const val = el.getAttribute("data-value");
+    if(ui.galleryFilterDraft){
+      ui.galleryFilterDraft.reread = (ui.galleryFilterDraft.reread===val) ? "" : val;
+      renderModal();
+    }
+  }
+  else if(action==="gallery-remove-filter"){
+    const group = el.getAttribute("data-group");
+    const val = el.getAttribute("data-value");
+    const f = ui.galleryFilters;
+    if(f[group] instanceof Set) f[group].delete(val);
+    else if(group==="query") f.query = "";
+    else if(group==="reread") f.reread = "";
+    else if(group==="rating-range"){ f.ratingMin = 0; f.ratingMax = 5; }
+    else if(group==="rating-unrated"){ f.includeUnrated = true; }
+    else if(group==="pages-range"){ f.pagesMin = ""; f.pagesMax = ""; }
+    else if(group==="date-range"){ f.dateFrom = ""; f.dateTo = ""; }
+    render();
+  }
 });
 
 document.addEventListener("change", (e)=>{
@@ -3003,10 +3302,28 @@ document.addEventListener("change", (e)=>{
     if(priWrap) priWrap.style.display = hide ? "none" : "";
   }
   else if(e.target.id==="goodreads-file"){ handleGoodreadsFile(e.target.files[0]); }
-  else if(e.target.id==="gallery-status"){ ui.galleryStatus = e.target.value; render(); }
-  else if(e.target.id==="gallery-genre"){ ui.galleryGenre = e.target.value; render(); }
-  else if(e.target.id==="gallery-rating"){ ui.galleryRating = e.target.value; render(); }
   else if(e.target.id==="shelf-genre"){ ui.shelfGenre = e.target.value; render(); }
+  else if(e.target.id==="gallery-rating-min"){
+    if(!ui.galleryFilterDraft) return;
+    let v = e.target.value===""?0:Number(e.target.value);
+    v = Math.max(0, Math.min(5, isNaN(v)?0:v));
+    ui.galleryFilterDraft.ratingMin = v;
+    if(ui.galleryFilterDraft.ratingMin > ui.galleryFilterDraft.ratingMax) ui.galleryFilterDraft.ratingMax = ui.galleryFilterDraft.ratingMin;
+    renderModal();
+  }
+  else if(e.target.id==="gallery-rating-max"){
+    if(!ui.galleryFilterDraft) return;
+    let v = e.target.value===""?5:Number(e.target.value);
+    v = Math.max(0, Math.min(5, isNaN(v)?5:v));
+    ui.galleryFilterDraft.ratingMax = v;
+    if(ui.galleryFilterDraft.ratingMax < ui.galleryFilterDraft.ratingMin) ui.galleryFilterDraft.ratingMin = ui.galleryFilterDraft.ratingMax;
+    renderModal();
+  }
+  else if(e.target.id==="gallery-include-unrated"){ if(ui.galleryFilterDraft){ ui.galleryFilterDraft.includeUnrated = e.target.checked; renderModal(); } }
+  else if(e.target.id==="gallery-pages-min"){ if(ui.galleryFilterDraft){ ui.galleryFilterDraft.pagesMin = e.target.value; renderModal(); } }
+  else if(e.target.id==="gallery-pages-max"){ if(ui.galleryFilterDraft){ ui.galleryFilterDraft.pagesMax = e.target.value; renderModal(); } }
+  else if(e.target.id==="gallery-date-from"){ if(ui.galleryFilterDraft){ ui.galleryFilterDraft.dateFrom = e.target.value; renderModal(); } }
+  else if(e.target.id==="gallery-date-to"){ if(ui.galleryFilterDraft){ ui.galleryFilterDraft.dateTo = e.target.value; renderModal(); } }
 });
 document.addEventListener("keydown", (e)=>{
   if(e.key==="Enter" && e.target && e.target.id==="quick-goodreads-q"){
@@ -3020,7 +3337,11 @@ document.addEventListener("keydown", (e)=>{
   }
 });
 document.addEventListener("input", (e)=>{
-  if(e.target.id==="gallery-q"){ ui.galleryQuery = e.target.value; render(); document.getElementById("gallery-q") && document.getElementById("gallery-q").focus(); }
+  if(e.target.id==="gallery-q"){
+    ui.galleryFilters.query = e.target.value; render();
+    const qEl = document.getElementById("gallery-q");
+    if(qEl){ qEl.focus(); const len = qEl.value.length; qEl.setSelectionRange(len, len); }
+  }
   else if(e.target.id==="f-genre"){
     const val = e.target.value;
     const datalist = document.getElementById("genre-list");
