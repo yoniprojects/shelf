@@ -658,10 +658,12 @@ function allAudioItems(){
     section: b.status === 'reading' ? 'reading' : (b.status === 'done' ? 'finished' : 'dnf'),
     source: 'book', raw: b,
   }));
-  const fromWishlist = state.wishlist.map(w => ({
-    id: 'wish:'+w.id, title: w.title, author: w.author, coverUrl: w.coverUrl,
-    section: 'toberead', source: 'wishlist', raw: w,
-  }));
+  const fromWishlist = state.wishlist
+    .filter(w => w.wantFormat === 'audio' || !w.wantFormat) // only "Audio" or "Either" wants — skip "book"-only
+    .map(w => ({
+      id: 'wish:'+w.id, title: w.title, author: w.author, coverUrl: w.coverUrl,
+      section: 'toberead', source: 'wishlist', raw: w,
+    }));
   return [...fromBooks, ...fromWishlist];
 }
 function findItem(id){ return allAudioItems().find(i => i.id === id) || null; }
@@ -705,9 +707,9 @@ function loadBooks(){
     state.allBooks = books;
     state.books = books.filter(b => b.format === 'Audio');
     // Wishlist items never carry a `format` field on the tracker side — format
-    // is only chosen once a book moves to Currently Reading — so show all of
-    // them here; which format they end up with is decided in the move-to-
-    // reading popup below (pre-filled to Audio, same as clicking "Read" there).
+    // is only chosen once a book moves to Currently Reading (pre-filled to
+    // Audio, same as clicking "Read" there). Store all of them here; the
+    // Audio-or-Either filter (on `wantFormat`) happens in allAudioItems().
     state.wishlist = wishlist;
     state.loaded = true;
     if (booksReadyResolve) { booksReadyResolve(); booksReadyResolve = null; }
