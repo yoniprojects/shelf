@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+  // ---------- Web vs. mobile detection ----------
+  // Runs as early as possible (before first paint) so there's no flash of the
+  // wrong background. Re-evaluated on resize/orientation change so the app
+  // keeps switching live as the window is resized or the device rotates.
+  (function () {
+    var el = document.documentElement;
+    function detectMode() {
+      var isCoarsePointer = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+      var isNarrow = window.innerWidth < 860;
+      return (isCoarsePointer || isNarrow) ? 'mode-mobile' : 'mode-web';
+    }
+    function apply() {
+      el.classList.remove('mode-mobile', 'mode-web');
+      el.classList.add(detectMode());
+    }
+    apply();
+    window.addEventListener('resize', apply);
+    window.addEventListener('orientationchange', apply);
+  })();
+</script>
+<title>Libby Multi-Search</title>
+<link rel="icon" type="image/png" href="https://i.imgur.com/htlhPe9.png?v=2" />
+<link rel="apple-touch-icon" href="https://i.imgur.com/htlhPe9.png?v=2" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Libby" />
+<meta name="theme-color" content="#2c4a3d" />
+<script>
+  // Resume where I left off: mark this page as the last one visited.
+  // (Redirecting elsewhere doesn't belong here — only index.html, the hub
+  // page, does that. This page is a destination, so it should just record
+  // itself, the same way the other sub-pages do.)
+  try{ localStorage.setItem('shelf:lastPage','libby.html'); }catch(e){}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#fcf0dc; --cream-deep:#f6e6c4;
+    --forest:#2c4a3d; --forest-dim:#3d6252;
+    --card:#ffffff; --card-border:#efe3c8;
+    --ink:#2c2a24; --muted:#8c887c;
+    --avail:#3f8a63; --avail-bg:#e6f2ea;
+    --wait-bg:#f6dfae; --wait-text:#8a5a24;
+    --lib-bg:#f0efe6; --lib-text:#63604f;
+    --radius-lg:22px; --radius-md:16px; --radius-sm:12px;
+    --shadow: 0 6px 18px rgba(44,74,61,.08);
+    --bg-mobile: url('https://i.imgur.com/Wk9mY7Z.jpeg');
+    --bg-web: url('https://i.imgur.com/XfgkN0H.jpeg');
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0; font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background-color:var(--cream); color:var(--ink);
+    background-repeat:no-repeat; background-position:center top; background-size:cover;
+    min-height:100vh;
+  }
+  html.mode-mobile body{ background-image:var(--bg-mobile); background-attachment:scroll; }
+  html.mode-web body{ background-image:var(--bg-web); background-attachment:fixed; }
+
+  .app{
+    max-width:480px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; position:relative;
+    background:rgba(252,240,220,.92);
+  }
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
+    .app{ backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); }
+  }
+  html.mode-web .app{
+    max-width:1100px; margin:32px auto; border-radius:28px; overflow:hidden;
+    box-shadow:0 24px 64px rgba(20,30,22,.30); background:rgba(252,240,220,.87);
+    min-height:calc(100vh - 64px);
+  }
+
+  /* Flex order controls visual placement independent of DOM order, so nav is
+     always last (bottom bar) on mobile and second (below header) on web. */
+  .app > header{order:0;}
+  .app > main{order:1;}
+  .app > nav.tabbar{order:2;}
+  html.mode-web .app > header{order:0;}
+  html.mode-web .app > nav.tabbar{order:1;}
+  html.mode-web .app > main{order:2;}
+
+  /* ---------- Header ---------- */
+  header{padding:26px 20px 18px;}
+  html.mode-web header{padding:36px 40px 22px;}
+  .headerRow{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;}
+  h1{
+    font-family:'Fraunces', serif; font-weight:600; font-size:21px; margin:0;
+    color:var(--forest); letter-spacing:.1px;
+  }
+  html.mode-web h1{font-size:24px;}
+  .backLink{font-size:12.5px;color:var(--muted);text-decoration:none;font-weight:600;white-space:nowrap;}
+  .backLink:hover{color:var(--forest);}
+
+  /* ---------- Search bar ---------- */
+  .searchWrap{
+    position:relative; margin:0 20px; z-index:3;
+    background:var(--card); border-radius:999px; box-shadow:var(--shadow);
+    display:flex; align-items:center; gap:8px; padding:6px 6px 6px 18px;
+    border:1px solid var(--card-border);
+  }
+  html.mode-web .searchWrap{ margin:0 40px; max-width:640px; }
+  .searchWrap input{
+    flex:1; border:none; outline:none; background:transparent; font-size:14.5px;
+    font-family:'Inter',sans-serif; color:var(--ink); padding:10px 0;
+  }
+  .searchWrap input::placeholder{color:var(--muted);}
+  .iconBtn{
+    width:38px; height:38px; border-radius:50%; border:none; background:var(--cream-deep);
+    color:var(--forest); display:flex; align-items:center; justify-content:center; cursor:pointer;
+    flex-shrink:0; position:relative;
+  }
+  .iconBtn:hover{background:#efe0bb;}
+  .iconBtn svg{width:17px; height:17px;}
+  .iconBtn.small{width:32px; height:32px;}
+
+  .filterPop{
+    position:absolute; top:46px; right:0; background:var(--card); border:1px solid var(--card-border);
+    border-radius:var(--radius-sm); box-shadow:var(--shadow); padding:12px 14px; width:200px;
+    display:none; z-index:6; font-size:13.5px;
+  }
+  .filterPop.open{display:block;}
+  .filterPop label{display:flex; align-items:center; gap:8px; cursor:pointer; color:var(--ink);}
+
+  /* ---------- Chips (format, genre, etc.) ---------- */
+  main{padding:18px 20px 100px; flex:1;}
+  html.mode-web main{padding:26px 40px 40px;}
+  .chips{display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;}
+  .chip{
+    padding:8px 16px; border-radius:999px; border:1px solid var(--forest); background:transparent;
+    font-size:13px; font-weight:600; color:var(--forest); cursor:pointer; user-select:none;
+    font-family:'Inter',sans-serif; transition:background .15s, color .15s;
+  }
+  .chip.active{background:var(--forest); color:#fff; border-color:var(--forest);}
+  .chip.small{padding:6px 12px; font-size:12px; font-weight:500;}
+
+  .status{color:var(--muted); font-size:13.5px; margin:0 0 14px;}
+  .status b{color:var(--forest);}
+
+  /* ---------- Views ---------- */
+  .view[hidden]{display:none;}
+
+  /* ---------- Cards ---------- */
+  .resultsGrid{}
+  html.mode-web .resultsGrid{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(300px,1fr)); gap:16px;
+  }
+  .card{
+    display:flex; gap:14px; background:var(--card); border:1px solid var(--card-border);
+    border-radius:var(--radius-md); padding:12px; margin-bottom:12px; box-shadow:var(--shadow);
+  }
+  html.mode-web .card{margin-bottom:0;}
+  .cover{
+    width:64px; height:96px; object-fit:cover; border-radius:10px; background:var(--cream-deep);
+    flex-shrink:0;
+  }
+  .meta{flex:1; min-width:0; padding-top:2px;}
+  .title{
+    font-family:'Fraunces', serif; font-weight:600; font-size:15.5px; margin:0 0 3px;
+    line-height:1.3; color:var(--forest);
+  }
+  .authors{color:var(--muted); font-size:13px; margin:0 0 9px;}
+  .formatGroup{margin-bottom:7px;}
+  .formatGroup:last-child{margin-bottom:0;}
+  .formatLabel{font-size:11px; font-weight:600; color:var(--muted); margin-bottom:5px;}
+  .badges{display:flex; flex-wrap:wrap; gap:6px; align-items:center;}
+  .badge{font-size:11.5px; padding:4px 10px; border-radius:999px; font-weight:600;}
+  .badge.lib{color:var(--lib-text); background:var(--lib-bg); font-weight:500;}
+  .badge.avail{color:var(--avail); background:var(--avail-bg);}
+  .badge.wait{color:var(--wait-text); background:var(--wait-bg);}
+  .actions{margin-top:8px; display:flex; flex-wrap:wrap; gap:4px 10px;}
+  .actions a{color:var(--forest-dim); font-size:12.5px; text-decoration:none; font-weight:600;}
+  .actions a:hover{text-decoration:underline;}
+  .addReadingBtn{
+    margin-top:7px; padding:6px 13px; border-radius:999px; border:1px solid var(--forest);
+    background:transparent; color:var(--forest); font-size:11.5px; font-weight:700;
+    cursor:pointer; font-family:'Inter',sans-serif; transition:background .15s, color .15s;
+  }
+  .addReadingBtn:hover{background:var(--forest); color:#fff;}
+  .addReadingBtn:disabled{opacity:.6; cursor:default;}
+  .empty{color:var(--muted); text-align:center; padding:60px 20px; font-size:14px;}
+  html.mode-web .empty{grid-column:1/-1;}
+  .spinner{
+    display:inline-block; width:14px; height:14px; border:2px solid var(--card-border);
+    border-top-color:var(--forest); border-radius:50%; animation:spin .7s linear infinite;
+    vertical-align:-2px; margin-right:6px;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* ---------- Browse filter panel ---------- */
+  .browsePanel{
+    background:rgba(255,255,255,.55); border:1px solid var(--card-border); border-radius:var(--radius-md);
+    padding:14px 14px 6px; margin-bottom:16px;
+  }
+  html.mode-web .browsePanel{
+    display:grid; grid-template-columns:1fr 1fr; gap:0 24px; padding:20px 24px 8px;
+  }
+  .browseRow{margin-bottom:14px;}
+  html.mode-web .browseRow.full{grid-column:1/-1;}
+  .browseLabel{font-size:11.5px; font-weight:700; color:var(--forest); text-transform:uppercase; letter-spacing:.03em; margin-bottom:7px; display:block;}
+  .browseHint{font-size:11.5px; color:var(--muted); margin-top:-2px;}
+  .browseKeywordRow{display:flex; gap:8px;}
+  .browseKeywordRow input[type="text"]{
+    flex:1; padding:10px 14px; border-radius:999px; border:1px solid var(--card-border);
+    background:var(--card); color:var(--ink); font-size:13.5px; font-family:'Inter',sans-serif; outline:none;
+  }
+  .browseGo{
+    padding:10px 18px; border-radius:999px; border:none; background:var(--forest); color:#fff;
+    font-weight:700; font-size:13.5px; cursor:pointer; font-family:'Inter',sans-serif; flex-shrink:0;
+    display:flex; align-items:center; gap:6px;
+  }
+  .browseGo:hover{filter:brightness(1.08);}
+  .rangeRow{display:flex; align-items:center; gap:8px;}
+  .rangeRow input[type="number"]{
+    width:100%; padding:9px 11px; border-radius:9px; border:1px solid var(--card-border);
+    background:var(--card); color:var(--ink); font-size:13px; font-family:'Inter',sans-serif; outline:none;
+  }
+  .rangeRow span{color:var(--muted); font-size:12.5px; flex-shrink:0;}
+  select.browseSelect{
+    width:100%; padding:9px 11px; border-radius:9px; border:1px solid var(--card-border);
+    background:var(--card); color:var(--ink); font-size:13.5px; font-family:'Inter',sans-serif; outline:none;
+  }
+  .excludeRow{display:flex; gap:8px; margin-bottom:8px;}
+  .excludeRow input[type="text"]{
+    flex:1; padding:9px 12px; border-radius:9px; border:1px solid var(--card-border);
+    background:var(--card); color:var(--ink); font-size:13px; font-family:'Inter',sans-serif; outline:none;
+  }
+  .excludeChips{display:flex; flex-wrap:wrap; gap:6px;}
+  .excludeChip{
+    display:flex; align-items:center; gap:6px; padding:5px 6px 5px 12px; border-radius:999px;
+    background:var(--wait-bg); color:var(--wait-text); font-size:12px; font-weight:600;
+  }
+  .excludeChip button{
+    background:rgba(0,0,0,.08); border:none; color:inherit; width:18px; height:18px; border-radius:50%;
+    cursor:pointer; font-size:12px; line-height:1; display:flex; align-items:center; justify-content:center;
+  }
+  .checkRow{display:flex; align-items:center; gap:8px; font-size:13.5px; color:var(--ink); cursor:pointer;}
+  .browseFooterRow{
+    display:flex; justify-content:space-between; align-items:center; gap:10px; padding-bottom:14px;
+  }
+  html.mode-web .browseFooterRow{grid-column:1/-1;}
+  .resetLink{background:none; border:none; color:var(--forest-dim); font-size:12.5px; font-weight:600;
+    text-decoration:underline; cursor:pointer; font-family:'Inter',sans-serif; padding:0;}
+  /* ---------- Nav ---------- */
+  nav.tabbar{
+    position:sticky; bottom:0; left:0; right:0; background:var(--cream);
+    border-top:1px solid var(--card-border); display:flex; padding:8px 8px calc(8px + env(safe-area-inset-bottom));
+    max-width:480px; margin:0 auto; width:100%;
+  }
+  .tab{
+    flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 0;
+    background:none; border:none; cursor:pointer; color:var(--muted); font-size:11px;
+    font-family:'Inter',sans-serif; font-weight:500;
+  }
+  .tab svg{width:21px; height:21px;}
+  .tab.active{color:var(--forest); font-weight:700;}
+
+  /* Web layout: nav becomes a horizontal pill strip under the header, not a bottom bar */
+  html.mode-web nav.tabbar{
+    position:static; max-width:none; width:auto; margin:6px 40px 0; padding:0 0 18px;
+    background:transparent; border-top:none; border-bottom:1px solid var(--card-border);
+    gap:8px; justify-content:flex-start;
+  }
+  html.mode-web .tab{
+    flex:0 0 auto; flex-direction:row; gap:7px; padding:9px 16px; border-radius:999px;
+    border:1px solid transparent; font-size:13px;
+  }
+  html.mode-web .tab svg{width:16px; height:16px;}
+  html.mode-web .tab:hover{background:rgba(44,74,61,.06);}
+  html.mode-web .tab.active{background:var(--forest); color:#fff;}
+
+  /* ---------- Settings dialog ---------- */
+  dialog{
+    background:var(--card); color:var(--ink); border:1px solid var(--card-border); border-radius:var(--radius-md);
+    padding:22px; max-width:440px; width:90%; font-family:'Inter',sans-serif;
+  }
+  dialog::backdrop{background:rgba(44,40,30,.45);}
+  dialog h2{font-family:'Fraunces', serif; color:var(--forest); font-size:17px; margin:0 0 12px;}
+  .libRow{display:flex; gap:8px; margin-bottom:10px; align-items:center;}
+  .libRow label{width:70px; font-size:12.5px; color:var(--muted); flex-shrink:0;}
+  .libRow input{
+    flex:1; padding:9px 11px; border-radius:9px; border:1px solid var(--card-border);
+    background:var(--cream); color:var(--ink); font-size:13.5px; font-family:'Inter',sans-serif;
+  }
+  .dialogActions{display:flex; justify-content:flex-end; gap:8px; margin-top:16px;}
+  .hint{font-size:12px; color:var(--muted); margin-top:-4px; margin-bottom:14px; line-height:1.5;}
+  .errRow{font-size:12.5px; color:#b5533f; margin-top:6px;}
+  dialog button{
+    padding:10px 16px; border-radius:10px; border:1px solid var(--card-border);
+    background:var(--cream); color:var(--forest); font-size:13.5px; cursor:pointer; font-weight:600;
+    font-family:'Inter',sans-serif;
+  }
+  dialog button.primary{background:var(--forest); border-color:var(--forest); color:#fff;}
+  dialog button:hover{filter:brightness(1.05);}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <div class="headerRow">
+      <a class="backLink" href="index.html?home=1">‹ Shelf &amp; Spine</a>
+      <h1>Libby Multi-Search</h1>
+    </div>
+
+    <div class="searchWrap">
+      <input type="text" id="q" placeholder="Search by title, author, or keyword…" autocomplete="off">
+      <button class="iconBtn" id="filterToggle" aria-label="Filters">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2" fill="currentColor" stroke="none"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="16" cy="12" r="2" fill="currentColor" stroke="none"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="11" cy="18" r="2" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <div class="filterPop" id="filterPop">
+        <label><input type="checkbox" id="availOnly"> Available now only</label>
+      </div>
+    </div>
+  </header>
+
+  <nav class="tabbar">
+    <button class="tab active" data-tab="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      Search
+    </button>
+    <button class="tab" data-tab="browse">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h9a3 3 0 0 1 3 3v11"/><path d="M4 5v13a2 2 0 0 0 2 2h10"/><path d="M4 5c0-1.1.9-2 2-2h3v6l-2.5-1.5L4 9V5Z"/></svg>
+      Browse
+    </button>
+    <button class="tab" data-tab="libraries">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V6a1 1 0 0 1 1-1h4l2 2h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z"/></svg>
+      Libraries
+    </button>
+  </nav>
+
+  <main>
+    <!-- ================= SEARCH VIEW ================= -->
+    <div class="view" id="view-search">
+      <div class="chips" id="searchFormatChips">
+        <span class="chip active" data-value="all">All formats</span>
+        <span class="chip" data-value="ebook">Ebooks</span>
+        <span class="chip" data-value="audiobook">Audiobooks</span>
+      </div>
+
+      <div class="status" id="status"></div>
+      <div class="resultsGrid" id="results"></div>
+    </div>
+
+    <!-- ================= BROWSE VIEW ================= -->
+    <div class="view" id="view-browse" hidden>
+      <div class="browsePanel">
+        <div class="browseRow full">
+          <span class="browseLabel">Keyword (optional)</span>
+          <div class="browseKeywordRow">
+            <input type="text" id="browseQ" placeholder="Leave blank to browse everything…" autocomplete="off">
+            <button class="browseGo" id="browseGoBtn">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              Browse
+            </button>
+          </div>
+        </div>
+
+        <div class="browseRow full">
+          <span class="browseLabel">Format</span>
+          <div class="chips" id="browseFormatChips">
+            <span class="chip active" data-value="all">All formats</span>
+            <span class="chip" data-value="ebook">Ebooks</span>
+            <span class="chip" data-value="audiobook">Audiobooks</span>
+          </div>
+        </div>
+
+        <div class="browseRow full">
+          <span class="browseLabel">Genres <span class="browseHint">— select any that fit (matched against each title's subjects)</span></span>
+          <div class="chips" id="genreChips"></div>
+        </div>
+
+        <div class="browseRow">
+          <span class="browseLabel">Sort by</span>
+          <select class="browseSelect" id="browseSort">
+            <option value="popularity">Most popular</option>
+            <option value="newest">Newest release</option>
+            <option value="title">Title (A–Z)</option>
+            <option value="author">Author (A–Z)</option>
+          </select>
+        </div>
+
+        <div class="browseRow">
+          <span class="browseLabel">Language</span>
+          <select class="browseSelect" id="browseLanguage">
+            <option value="any">Any language</option>
+            <option value="english">English</option>
+            <option value="spanish">Spanish</option>
+            <option value="french">French</option>
+            <option value="german">German</option>
+            <option value="italian">Italian</option>
+            <option value="portuguese">Portuguese</option>
+            <option value="hebrew">Hebrew</option>
+          </select>
+        </div>
+
+        <div class="browseRow">
+          <span class="browseLabel">Publication year</span>
+          <div class="rangeRow">
+            <input type="number" id="browseYearFrom" placeholder="From" inputmode="numeric">
+            <span>–</span>
+            <input type="number" id="browseYearTo" placeholder="To" inputmode="numeric">
+          </div>
+        </div>
+
+        <div class="browseRow">
+          <span class="browseLabel">Ebook length (pages)</span>
+          <div class="rangeRow">
+            <input type="number" id="browsePagesMin" placeholder="Min" inputmode="numeric">
+            <span>–</span>
+            <input type="number" id="browsePagesMax" placeholder="Max" inputmode="numeric">
+          </div>
+        </div>
+
+        <div class="browseRow">
+          <span class="browseLabel">Audiobook length (hours)</span>
+          <div class="rangeRow">
+            <input type="number" id="browseHoursMin" placeholder="Min" inputmode="numeric">
+            <span>–</span>
+            <input type="number" id="browseHoursMax" placeholder="Max" inputmode="numeric">
+          </div>
+        </div>
+
+        <div class="browseRow full">
+          <span class="browseLabel">Exclude authors</span>
+          <div class="excludeRow">
+            <input type="text" id="excludeAuthorInput" placeholder="Type an author name and press Enter…">
+            <button class="iconBtn small" id="excludeAuthorAdd" aria-label="Exclude author">+</button>
+          </div>
+          <div class="excludeChips" id="excludeChipsList"></div>
+        </div>
+
+        <div class="browseRow full">
+          <label class="checkRow"><input type="checkbox" id="browseAvailOnly"> Available now only</label>
+        </div>
+
+        <div class="browseFooterRow">
+          <button class="resetLink" id="browseResetBtn">Reset all filters</button>
+          <span class="browseHint" id="browseFilterHint"></span>
+        </div>
+      </div>
+
+      <div class="status" id="browseStatus"></div>
+      <div class="resultsGrid" id="browseResults"></div>
+    </div>
+  </main>
+</div>
+
+<dialog id="settingsDialog">
+  <h2>Your libraries</h2>
+  <div class="hint">
+    Find each library's slug: open <b>libbyapp.com</b>, sign in to that library,
+    and check the URL — it looks like <code>libbyapp.com/library/&lt;slug&gt;</code>.
+  </div>
+  <div id="libRows"></div>
+  <div class="hint" id="testHint"></div>
+  <div class="dialogActions">
+    <button id="testLibs">Test connection</button>
+    <button class="primary" id="saveSettings">Save &amp; close</button>
+  </div>
+</dialog>
+
+<script>
+const DEFAULT_LIBRARIES = [
+  { name: "Indianapolis Public Library", key: "indypl" },
+  { name: "Queer Liberation Library",    key: "queerliblib" },
+  { name: "Israel Digital",              key: "telaviv" }
+];
+
+const FORMAT_GROUPS = {
+  ebook: ["ebook-epub-adobe","ebook-epub-open","ebook-overdrive","ebook-pdf-adobe","ebook-pdf-open","ebook-kindle","ebook-media-do"],
+  audiobook: ["audiobook-mp3","audiobook-overdrive"]
+};
+const ALL_FORMATS = [...FORMAT_GROUPS.ebook, ...FORMAT_GROUPS.audiobook];
+
+// The full set of top-level subjects OverDrive/Libby tags titles with
+// (these are the BISAC major subject headings behind Libby's own
+// Subjects browse filter, so they line up with each title's real
+// `subjects` data instead of being guesses).
+const GENRE_OPTIONS = [
+  "Antiques & Collectibles","Architecture","Art","Bibles","Biography & Autobiography",
+  "Body, Mind & Spirit","Business & Economics","Comics & Graphic Novels","Computers","Cooking",
+  "Crafts & Hobbies","Design","Drama","Education","Family & Relationships","Fiction",
+  "Foreign Language Study","Games & Activities","Gardening","Health & Fitness","History",
+  "House & Home","Humor","Juvenile Fiction","Juvenile Nonfiction","Language Arts & Disciplines",
+  "Law","Literary Collections","Literary Criticism","Mathematics","Medical","Music","Nature",
+  "Performing Arts","Pets","Philosophy","Photography","Poetry","Political Science","Psychology",
+  "Reference","Religion","Science","Science Fiction","Self-Help","Social Science",
+  "Sports & Recreation","Study Aids","Technology & Engineering","Transportation","Travel",
+  "True Crime","Young Adult Fiction","Young Adult Nonfiction"
+];
+
+let libraries = loadLibraries();
+let activeFormat = "all";   // all | ebook | audiobook  (Search view)
+let availOnly = false;
+
+function loadLibraries(){
+  try{
+    const saved = JSON.parse(localStorage.getItem("libbySearchLibraries"));
+    if (Array.isArray(saved) && saved.length) return saved;
+  }catch(e){}
+  return DEFAULT_LIBRARIES;
+}
+function saveLibraries(libs){
+  localStorage.setItem("libbySearchLibraries", JSON.stringify(libs));
+}
+
+// ---------- Settings dialog ----------
+const dialog = document.getElementById("settingsDialog");
+const libRows = document.getElementById("libRows");
+const testHint = document.getElementById("testHint");
+
+function renderLibRows(){
+  libRows.innerHTML = "";
+  libraries.forEach((lib, i) => {
+    const row = document.createElement("div");
+    row.className = "libRow";
+    row.innerHTML = `
+      <label>Name</label><input data-i="${i}" data-field="name" value="${escapeAttr(lib.name)}">
+    `;
+    const row2 = document.createElement("div");
+    row2.className = "libRow";
+    row2.style.marginBottom = "16px";
+    row2.innerHTML = `
+      <label>Slug</label><input data-i="${i}" data-field="key" value="${escapeAttr(lib.key)}" placeholder="e.g. indypl">
+    `;
+    libRows.appendChild(row);
+    libRows.appendChild(row2);
+  });
+}
+function escapeAttr(s){ return (s||"").replace(/"/g,"&quot;"); }
+
+function openSettingsDialog(){
+  renderLibRows();
+  testHint.textContent = "";
+  dialog.showModal();
+}
+document.getElementById("saveSettings").onclick = () => {
+  libraries.forEach((lib, i) => {
+    const nameEl = libRows.querySelector(`input[data-i="${i}"][data-field="name"]`);
+    const keyEl  = libRows.querySelector(`input[data-i="${i}"][data-field="key"]`);
+    lib.name = nameEl.value.trim();
+    lib.key  = keyEl.value.trim();
+  });
+  saveLibraries(libraries);
+  dialog.close();
+};
+document.getElementById("testLibs").onclick = async () => {
+  testHint.textContent = "Testing…";
+  const results = [];
+  for (const lib of libraries) {
+    if (!lib.key) { results.push(`${lib.name || "(unnamed)"}: no slug set`); continue; }
+    try {
+      const r = await fetchLibrarySearch(lib.key, "the");
+      results.push(`${lib.name}: ✅ ${r.length} result(s)`);
+    } catch (e) {
+      results.push(`${lib.name}: ❌ ${e.message}`);
+    }
+  }
+  testHint.innerHTML = results.join("<br>");
+};
+
+// ---------- Tabs / view switching ----------
+const viewSearch = document.getElementById("view-search");
+const viewBrowse = document.getElementById("view-browse");
+
+function setActiveView(name){
+  document.querySelectorAll('.tab[data-tab="search"], .tab[data-tab="browse"]').forEach(t => {
+    t.classList.toggle("active", t.dataset.tab === name);
+  });
+  viewSearch.hidden = name !== "search";
+  viewBrowse.hidden = name !== "browse";
+}
+
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.onclick = () => {
+    if (tab.dataset.tab === "libraries") { openSettingsDialog(); return; }
+    setActiveView(tab.dataset.tab);
+  };
+});
+
+// ---------- Generic chip-group helpers ----------
+function wireSingleSelectChips(container, onChange){
+  container.querySelectorAll(".chip").forEach(chip => {
+    chip.onclick = () => {
+      container.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+      chip.classList.add("active");
+      onChange(chip.dataset.value);
+    };
+  });
+}
+function wireMultiSelectChip(chip, onChange){
+  chip.onclick = () => {
+    chip.classList.toggle("active");
+    onChange();
+  };
+}
+
+// ---------- Filter popover (Search view) ----------
+const filterToggle = document.getElementById("filterToggle");
+const filterPop = document.getElementById("filterPop");
+const availOnlyEl = document.getElementById("availOnly");
+filterToggle.onclick = (e) => {
+  e.stopPropagation();
+  filterPop.classList.toggle("open");
+};
+document.addEventListener("click", (e) => {
+  if (!filterPop.contains(e.target) && e.target !== filterToggle) filterPop.classList.remove("open");
+});
+availOnlyEl.onchange = () => {
+  availOnly = availOnlyEl.checked;
+  if (document.getElementById("q").value.trim()) runSearch();
+};
+
+// ---------- Search format chips ----------
+wireSingleSelectChips(document.getElementById("searchFormatChips"), (value) => {
+  activeFormat = value;
+  if (document.getElementById("q").value.trim()) runSearch();
+});
+
+// ---------- Search ----------
+document.getElementById("q").addEventListener("keydown", e => { if (e.key === "Enter") runSearch(); });
+document.getElementById("q").addEventListener("input", () => {
+  const v = document.getElementById("q").value.trim();
+  if (!v) { document.getElementById("status").textContent = ""; document.getElementById("results").innerHTML = ""; }
+});
+
+let searchDebounce;
+document.getElementById("q").addEventListener("input", () => {
+  clearTimeout(searchDebounce);
+  const v = document.getElementById("q").value.trim();
+  if (!v) return;
+  searchDebounce = setTimeout(runSearch, 400);
+});
+
+// ---------- Shared fetch ----------
+async function fetchLibraryMedia(key, opts){
+  const params = new URLSearchParams();
+  if (opts.query) params.set("query", opts.query);
+  params.set("format", (opts.formats || ALL_FORMATS).join(","));
+  if (opts.subjects && opts.subjects.length) params.set("subjects", opts.subjects.join(","));
+  if (opts.sortBy) params.set("sortBy", opts.sortBy);
+  if (opts.language) params.set("language", opts.language);
+  params.set("perPage", String(opts.perPage || 24));
+  params.set("page", String(opts.page || 1));
+  params.set("x-client-id", "dewey");
+  const url = `https://thunder.api.overdrive.com/v2/libraries/${encodeURIComponent(key)}/media?${params.toString()}`;
+  const res = await fetch(url, { headers: { "Accept": "application/json" } });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return Array.isArray(data) ? data : (data.items || data.media || []);
+}
+
+async function fetchLibrarySearch(key, query){
+  return fetchLibraryMedia(key, { query, formats: ALL_FORMATS, perPage: 24, page: 1 });
+}
+
+async function runSearch(){
+  const q = document.getElementById("q").value.trim();
+  const statusEl = document.getElementById("status");
+  const resultsEl = document.getElementById("results");
+  if (!q) { statusEl.textContent = ""; resultsEl.innerHTML = ""; return; }
+
+  const configured = libraries.filter(l => l.key);
+  if (!configured.length) {
+    statusEl.innerHTML = `No libraries configured yet. Tap <b>Libraries</b> below to add slugs.`;
+    resultsEl.innerHTML = "";
+    return;
+  }
+
+  statusEl.innerHTML = `<span class="spinner"></span>Searching ${configured.map(l=>l.name).join(", ")}…`;
+  resultsEl.innerHTML = "";
+
+  const settled = await Promise.allSettled(
+    configured.map(lib => fetchLibrarySearch(lib.key, q).then(items => ({ lib, items })))
+  );
+
+  let all = [];
+  const errors = [];
+  settled.forEach(r => {
+    if (r.status === "fulfilled") {
+      r.value.items.forEach(item => all.push({ item, lib: r.value.lib }));
+    } else {
+      errors.push(r.reason.message || String(r.reason));
+    }
+  });
+
+  if (availOnly) {
+    all = all.filter(({item}) => isAvailable(item));
+  }
+
+  // De-dupe same title/author/format appearing at multiple libraries into grouped rows
+  let grouped = groupByTitle(all);
+
+  // Format filter (Ebooks / Audiobooks / All)
+  if (activeFormat !== "all") {
+    grouped = grouped
+      .map(g => ({ item: g.item, libs: g.libs.filter(l => l.mediaType === activeFormat) }))
+      .filter(g => g.libs.length);
+  }
+
+  // Closest matches to the search term first
+  grouped.sort((a, b) => compareRank(relevanceRank(a.item.title, q), relevanceRank(b.item.title, q)));
+
+  renderResults(grouped, resultsEl, activeFormat);
+
+  statusEl.innerHTML = `${grouped.length} result${grouped.length===1?"":"s"} across ${configured.length} librar${configured.length===1?"y":"ies"}` +
+    (errors.length ? ` — ${errors.length} library(ies) failed (check Libraries → Test connection)` : "");
+}
+
+function isAvailable(item){
+  return waitInfo(item).available;
+}
+
+// ---------- Media type (Book vs Audiobook) ----------
+function getMediaType(item){
+  const typeId = (item.type && item.type.id) ? String(item.type.id).toLowerCase() : "";
+  if (typeId.includes("audiobook")) return "audiobook";
+  if (typeId.includes("ebook") || typeId.includes("book")) return "ebook";
+  const formatIds = (item.formats || []).map(f => f.id);
+  if (formatIds.some(f => FORMAT_GROUPS.audiobook.includes(f))) return "audiobook";
+  return "ebook";
+}
+
+// ---------- Wait time estimation ----------
+// OverDrive's thunder API generally exposes isAvailable/availableCopies directly,
+// and (when present) ownedCopies/holdsCount/estimatedWaitDays for queued titles.
+// Availability data from this endpoint can occasionally lag behind what Libby shows
+// at checkout time, so treat any wait estimate here as approximate.
+function waitInfo(item){
+  const available = typeof item.isAvailable === "boolean"
+    ? item.isAvailable
+    : (typeof item.availableCopies === "number" ? item.availableCopies > 0 : null);
+
+  if (available === true) return { available: true, label: "Available now", known: true };
+
+  if (typeof item.estimatedWaitDays === "number" && item.estimatedWaitDays >= 0) {
+    return { available: false, label: `${formatDays(item.estimatedWaitDays)} wait`, known: true };
+  }
+  if (typeof item.holdsCount === "number" && typeof item.ownedCopies === "number" && item.ownedCopies > 0) {
+    // Rough estimate: patrons queued per owned copy, at a ~21-day loan period.
+    const estDays = Math.max(1, Math.round((item.holdsCount / item.ownedCopies) * 21));
+    return { available: false, label: `~${formatDays(estDays)} wait (est.)`, known: true };
+  }
+  if (typeof item.holdsCount === "number" && item.holdsCount === 0 && available === false) {
+    return { available: false, label: "On order", known: true };
+  }
+  if (available === false) return { available: false, label: "Waitlist", known: false };
+  return { available: true, label: "Available now", known: false }; // unknown -> don't hide it
+}
+
+function formatDays(d){
+  d = Math.round(d);
+  if (d <= 0) return "0 days";
+  if (d === 1) return "1 day";
+  if (d < 14) return `${d} days`;
+  const weeks = Math.round(d / 7);
+  if (weeks < 9) return `${weeks} week${weeks === 1 ? "" : "s"}`;
+  const months = Math.round(d / 30);
+  return `${months} month${months === 1 ? "" : "s"}`;
+}
+
+function groupByTitle(entries){
+  const map = new Map();
+  entries.forEach(({item, lib}) => {
+    const key = (item.title || "").toLowerCase().trim() + "|" + (item.firstCreatorName || item.author || "").toLowerCase().trim();
+    if (!map.has(key)) map.set(key, { item, libs: [] });
+    map.get(key).libs.push({ lib, item, mediaType: getMediaType(item) });
+  });
+  return [...map.values()];
+}
+
+// ---------- Relevance ranking (closest title match first) ----------
+function escapeRegex(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
+function relevanceRank(title, query){
+  const t = (title || "").toLowerCase().trim();
+  const q = (query || "").toLowerCase().trim();
+  if (!q) return [5, t.length, t];
+  if (t === q) return [0, t.length, t];                       // exact title match
+  if (t.startsWith(q)) return [1, t.length, t];                // "Bear" before "Bear Meets Bear"
+  let wb;
+  try { wb = new RegExp(`\\b${escapeRegex(q)}\\b`); } catch(e) { wb = null; }
+  if (wb && wb.test(t)) return [2, t.length, t];               // query as a whole word
+  if (t.includes(q)) return [3, t.length, t];                  // substring match
+  return [4, t.length, t];                                     // fallback (author/series match etc.)
+}
+function compareRank(a, b){
+  for (let i = 0; i < a.length; i++){
+    if (a[i] < b[i]) return -1;
+    if (a[i] > b[i]) return 1;
+  }
+  return 0;
+}
+
+function renderResults(grouped, container, formatMode){
+  if (!grouped.length){
+    container.innerHTML = `<div class="empty">No results. Try a different search, switch formats, or check your library slugs in the menu.</div>`;
+    return;
+  }
+  container.innerHTML = "";
+  grouped.forEach(g => container.appendChild(renderCard(g, formatMode)));
+}
+
+function renderCard({item, libs}, formatMode){
+  const cover = item.covers?.cover300Wide?.href || item.covers?.cover150Wide?.href || item.covers?.cover?.href || "";
+  const authors = (item.creators || []).map(c => c.name).join(", ") || item.firstCreatorName || item.author || "";
+
+  const ebookLibs = libs.filter(l => l.mediaType === "ebook");
+  const audiobookLibs = libs.filter(l => l.mediaType === "audiobook");
+
+  const uniqueLibs = [];
+  const seenLibKeys = new Set();
+  libs.forEach(({lib}) => {
+    if (!seenLibKeys.has(lib.key)) { seenLibKeys.add(lib.key); uniqueLibs.push(lib); }
+  });
+
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `
+    ${cover ? `<img class="cover" src="${cover}" alt="">` : `<div class="cover"></div>`}
+    <div class="meta">
+      <p class="title">${escapeHtml(item.title || "Untitled")}</p>
+      <p class="authors">${escapeHtml(authors)}</p>
+      ${formatGroup("Ebook", ebookLibs, formatMode, "ebook")}
+      ${formatGroup("Audiobook", audiobookLibs, formatMode, "audiobook")}
+      <div class="actions">
+        ${uniqueLibs.map(lib => `<a href="https://libbyapp.com/library/${encodeURIComponent(lib.key)}" target="_blank" rel="noopener">Open in ${escapeHtml(lib.name)} →</a>`).join("")}
+      </div>
+    </div>
+  `;
+  card.querySelectorAll(".addReadingBtn").forEach(btn => {
+    btn.addEventListener("click", () => addToCurrentlyReading(item, btn.dataset.mediaType, btn));
+  });
+  return card;
+}
+
+function formatGroup(label, libs, formatMode, mediaType){
+  if (!libs.length) return "";
+  return `
+    <div class="formatGroup">
+      ${formatMode === "all" ? `<div class="formatLabel">${label}</div>` : ""}
+      <div class="badges">
+        ${libs.map(({lib, item: li}) => {
+          const w = waitInfo(li);
+          return `<span class="badge lib">${escapeHtml(lib.name)}</span>
+                  <span class="badge ${w.available ? "avail" : "wait"}">${escapeHtml(w.label)}</span>`;
+        }).join("")}
+      </div>
+      <button type="button" class="addReadingBtn" data-media-type="${mediaType}">+ Add to Currently Reading</button>
+    </div>
+  `;
+}
+
+// ---------- Send a book to Shelf & Spine's "Add a book" form, pre-filled ----------
+// Best-effort mapping from Shelf & Spine's own genre list — Libby's subject
+// tags are much finer-grained than Shelf's dropdown, so this just looks for
+// a reasonable match and otherwise leaves genre blank for the user to fill in.
+const SHELF_GENRES = ["Fiction","Non-fiction","Romance","Fantasy","Sci-fi","Mystery","Historical","Young Adult","Memoir","Poetry"];
+const GENRE_GUESS_MAP = [
+  ["Sci-fi", ["science fiction","sci-fi"]],
+  ["Fantasy", ["fantasy"]],
+  ["Romance", ["romance"]],
+  ["Mystery", ["mystery","thriller","suspense","crime","true crime"]],
+  ["Young Adult", ["young adult"]],
+  ["Memoir", ["memoir","biography","autobiography"]],
+  ["Poetry", ["poetry"]],
+  ["Historical", ["historical","history"]],
+  ["Non-fiction", ["nonfiction","non-fiction"]],
+  ["Fiction", ["fiction"]], // fallback — many subjects just say "Fiction", so keep this last
+];
+function guessShelfGenre(item){
+  const subs = subjectsOf(item).map(s => s.toLowerCase());
+  if (!subs.length) return "";
+  for (const [genre, keywords] of GENRE_GUESS_MAP) {
+    if (subs.some(s => keywords.some(k => s.includes(k)))) return genre;
+  }
+  return "";
+}
+function guessShelfLanguage(item){
+  const langs = languagesOf(item).map(l => l.toLowerCase());
+  if (langs.some(l => l.includes("english"))) return "English";
+  if (langs.some(l => l.includes("hebrew"))) return "Hebrew";
+  return "";
+}
+function addToCurrentlyReading(item, mediaType, btn){
+  const cover = item.covers?.cover300Wide?.href || item.covers?.cover150Wide?.href || item.covers?.cover?.href || "";
+  const authors = (item.creators || []).map(c => c.name).join(", ") || item.firstCreatorName || item.author || "";
+
+  let pagesHours = "";
+  if (mediaType === "ebook") {
+    const p = getPages(item);
+    if (p) pagesHours = String(p);
+  } else {
+    const m = getMinutes(item);
+    if (m) pagesHours = String(Math.round(m / 60));
+  }
+
+  const pending = {
+    title: item.title || "",
+    author: authors,
+    coverUrl: cover,
+    format: mediaType === "audiobook" ? "Audio" : "Digital",
+    source: "Borrowed", // Libby titles are library loans — the usual case
+    genre: guessShelfGenre(item),
+    language: guessShelfLanguage(item),
+    pagesHours,
+  };
+
+  if (!pending.title) return;
+
+  if (btn) { btn.disabled = true; btn.textContent = "Adding…"; }
+  try {
+    localStorage.setItem("shelf:pendingAddBook", JSON.stringify(pending));
+  } catch (e) {
+    console.error("Couldn't stash pending book for Shelf & Spine:", e);
+  }
+  window.location.href = "index.html?home=1&addBook=1";
+}
+
+function escapeHtml(s){
+  return (s||"").replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+}
+
+// ======================================================================
+// ================================ BROWSE =============================
+// ======================================================================
+
+let browseFormat = "all";
+let browseGenres = new Set();
+let browseSort = "popularity";
+let browseAvailOnly = false;
+let browseLanguage = "any";
+let excludedAuthors = loadExcludedAuthors();
+let browseQuery = "";
+let browsePage = 1;
+let browseRaw = [];        // accumulated {item, lib} pairs across all fetched pages
+let browseHasMore = true;
+let browseErrors = [];
+
+function loadExcludedAuthors(){
+  try {
+    const saved = JSON.parse(localStorage.getItem("libbyBrowseExcludedAuthors"));
+    if (Array.isArray(saved)) return saved;
+  } catch(e){}
+  return [];
+}
+function saveExcludedAuthors(){
+  localStorage.setItem("libbyBrowseExcludedAuthors", JSON.stringify(excludedAuthors));
+}
+
+// ---- Genre chips (multi-select) ----
+const genreChipsEl = document.getElementById("genreChips");
+function renderGenreChips(){
+  genreChipsEl.innerHTML = "";
+  GENRE_OPTIONS.forEach(g => {
+    const chip = document.createElement("span");
+    chip.className = "chip small" + (browseGenres.has(g) ? " active" : "");
+    chip.dataset.value = g;
+    chip.textContent = g;
+    wireMultiSelectChip(chip, () => {
+      if (browseGenres.has(g)) browseGenres.delete(g); else browseGenres.add(g);
+      applyBrowseFilters();
+    });
+    genreChipsEl.appendChild(chip);
+  });
+}
+renderGenreChips();
+
+// ---- Format chips (Browse) ----
+wireSingleSelectChips(document.getElementById("browseFormatChips"), (value) => {
+  browseFormat = value;
+  applyBrowseFilters();
+});
+
+// ---- Sort / language selects ----
+document.getElementById("browseSort").addEventListener("change", (e) => {
+  browseSort = e.target.value;
+  applyBrowseFilters();
+});
+document.getElementById("browseLanguage").addEventListener("change", (e) => {
+  browseLanguage = e.target.value;
+  applyBrowseFilters();
+});
+
+// ---- Range inputs ----
+["browseYearFrom","browseYearTo","browsePagesMin","browsePagesMax","browseHoursMin","browseHoursMax"].forEach(id => {
+  document.getElementById(id).addEventListener("input", debounce(applyBrowseFilters, 350));
+});
+function debounce(fn, ms){
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
+// ---- Availability checkbox ----
+document.getElementById("browseAvailOnly").addEventListener("change", (e) => {
+  browseAvailOnly = e.target.checked;
+  applyBrowseFilters();
+});
+
+// ---- Exclude authors ----
+const excludeChipsListEl = document.getElementById("excludeChipsList");
+function renderExcludeChips(){
+  excludeChipsListEl.innerHTML = "";
+  excludedAuthors.forEach((name, i) => {
+    const chip = document.createElement("span");
+    chip.className = "excludeChip";
+    chip.innerHTML = `${escapeHtml(name)} <button aria-label="Remove">×</button>`;
+    chip.querySelector("button").onclick = () => {
+      excludedAuthors.splice(i, 1);
+      saveExcludedAuthors();
+      renderExcludeChips();
+      applyBrowseFilters();
+    };
+    excludeChipsListEl.appendChild(chip);
+  });
+}
+renderExcludeChips();
+function addExcludedAuthor(){
+  const input = document.getElementById("excludeAuthorInput");
+  const val = input.value.trim();
+  if (!val) return;
+  if (!excludedAuthors.some(a => a.toLowerCase() === val.toLowerCase())) {
+    excludedAuthors.push(val);
+    saveExcludedAuthors();
+    renderExcludeChips();
+    applyBrowseFilters();
+  }
+  input.value = "";
+}
+document.getElementById("excludeAuthorAdd").onclick = addExcludedAuthor;
+document.getElementById("excludeAuthorInput").addEventListener("keydown", e => {
+  if (e.key === "Enter") { e.preventDefault(); addExcludedAuthor(); }
+});
+
+// ---- Reset ----
+document.getElementById("browseResetBtn").onclick = () => {
+  browseGenres = new Set();
+  browseSort = "popularity";
+  browseAvailOnly = false;
+  browseLanguage = "any";
+  document.getElementById("browseSort").value = "popularity";
+  document.getElementById("browseLanguage").value = "any";
+  document.getElementById("browseAvailOnly").checked = false;
+  ["browseYearFrom","browseYearTo","browsePagesMin","browsePagesMax","browseHoursMin","browseHoursMax"].forEach(id => {
+    document.getElementById(id).value = "";
+  });
+  document.querySelectorAll("#browseFormatChips .chip").forEach(c => c.classList.remove("active"));
+  document.querySelector('#browseFormatChips .chip[data-value="all"]').classList.add("active");
+  browseFormat = "all";
+  renderGenreChips();
+  applyBrowseFilters();
+};
+
+// ---- Keyword submit ----
+document.getElementById("browseGoBtn").onclick = () => { browseQuery = document.getElementById("browseQ").value.trim(); runBrowse(); };
+document.getElementById("browseQ").addEventListener("keydown", e => {
+  if (e.key === "Enter") { browseQuery = e.target.value.trim(); runBrowse(); }
+});
+
+// ---- Browse: fetch every page automatically (no manual "Load more") ----
+// Safety cap so a huge, loosely-filtered browse can't page forever.
+const MAX_BROWSE_PAGES = 50; // 50 * 50/page = up to 2,500 titles per library
+
+async function runBrowse(){
+  const configured = libraries.filter(l => l.key);
+  const statusEl = document.getElementById("browseStatus");
+  const resultsEl = document.getElementById("browseResults");
+
+  if (!configured.length) {
+    statusEl.innerHTML = `No libraries configured yet. Tap <b>Libraries</b> below to add slugs.`;
+    resultsEl.innerHTML = "";
+    return;
+  }
+
+  browsePage = 1;
+  browseRaw = [];
+  browseHasMore = true;
+  browseErrors = [];
+  resultsEl.innerHTML = "";
+
+  statusEl.innerHTML = `<span class="spinner"></span>Loading titles from ${configured.map(l=>l.name).join(", ")}…`;
+  await fetchBrowsePage(configured);
+  applyBrowseFilters();
+
+  while (browseHasMore && browsePage < MAX_BROWSE_PAGES) {
+    browsePage += 1;
+    statusEl.innerHTML = `<span class="spinner"></span>Loading more (page ${browsePage})…`;
+    await fetchBrowsePage(configured);
+    applyBrowseFilters();
+  }
+}
+
+async function fetchBrowsePage(configured){
+  const subjects = [...browseGenres];
+  const settled = await Promise.allSettled(
+    configured.map(lib => fetchLibraryMedia(lib.key, {
+      query: browseQuery || undefined,
+      formats: ALL_FORMATS,
+      subjects,
+      sortBy: "popularity",
+      perPage: 50,
+      page: browsePage
+    }).then(items => ({ lib, items })))
+  );
+
+  let gotAny = false;
+  browseErrors = [];
+  settled.forEach(r => {
+    if (r.status === "fulfilled") {
+      if (r.value.items.length) gotAny = true;
+      r.value.items.forEach(item => browseRaw.push({ item, lib: r.value.lib }));
+    } else {
+      browseErrors.push(r.reason.message || String(r.reason));
+    }
+  });
+  if (!gotAny) browseHasMore = false;
+}
+
+// ---------- Best-effort metadata helpers (fields vary by library/catalog) ----------
+function subjectsOf(item){
+  return (item.subjects || []).map(s => (s && typeof s === "object") ? (s.name || "") : s).filter(Boolean);
+}
+function languagesOf(item){
+  return (item.languages || []).map(l => (l && typeof l === "object") ? (l.name || l.id || "") : l).filter(Boolean);
+}
+function authorOf(item){
+  return (item.creators || []).map(c => c.name).join(", ") || item.firstCreatorName || item.author || "";
+}
+function publishYearOf(item){
+  if (!item.publishDate) return null;
+  const d = new Date(item.publishDate);
+  return isNaN(d) ? null : d.getFullYear();
+}
+function getPages(item){
+  const p = item.pages ?? item.numberOfPages ?? (item.formats && item.formats[0] && item.formats[0].pages);
+  return (typeof p === "number" && p > 0) ? p : null;
+}
+function parseDurationToMinutes(str){
+  if (typeof str !== "string") return null;
+  const m = str.match(/^(\d+):(\d{2})(?::(\d{2}))?$/);
+  if (!m) return null;
+  const h = parseInt(m[1], 10), min = parseInt(m[2], 10), sec = m[3] ? parseInt(m[3], 10) : 0;
+  return h * 60 + min + sec / 60;
+}
+function getMinutes(item){
+  if (typeof item.minutes === "number") return item.minutes;
+  if (typeof item.runtime === "number") return item.runtime;
+  const fmt = (item.formats || []).find(f => typeof f.minutes === "number" || typeof f.duration === "string");
+  if (fmt) {
+    if (typeof fmt.minutes === "number") return fmt.minutes;
+    const parsed = parseDurationToMinutes(fmt.duration);
+    if (parsed != null) return parsed;
+  }
+  return null;
+}
+function popularityScore(item){
+  if (typeof item.popularity === "number") return item.popularity;
+  const holds = typeof item.holdsCount === "number" ? item.holdsCount : 0;
+  const owned = typeof item.ownedCopies === "number" ? item.ownedCopies : 0;
+  return holds + owned * 2;
+}
+
+// ---------- Filter predicates (all client-side, so they always work regardless
+// of whether the underlying library catalog honors the matching API params) ----------
+function matchesGenres(item){
+  if (!browseGenres.size) return true;
+  const subs = subjectsOf(item).map(s => s.toLowerCase());
+  if (!subs.length) return false;
+  return [...browseGenres].some(g => subs.some(s => s.includes(g.toLowerCase())));
+}
+function matchesExcludedAuthors(item){
+  if (!excludedAuthors.length) return true;
+  const a = authorOf(item).toLowerCase();
+  if (!a) return true;
+  return !excludedAuthors.some(ex => a.includes(ex.toLowerCase()));
+}
+function matchesLanguage(item){
+  if (browseLanguage === "any") return true;
+  const langs = languagesOf(item).map(l => l.toLowerCase());
+  if (!langs.length) return true; // unknown -> don't exclude
+  return langs.some(l => l.includes(browseLanguage));
+}
+function matchesYear(item){
+  const from = parseInt(document.getElementById("browseYearFrom").value, 10);
+  const to = parseInt(document.getElementById("browseYearTo").value, 10);
+  if (!from && !to) return true;
+  const y = publishYearOf(item);
+  if (y == null) return true; // unknown -> keep (best effort)
+  if (from && y < from) return false;
+  if (to && y > to) return false;
+  return true;
+}
+function matchesLength(item){
+  const pagesMin = parseInt(document.getElementById("browsePagesMin").value, 10);
+  const pagesMax = parseInt(document.getElementById("browsePagesMax").value, 10);
+  const hoursMin = parseFloat(document.getElementById("browseHoursMin").value);
+  const hoursMax = parseFloat(document.getElementById("browseHoursMax").value);
+  const mediaType = getMediaType(item);
+
+  if (mediaType === "ebook" && (pagesMin || pagesMax)) {
+    const p = getPages(item);
+    if (p == null) return true; // unknown -> keep
+    if (pagesMin && p < pagesMin) return false;
+    if (pagesMax && p > pagesMax) return false;
+  }
+  if (mediaType === "audiobook" && (hoursMin || hoursMax)) {
+    const m = getMinutes(item);
+    if (m == null) return true; // unknown -> keep
+    const h = m / 60;
+    if (hoursMin && h < hoursMin) return false;
+    if (hoursMax && h > hoursMax) return false;
+  }
+  return true;
+}
+
+function sortComparator(sortBy){
+  if (sortBy === "title") return (a, b) => (a.item.title || "").localeCompare(b.item.title || "");
+  if (sortBy === "author") return (a, b) => authorOf(a.item).localeCompare(authorOf(b.item));
+  if (sortBy === "newest") return (a, b) => {
+    const da = a.item.publishDate ? new Date(a.item.publishDate).getTime() : -Infinity;
+    const db = b.item.publishDate ? new Date(b.item.publishDate).getTime() : -Infinity;
+    return db - da;
+  };
+  // popularity (default)
+  return (a, b) => popularityScore(b.item) - popularityScore(a.item);
+}
+
+function applyBrowseFilters(){
+  const statusEl = document.getElementById("browseStatus");
+  const resultsEl = document.getElementById("browseResults");
+
+  if (!browseRaw.length) {
+    if (!document.getElementById("browseGoBtn")) return;
+    resultsEl.innerHTML = "";
+    return;
+  }
+
+  let all = browseRaw.slice();
+
+  if (browseAvailOnly) all = all.filter(({item}) => isAvailable(item));
+  all = all.filter(({item}) => matchesGenres(item));
+  all = all.filter(({item}) => matchesExcludedAuthors(item));
+  all = all.filter(({item}) => matchesLanguage(item));
+  all = all.filter(({item}) => matchesYear(item));
+  all = all.filter(({item}) => matchesLength(item));
+
+  let grouped = groupByTitle(all);
+
+  if (browseFormat !== "all") {
+    grouped = grouped
+      .map(g => ({ item: g.item, libs: g.libs.filter(l => l.mediaType === browseFormat) }))
+      .filter(g => g.libs.length);
+  }
+
+  grouped.sort(sortComparator(browseSort));
+
+  renderResults(grouped, resultsEl, browseFormat);
+
+  const configuredCount = libraries.filter(l => l.key).length;
+  statusEl.innerHTML = `${grouped.length} title${grouped.length===1?"":"s"} across ${configuredCount} librar${configuredCount===1?"y":"ies"}` +
+    (browseErrors.length ? ` — ${browseErrors.length} library(ies) failed (check Libraries → Test connection)` : "");
+}
+
+// First-run: open settings if any library slug is missing
+window.addEventListener("load", () => {
+  if (libraries.some(l => !l.key)) {
+    document.getElementById("status").innerHTML =
+      `Set up your library slugs first — tap <b>Libraries</b> below.`;
+  }
+});
+</script>
+</body>
+</html>
