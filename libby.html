@@ -410,6 +410,11 @@
           <div class="chips" id="genreChips"></div>
         </div>
 
+        <div class="browseRow full">
+          <span class="browseLabel">Audience</span>
+          <div class="chips" id="audienceChips"></div>
+        </div>
+
         <div class="browseRow">
           <span class="browseLabel">Sort by</span>
           <select class="browseSelect" id="browseSort">
@@ -586,17 +591,19 @@ const ALL_FORMATS = [...FORMAT_GROUPS.ebook, ...FORMAT_GROUPS.audiobook];
 // Antiques & Collectibles, Mathematics, Transportation, etc.).
 const GENRE_OPTIONS = [
   // ---- Fiction ----
-  "Fiction","Action & Adventure","Classic Literature","Comic & Graphic Books","Coming of Age",
+  "Fiction","Action & Adventure","Classic Literature",
   "Fantasy","Historical Fiction","Horror","Humor","Literature","Mystery","Romance","Science Fiction",
   "Short Stories","Suspense","Thriller",
   // ---- Nonfiction ----
   "Nonfiction","Art","Biography & Autobiography","Business","Cooking & Food","Crime",
   "Family & Relationships","Health & Fitness","History","Music","Nature","Philosophy","Photography",
-  "Poetry","Political Science","Psychology","Religion & Spirituality","Science","Self-Help",
-  "Sports & Recreation","True Crime","Travel",
-  // ---- Age groups ----
-  "Children's","Young Adult"
+  "Poetry","Psychology","Religion & Spirituality","Science",
+  "Sports & Recreation","True Crime","Travel"
 ];
+
+// Audience/maturity list — who the title is intended for. Kept separate from
+// GENRE_OPTIONS since it's a distinct facet (age/maturity rating rather than subject).
+const AUDIENCE_OPTIONS = ["General Content","Juvenile","Young Adult","Mature Content"];
 
 let libraries = loadLibraries();
 let activeFormat = "all";   // all | ebook | audiobook  (Search view)
@@ -1096,6 +1103,7 @@ function escapeHtml(s){
 let browseFormat = "all";
 let browseGenres = new Set();
 let browseGenreMode = "or"; // "or" = match any selected genre, "and" = match all of them
+let browseAudiences = new Set(); // match any selected audience
 let browseSort = "popularity";
 let browseAvailOnly = false;
 let browseLanguage = "any";
@@ -1134,6 +1142,24 @@ function renderGenreChips(){
   });
 }
 renderGenreChips();
+
+// ---- Audience chips (multi-select) ----
+const audienceChipsEl = document.getElementById("audienceChips");
+function renderAudienceChips(){
+  audienceChipsEl.innerHTML = "";
+  AUDIENCE_OPTIONS.forEach(a => {
+    const chip = document.createElement("span");
+    chip.className = "chip small" + (browseAudiences.has(a) ? " active" : "");
+    chip.dataset.value = a;
+    chip.textContent = a;
+    wireMultiSelectChip(chip, () => {
+      if (browseAudiences.has(a)) browseAudiences.delete(a); else browseAudiences.add(a);
+      applyBrowseFilters();
+    });
+    audienceChipsEl.appendChild(chip);
+  });
+}
+renderAudienceChips();
 
 // ---- Genre match mode (ANY / ALL) ----
 document.querySelectorAll("#genreModeToggle .genreModeBtn").forEach(btn => {
@@ -1216,6 +1242,7 @@ document.getElementById("excludeAuthorInput").addEventListener("keydown", e => {
 document.getElementById("browseResetBtn").onclick = () => {
   browseGenres = new Set();
   browseGenreMode = "or";
+  browseAudiences = new Set();
   browseSort = "popularity";
   browseAvailOnly = false;
   browseLanguage = "any";
@@ -1230,6 +1257,7 @@ document.getElementById("browseResetBtn").onclick = () => {
   browseFormat = "all";
   document.querySelectorAll("#genreModeToggle .genreModeBtn").forEach(b => b.classList.toggle("active", b.dataset.mode === "or"));
   renderGenreChips();
+  renderAudienceChips();
   applyBrowseFilters();
 };
 
@@ -1305,6 +1333,9 @@ function subjectsOf(item){
 function languagesOf(item){
   return (item.languages || []).map(l => (l && typeof l === "object") ? (l.name || l.id || "") : l).filter(Boolean);
 }
+function audiencesOf(item){
+  return (item.audiences || []).map(a => (a && typeof a === "object") ? (a.name || a.id || "") : a).filter(Boolean);
+}
 function authorOf(item){
   return (item.creators || []).map(c => c.name).join(", ") || item.firstCreatorName || item.author || "";
 }
@@ -1352,6 +1383,12 @@ function matchesGenres(item){
   return browseGenreMode === "and"
     ? [...browseGenres].every(genreMatches)
     : [...browseGenres].some(genreMatches);
+}
+function matchesAudience(item){
+  if (!browseAudiences.size) return true;
+  const auds = audiencesOf(item).map(a => a.toLowerCase());
+  if (!auds.length) return true; // unknown -> don't exclude
+  return [...browseAudiences].some(a => auds.some(x => x.includes(a.toLowerCase())));
 }
 function matchesExcludedAuthors(item){
   if (!excludedAuthors.length) return true;
@@ -1424,6 +1461,7 @@ function applyBrowseFilters(){
 
   if (browseAvailOnly) all = all.filter(({item}) => isAvailable(item));
   all = all.filter(({item}) => matchesGenres(item));
+  all = all.filter(({item}) => matchesAudience(item));
   all = all.filter(({item}) => matchesExcludedAuthors(item));
   all = all.filter(({item}) => matchesLanguage(item));
   all = all.filter(({item}) => matchesYear(item));
