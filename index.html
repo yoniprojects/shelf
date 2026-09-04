@@ -514,6 +514,7 @@ const EXTERNAL_LINKS = [
   {key:"wrapped", label:"Monthly wrap", href:"wrapped.html"},
   {key:"wheel", label:"Random wheel", href:"wheel.html"},
   {key:"goals", label:"Goals", href:"goals.html"},
+  {key:"libby", label:"Libby", href:"libby.html"},
 ];
 const TAB_SUBTITLES = {
   dashboard:"An overview of your reading life",
@@ -669,6 +670,55 @@ async function migrateLegacyLibraryIfNeeded(){
   }
 }
 
+// ---------------- Libby handoff ----------------
+// When a book is added from libby.html ("+ Add to Currently Reading"), it
+// stashes a pre-filled draft in localStorage and sends the user here with
+// ?addBook=1. Once the first Firestore snapshot has come in, we open the
+// normal "Add a book" form and fill in whatever Libby gave us — the user
+// still has to review and hit Save, same as adding a book any other way.
+let pendingAddBookHandled = false;
+function maybeOpenPendingAddBook(){
+  if (pendingAddBookHandled) return;
+  pendingAddBookHandled = true;
+  try {
+    const params = new URLSearchParams(location.search);
+    if (params.get('addBook') !== '1') return;
+    const raw = localStorage.getItem('shelf:pendingAddBook');
+    if (!raw) return;
+    localStorage.removeItem('shelf:pendingAddBook');
+    const pre = JSON.parse(raw);
+    if (!pre || !pre.title) return;
+
+    // Clean the URL so a refresh doesn't try to reopen this.
+    history.replaceState(null, '', location.pathname);
+
+    state.tab = 'tracker';
+    lsSet('shelf:lastTab', state.tab);
+    state.modal = { type: 'book-form', payload: null }; // same as a normal "Add a book"
+    render();
+
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+    setVal('f-title', pre.title);
+    setVal('f-author', pre.author);
+    setVal('f-genre', pre.genre);
+    setVal('f-format', pre.format);
+    setVal('f-source', pre.source);
+    setVal('f-language', pre.language);
+    setVal('f-pages', pre.pagesHours);
+    if (pre.coverUrl) {
+      setVal('f-cover-url', pre.coverUrl);
+      const hidden = document.getElementById('f-cover');
+      if (hidden) hidden.value = pre.coverUrl;
+      const preview = document.getElementById('cover-preview');
+      if (preview) { preview.classList.remove('empty'); preview.innerHTML = `<img src="${esc(pre.coverUrl)}" alt="cover preview"/>`; }
+    }
+    const gbBox = document.getElementById('gb-search-q');
+    if (gbBox) gbBox.value = [pre.title, pre.author].filter(Boolean).join(' ');
+  } catch (e) {
+    console.error('Failed to open pending Libby add:', e);
+  }
+}
+
 async function loadData(){
   SHARED_DOC.onSnapshot((snap) => {
     if (!snap.exists) {
@@ -681,6 +731,7 @@ async function loadData(){
       console.warn('Firestore doc does not exist yet for user:', getCurrentUserId());
       state.loaded = true;
       render();
+      maybeOpenPendingAddBook();
       return;
     }
     const data = snap.data();
@@ -690,6 +741,7 @@ async function loadData(){
     state.loaded = true;
     firestoreReady = true;
     render();
+    maybeOpenPendingAddBook();
   }, (err) => {
     console.error("Firestore sync error:", err);
     alert("Couldn't connect to the shared library. Check your internet connection.");
