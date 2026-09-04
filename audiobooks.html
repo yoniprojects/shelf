@@ -15,8 +15,11 @@
     try{
       if (new URLSearchParams(location.search).has('home')) return;
       if (document.referrer && document.referrer.indexOf(location.origin) === 0) return;
-      if (sessionStorage.getItem('shelf:sessionStarted')) return;
-      sessionStorage.setItem('shelf:sessionStarted', '1');
+      // Skip an ordinary reload of this same page (see index.html for why).
+      var navEntry = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+      var navType = navEntry ? navEntry.type
+        : (performance.navigation && performance.navigation.type === 1 ? 'reload' : 'navigate');
+      if (navType === 'reload') return;
       var last = localStorage.getItem('shelf:lastPage');
       if (last && last !== 'audiobooks.html') { location.replace(last); }
     } catch(e){}
