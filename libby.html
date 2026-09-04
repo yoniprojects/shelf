@@ -166,7 +166,9 @@
   .card{
     display:flex; gap:14px; background:var(--card); border:1px solid var(--card-border);
     border-radius:var(--radius-md); padding:12px; margin-bottom:12px; box-shadow:var(--shadow);
+    cursor:pointer; transition:box-shadow .15s, border-color .15s;
   }
+  .card:hover{border-color:var(--forest); box-shadow:0 4px 14px rgba(44,40,30,.12);}
   html.mode-web .card{margin-bottom:0;}
   .cover{
     width:64px; height:96px; object-fit:cover; border-radius:10px; background:var(--cream-deep);
@@ -326,6 +328,18 @@
   }
   dialog button.primary{background:var(--forest); border-color:var(--forest); color:#fff;}
   dialog button:hover{filter:brightness(1.05);}
+
+  /* ---------- Book detail dialog ---------- */
+  #bookDetailDialog{max-width:520px;}
+  .detailHead{display:flex; gap:16px; margin-bottom:14px;}
+  .detailCover{width:100px; height:150px; object-fit:cover; border-radius:10px; background:var(--cream-deep); flex-shrink:0;}
+  .detailHeadMeta{flex:1; min-width:0; padding-top:2px;}
+  .detailTitle{font-family:'Fraunces', serif; font-weight:600; font-size:19px; color:var(--forest); margin:0 0 4px; line-height:1.3;}
+  .detailAuthors{color:var(--muted); font-size:13.5px; margin:0 0 10px;}
+  .detailFacts{display:flex; flex-wrap:wrap; gap:6px;}
+  .detailFacts .badge{font-size:11px; padding:3px 9px; border-radius:999px; font-weight:600; color:var(--lib-text); background:var(--lib-bg);}
+  .detailDescription{font-size:13.5px; line-height:1.6; color:var(--ink); max-height:38vh; overflow-y:auto; white-space:pre-line;}
+  .detailDescription.empty{color:var(--muted); font-style:italic;}
 </style>
 </head>
 <body>
@@ -507,6 +521,21 @@
   </div>
 </dialog>
 
+<dialog id="bookDetailDialog">
+  <div class="detailHead">
+    <img class="detailCover" id="detailCover" src="" alt="" hidden>
+    <div class="detailHeadMeta">
+      <p class="detailTitle" id="detailTitle"></p>
+      <p class="detailAuthors" id="detailAuthors"></p>
+      <div class="detailFacts" id="detailFacts"></div>
+    </div>
+  </div>
+  <div class="detailDescription" id="detailDescription"></div>
+  <div class="dialogActions">
+    <button class="primary" id="closeDetailDialog">Close</button>
+  </div>
+</dialog>
+
 <!-- Firebase (compat SDKs) — shared with Shelf & Spine's own Firestore data:
      read-only lookup into the reading list (for "already on your list" pills),
      plus read/write sync of this profile's configured libraries across devices. -->
@@ -655,6 +684,54 @@ onShelfIndexReady(() => {
     saveLibrariesRemote(libraries);
   }
   if (dialog.open) renderLibRows(); // refresh an already-open settings dialog with synced data
+});
+
+// ---------- Book detail dialog ----------
+const bookDetailDialog = document.getElementById("bookDetailDialog");
+const detailCoverEl = document.getElementById("detailCover");
+const detailTitleEl = document.getElementById("detailTitle");
+const detailAuthorsEl = document.getElementById("detailAuthors");
+const detailFactsEl = document.getElementById("detailFacts");
+const detailDescriptionEl = document.getElementById("detailDescription");
+
+function descriptionOf(item){
+  const raw = item.description || item.fullDescription || item.shortDescription || item.subtitle || "";
+  // Some catalog descriptions come through with embedded HTML tags — strip them
+  // down to plain text so they render cleanly inside the dialog.
+  return raw ? raw.replace(/<[^>]+>/g, "").replace(/\s+\n/g, "\n").trim() : "";
+}
+
+function openBookDetail(item, authors, cover){
+  detailTitleEl.textContent = item.title || "Untitled";
+  detailAuthorsEl.textContent = authors || "";
+
+  if (cover) {
+    detailCoverEl.src = cover;
+    detailCoverEl.hidden = false;
+  } else {
+    detailCoverEl.hidden = true;
+  }
+
+  const facts = [];
+  if (item.publisher) facts.push(item.publisher);
+  const year = publishYearOf(item);
+  if (year) facts.push(String(year));
+  const pages = getPages(item);
+  if (pages) facts.push(`${pages} pages`);
+  const mins = getMinutes(item);
+  if (mins) facts.push(`${Math.round(mins / 60 * 10) / 10} hrs`);
+  detailFactsEl.innerHTML = facts.map(f => `<span class="badge">${escapeHtml(f)}</span>`).join("");
+
+  const desc = descriptionOf(item);
+  detailDescriptionEl.textContent = desc || "No description available for this title.";
+  detailDescriptionEl.classList.toggle("empty", !desc);
+
+  bookDetailDialog.showModal();
+}
+document.getElementById("closeDetailDialog").onclick = () => bookDetailDialog.close();
+bookDetailDialog.addEventListener("click", (e) => {
+  // Click on the dialog's own backdrop (outside the padded content box) closes it.
+  if (e.target === bookDetailDialog) bookDetailDialog.close();
 });
 
 // ---------- Settings dialog ----------
@@ -1004,8 +1081,13 @@ function renderCard({item, libs}, formatMode){
     </div>
   `;
   card.querySelectorAll(".addReadingBtn").forEach(btn => {
-    btn.addEventListener("click", () => addToCurrentlyReading(item, btn.dataset.mediaType, btn));
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      addToCurrentlyReading(item, btn.dataset.mediaType, btn);
+    });
   });
+  card.querySelectorAll("a").forEach(a => a.addEventListener("click", (e) => e.stopPropagation()));
+  card.addEventListener("click", () => openBookDetail(item, authors, cover));
   return card;
 }
 
