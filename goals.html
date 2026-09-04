@@ -153,6 +153,8 @@
 
     .goals-undo-btn:hover:not(:disabled), .goals-return-btn:hover { opacity: 0.85; transform: scale(1.02); }
 
+    .goals-return-btn { display: inline-block; text-decoration: none; }
+
     .goals-undo-btn:disabled {
         opacity: 0.35;
         cursor: not-allowed;
@@ -396,7 +398,7 @@
                 <h2>🎯 Reading Goals</h2>
             </div>
             <div class="goals-top-bar-actions">
-                <button class="goals-return-btn" onclick="location.href='index.html?home=1'">← Return to shelf</button>
+                <a class="goals-return-btn" href="index.html?home=1">← Return to shelf</a>
                 <button class="goals-undo-btn" id="goals-undo-btn" onclick="undoGoalsAction()" disabled title="Undo the last add, edit, or remove">↩ Undo</button>
                 <button class="goals-add-btn" onclick="openGoalModal()">+ Add Goal</button>
             </div>
