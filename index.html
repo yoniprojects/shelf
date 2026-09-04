@@ -39,7 +39,17 @@
         // still pending (this file is large enough that script keeps
         // running for a bit after location.replace() is called).
         window.__shelfResuming = true;
-        location.replace(last);
+        // Wait a couple of frames before redirecting. On iOS, a home-screen web
+        // app only fully commits to standalone (no URL bar) mode after its first
+        // paint; redirecting before that commit finishes can make iOS fall back
+        // to opening the page in regular Safari with the address bar showing.
+        // This only happens sometimes, since it's a timing race — waiting for
+        // the next couple of paints lets iOS commit first.
+        requestAnimationFrame(function(){
+          requestAnimationFrame(function(){
+            location.replace(last);
+          });
+        });
       }
     } catch(e){ /* storage unavailable — just load normally */ }
   })();
