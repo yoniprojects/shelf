@@ -491,6 +491,7 @@
   <div class="hint">
     Find each library's slug: open <b>libbyapp.com</b>, sign in to that library,
     and check the URL — it looks like <code>libbyapp.com/library/&lt;slug&gt;</code>.
+    Saved libraries sync automatically across your devices for this profile.
   </div>
   <div id="libRows"></div>
   <button type="button" class="addLibBtn" id="addLibBtn">+ Add another library</button>
@@ -501,8 +502,9 @@
   </div>
 </dialog>
 
-<!-- Firebase (compat SDKs) — read-only lookup into Shelf & Spine's reading list,
-     so search/browse results can flag books you already have somewhere on your list. -->
+<!-- Firebase (compat SDKs) — shared with Shelf & Spine's own Firestore data:
+     read-only lookup into the reading list (for "already on your list" pills),
+     plus read/write sync of this profile's configured libraries across devices. -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
@@ -529,6 +531,7 @@ function normalizeShelfText(s){
 
 let shelfIndex = new Map(); // normalized title -> [{status, author}]
 let shelfIndexReady = false;
+let shelfDocData = {}; // raw doc data from this load, so other code (e.g. library sync) can reuse it
 const shelfReadyCallbacks = [];
 function onShelfIndexReady(cb){
   if (shelfIndexReady) cb(); else shelfReadyCallbacks.push(cb);
@@ -543,6 +546,7 @@ async function loadShelfIndex(){
   try{
     const snap = await shelfDb.collection("shelf-spine").doc(shelfCurrentUserId()).get();
     const data = snap.exists ? snap.data() : {};
+    shelfDocData = data;
     const books = Array.isArray(data.books) ? data.books : [];
     const wishlist = Array.isArray(data.wishlist) ? data.wishlist : [];
     books.forEach(b => { if (b && b.title && b.status) addToShelfIndex(b.title, b.author, b.status); });
@@ -618,8 +622,33 @@ function loadLibraries(){
   return [blankLibrary()]; // 1 empty library by default — no presets
 }
 function saveLibraries(libs){
-  localStorage.setItem(librariesStorageKey(), JSON.stringify(libs));
+  localStorage.setItem(librariesStorageKey(), JSON.stringify(libs)); // instant local cache
+  saveLibrariesRemote(libs);                                          // cross-device sync
 }
+function saveLibrariesRemote(libs){
+  try{
+    shelfDb.collection("shelf-spine").doc(shelfCurrentUserId())
+      .set({ libbyLibraries: libs }, { merge: true })
+      .catch(err => console.warn("Couldn't sync libraries to Firestore:", err));
+  }catch(e){
+    console.warn("Couldn't sync libraries to Firestore:", e);
+  }
+}
+// Once the profile's Firestore doc has loaded (shared load with the shelf-status
+// lookup above), let it take over as the source of truth for this profile's
+// libraries so they carry over to any other device signed into the same profile.
+onShelfIndexReady(() => {
+  const remote = shelfDocData && Array.isArray(shelfDocData.libbyLibraries) ? shelfDocData.libbyLibraries : null;
+  if (remote) {
+    libraries = remote.length ? remote : [blankLibrary()];
+    localStorage.setItem(librariesStorageKey(), JSON.stringify(libraries));
+  } else if (libraries.some(l => l.key)) {
+    // First sync for this profile: nothing in Firestore yet, so carry forward
+    // whatever was already configured locally on this device.
+    saveLibrariesRemote(libraries);
+  }
+  if (dialog.open) renderLibRows(); // refresh an already-open settings dialog with synced data
+});
 
 // ---------- Settings dialog ----------
 const dialog = document.getElementById("settingsDialog");
