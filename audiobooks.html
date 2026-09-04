@@ -21,10 +21,11 @@
         : (performance.navigation && performance.navigation.type === 1 ? 'reload' : 'navigate');
       if (navType === 'reload') return;
       var last = localStorage.getItem('shelf:lastPage');
-      if (last && last !== 'audiobooks.html') { location.replace(last); }
+      if (last && last !== 'audiobooks.html') { window.__shelfResuming = true; location.replace(last); }
     } catch(e){}
   })();
   document.addEventListener('DOMContentLoaded', function(){
+    if (window.__shelfResuming) return;
     try{ localStorage.setItem('shelf:lastPage','audiobooks.html'); }catch(e){}
   });
 </script>
