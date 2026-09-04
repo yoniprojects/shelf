@@ -141,6 +141,17 @@
   .chip.active{background:var(--forest); color:#fff; border-color:var(--forest);}
   .chip.small{padding:6px 12px; font-size:12px; font-weight:500;}
 
+  .genreHeaderRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;}
+  .genreModeToggle{
+    display:inline-flex; border:1px solid var(--forest); border-radius:999px; overflow:hidden; flex-shrink:0;
+  }
+  .genreModeBtn{
+    padding:6px 14px; border:none; background:transparent; color:var(--forest); font-size:12px;
+    font-weight:700; cursor:pointer; font-family:'Inter',sans-serif;
+  }
+  .genreModeBtn.active{background:var(--forest); color:#fff;}
+  .genreModeBtn:not(.active):hover{background:var(--cream-deep);}
+
   .status{color:var(--muted); font-size:13.5px; margin:0 0 14px;}
   .status b{color:var(--forest);}
 
@@ -185,6 +196,12 @@
   }
   .addReadingBtn:hover{background:var(--forest); color:#fff;}
   .addReadingBtn:disabled{opacity:.6; cursor:default;}
+  .shelfPillRow{margin:0 0 8px;}
+  .shelfPill{
+    display:inline-flex; align-items:center; gap:5px; padding:6px 13px; border-radius:999px;
+    background:var(--forest); color:#fff; font-size:11.5px; font-weight:800;
+    letter-spacing:.3px; text-transform:uppercase; box-shadow:0 3px 8px rgba(44,74,61,.35);
+  }
   .empty{color:var(--muted); text-align:center; padding:60px 20px; font-size:14px;}
   html.mode-web .empty{grid-column:1/-1;}
   .spinner{
@@ -292,6 +309,16 @@
   .dialogActions{display:flex; justify-content:flex-end; gap:8px; margin-top:16px;}
   .hint{font-size:12px; color:var(--muted); margin-top:-4px; margin-bottom:14px; line-height:1.5;}
   .errRow{font-size:12.5px; color:#b5533f; margin-top:6px;}
+  .libEntry{border:1px solid var(--card-border); border-radius:12px; padding:12px; margin-bottom:12px; background:var(--cream);}
+  .libEntryHead{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+  .libEntryTitle{font-size:11.5px; font-weight:700; color:var(--forest); text-transform:uppercase; letter-spacing:.3px;}
+  .removeLibBtn{background:transparent; border:none; color:#b5533f; font-size:12px; font-weight:700; cursor:pointer; padding:2px 4px; font-family:'Inter',sans-serif;}
+  .removeLibBtn:hover{text-decoration:underline;}
+  .addLibBtn{
+    width:100%; padding:10px; border-radius:10px; border:1.5px dashed var(--forest); background:transparent;
+    color:var(--forest); font-size:13px; font-weight:700; cursor:pointer; margin:2px 0 14px; font-family:'Inter',sans-serif;
+  }
+  .addLibBtn:hover{background:var(--cream-deep);}
   dialog button{
     padding:10px 16px; border-radius:10px; border:1px solid var(--card-border);
     background:var(--cream); color:var(--forest); font-size:13.5px; cursor:pointer; font-weight:600;
@@ -373,7 +400,13 @@
         </div>
 
         <div class="browseRow full">
-          <span class="browseLabel">Genres <span class="browseHint">— select any that fit (matched against each title's subjects)</span></span>
+          <div class="genreHeaderRow">
+            <span class="browseLabel">Genres</span>
+            <div class="genreModeToggle" id="genreModeToggle">
+              <button type="button" class="genreModeBtn active" data-mode="or">Match Any</button>
+              <button type="button" class="genreModeBtn" data-mode="and">Match All</button>
+            </div>
+          </div>
           <div class="chips" id="genreChips"></div>
         </div>
 
@@ -460,6 +493,7 @@
     and check the URL — it looks like <code>libbyapp.com/library/&lt;slug&gt;</code>.
   </div>
   <div id="libRows"></div>
+  <button type="button" class="addLibBtn" id="addLibBtn">+ Add another library</button>
   <div class="hint" id="testHint"></div>
   <div class="dialogActions">
     <button id="testLibs">Test connection</button>
@@ -467,49 +501,124 @@
   </div>
 </dialog>
 
+<!-- Firebase (compat SDKs) — read-only lookup into Shelf & Spine's reading list,
+     so search/browse results can flag books you already have somewhere on your list. -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
-const DEFAULT_LIBRARIES = [
-  { name: "Indianapolis Public Library", key: "indypl" },
-  { name: "Queer Liberation Library",    key: "queerliblib" },
-  { name: "Israel Digital",              key: "telaviv" }
-];
+const SHELF_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBqOuK-l7h5Do9sAk1y4MBxwYkFFu2pusY",
+  authDomain: "readingtracker-73e78.firebaseapp.com",
+  projectId: "readingtracker-73e78",
+  storageBucket: "readingtracker-73e78.firebasestorage.app",
+  messagingSenderId: "391536984056",
+  appId: "1:391536984056:web:ec841e6e42dbfd51e8e00d"
+};
+firebase.initializeApp(SHELF_FIREBASE_CONFIG);
+const shelfDb = firebase.firestore();
 
+// Mirrors Shelf & Spine's own status labels (index.html's STATUS + wishlist).
+const SHELF_STATUS_LABELS = { reading:"Currently Reading", done:"Completed", dnf:"Abandoned", wishlist:"On Wishlist" };
+
+function shelfCurrentUserId(){
+  try{ return localStorage.getItem("shelf:currentUser") || "shared"; }catch(e){ return "shared"; }
+}
+function normalizeShelfText(s){
+  return (s || "").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+let shelfIndex = new Map(); // normalized title -> [{status, author}]
+let shelfIndexReady = false;
+const shelfReadyCallbacks = [];
+function onShelfIndexReady(cb){
+  if (shelfIndexReady) cb(); else shelfReadyCallbacks.push(cb);
+}
+function addToShelfIndex(title, author, status){
+  const key = normalizeShelfText(title);
+  if (!key) return;
+  if (!shelfIndex.has(key)) shelfIndex.set(key, []);
+  shelfIndex.get(key).push({ status, author: normalizeShelfText(author) });
+}
+async function loadShelfIndex(){
+  try{
+    const snap = await shelfDb.collection("shelf-spine").doc(shelfCurrentUserId()).get();
+    const data = snap.exists ? snap.data() : {};
+    const books = Array.isArray(data.books) ? data.books : [];
+    const wishlist = Array.isArray(data.wishlist) ? data.wishlist : [];
+    books.forEach(b => { if (b && b.title && b.status) addToShelfIndex(b.title, b.author, b.status); });
+    wishlist.forEach(w => { if (w && w.title) addToShelfIndex(w.title, w.author, "wishlist"); });
+  }catch(e){
+    console.warn("Couldn't load Shelf & Spine reading list for badges:", e);
+  }
+  shelfIndexReady = true;
+  shelfReadyCallbacks.splice(0).forEach(cb => { try{ cb(); }catch(e){ console.error(e); } });
+}
+loadShelfIndex();
+
+// Returns {label} if this title/author already appears anywhere on the user's list
+// (reading, completed, abandoned, or wishlist), otherwise null.
+function getShelfStatus(title, author){
+  const key = normalizeShelfText(title);
+  if (!key || !shelfIndex.has(key)) return null;
+  const candidates = shelfIndex.get(key);
+  const a = normalizeShelfText(author);
+  let match = candidates.find(c => c.author && a && (c.author.includes(a) || a.includes(c.author)));
+  if (!match && candidates.length === 1) match = candidates[0];
+  if (!match) return null;
+  return { label: SHELF_STATUS_LABELS[match.status] || match.status };
+}
+</script>
+
+<script>
 const FORMAT_GROUPS = {
   ebook: ["ebook-epub-adobe","ebook-epub-open","ebook-overdrive","ebook-pdf-adobe","ebook-pdf-open","ebook-kindle","ebook-media-do"],
   audiobook: ["audiobook-mp3","audiobook-overdrive"]
 };
 const ALL_FORMATS = [...FORMAT_GROUPS.ebook, ...FORMAT_GROUPS.audiobook];
 
-// The full set of top-level subjects OverDrive/Libby tags titles with
-// (these are the BISAC major subject headings behind Libby's own
-// Subjects browse filter, so they line up with each title's real
-// `subjects` data instead of being guesses).
+// Genre/subject list, based on OverDrive's own genre taxonomy — trimmed down
+// to just the non-niche categories readers actually browse/filter by
+// (dropped the "Niche & Cross-Category" section and specialty subjects like
+// Antiques & Collectibles, Mathematics, Transportation, etc.).
 const GENRE_OPTIONS = [
-  "Antiques & Collectibles","Architecture","Art","Bibles","Biography & Autobiography",
-  "Body, Mind & Spirit","Business & Economics","Comics & Graphic Novels","Computers","Cooking",
-  "Crafts & Hobbies","Design","Drama","Education","Family & Relationships","Fiction",
-  "Foreign Language Study","Games & Activities","Gardening","Health & Fitness","History",
-  "House & Home","Humor","Juvenile Fiction","Juvenile Nonfiction","Language Arts & Disciplines",
-  "Law","Literary Collections","Literary Criticism","Mathematics","Medical","Music","Nature",
-  "Performing Arts","Pets","Philosophy","Photography","Poetry","Political Science","Psychology",
-  "Reference","Religion","Science","Science Fiction","Self-Help","Social Science",
-  "Sports & Recreation","Study Aids","Technology & Engineering","Transportation","Travel",
-  "True Crime","Young Adult Fiction","Young Adult Nonfiction"
+  // ---- Fiction ----
+  "Fiction","Action & Adventure","Classic Literature","Comic & Graphic Books","Coming of Age",
+  "Fantasy","Historical Fiction","Horror","Humor","Literature","Mystery","Romance","Science Fiction",
+  "Short Stories","Suspense","Thriller",
+  // ---- Nonfiction ----
+  "Nonfiction","Art","Biography & Autobiography","Business","Cooking & Food","Crime",
+  "Family & Relationships","Health & Fitness","History","Music","Nature","Philosophy","Photography",
+  "Poetry","Political Science","Psychology","Religion & Spirituality","Science","Self-Help",
+  "Sports & Recreation","True Crime","Travel",
+  // ---- Age groups ----
+  "Children's","Young Adult"
 ];
 
 let libraries = loadLibraries();
 let activeFormat = "all";   // all | ebook | audiobook  (Search view)
 let availOnly = false;
 
+// Re-render already-rendered results (without re-fetching) once the Shelf &
+// Spine reading list finishes loading, so shelf-status pills can appear even
+// if that load resolves after the results are already on screen.
+let lastSearchState = null;
+let lastBrowseState = null;
+onShelfIndexReady(() => {
+  if (lastSearchState) renderResults(lastSearchState.grouped, lastSearchState.container, lastSearchState.formatMode);
+  if (lastBrowseState) renderResults(lastBrowseState.grouped, lastBrowseState.container, lastBrowseState.formatMode);
+});
+
+function blankLibrary(){ return { name: "", key: "" }; }
+function librariesStorageKey(){ return "libbySearchLibraries:" + shelfCurrentUserId(); }
 function loadLibraries(){
   try{
-    const saved = JSON.parse(localStorage.getItem("libbySearchLibraries"));
+    const saved = JSON.parse(localStorage.getItem(librariesStorageKey()));
     if (Array.isArray(saved) && saved.length) return saved;
   }catch(e){}
-  return DEFAULT_LIBRARIES;
+  return [blankLibrary()]; // 1 empty library by default — no presets
 }
 function saveLibraries(libs){
-  localStorage.setItem("libbySearchLibraries", JSON.stringify(libs));
+  localStorage.setItem(librariesStorageKey(), JSON.stringify(libs));
 }
 
 // ---------- Settings dialog ----------
@@ -520,19 +629,34 @@ const testHint = document.getElementById("testHint");
 function renderLibRows(){
   libRows.innerHTML = "";
   libraries.forEach((lib, i) => {
-    const row = document.createElement("div");
-    row.className = "libRow";
-    row.innerHTML = `
-      <label>Name</label><input data-i="${i}" data-field="name" value="${escapeAttr(lib.name)}">
+    const entry = document.createElement("div");
+    entry.className = "libEntry";
+    entry.innerHTML = `
+      <div class="libEntryHead">
+        <span class="libEntryTitle">Library ${i + 1}</span>
+        <button type="button" class="removeLibBtn" data-remove="${i}">Remove</button>
+      </div>
+      <div class="libRow"><label>Name</label><input data-i="${i}" data-field="name" value="${escapeAttr(lib.name)}" placeholder="e.g. My Local Library"></div>
+      <div class="libRow" style="margin-bottom:0;"><label>Slug</label><input data-i="${i}" data-field="key" value="${escapeAttr(lib.key)}" placeholder="e.g. indypl"></div>
     `;
-    const row2 = document.createElement("div");
-    row2.className = "libRow";
-    row2.style.marginBottom = "16px";
-    row2.innerHTML = `
-      <label>Slug</label><input data-i="${i}" data-field="key" value="${escapeAttr(lib.key)}" placeholder="e.g. indypl">
-    `;
-    libRows.appendChild(row);
-    libRows.appendChild(row2);
+    libRows.appendChild(entry);
+  });
+  libRows.querySelectorAll("[data-remove]").forEach(btn => {
+    btn.onclick = () => {
+      syncLibrariesFromInputs();
+      const idx = parseInt(btn.dataset.remove, 10);
+      libraries.splice(idx, 1);
+      if (!libraries.length) libraries.push(blankLibrary());
+      renderLibRows();
+    };
+  });
+}
+function syncLibrariesFromInputs(){
+  libraries.forEach((lib, i) => {
+    const nameEl = libRows.querySelector(`input[data-i="${i}"][data-field="name"]`);
+    const keyEl  = libRows.querySelector(`input[data-i="${i}"][data-field="key"]`);
+    if (nameEl) lib.name = nameEl.value.trim();
+    if (keyEl) lib.key = keyEl.value.trim();
   });
 }
 function escapeAttr(s){ return (s||"").replace(/"/g,"&quot;"); }
@@ -542,17 +666,20 @@ function openSettingsDialog(){
   testHint.textContent = "";
   dialog.showModal();
 }
+document.getElementById("addLibBtn").onclick = () => {
+  syncLibrariesFromInputs();
+  libraries.push(blankLibrary());
+  renderLibRows();
+};
 document.getElementById("saveSettings").onclick = () => {
-  libraries.forEach((lib, i) => {
-    const nameEl = libRows.querySelector(`input[data-i="${i}"][data-field="name"]`);
-    const keyEl  = libRows.querySelector(`input[data-i="${i}"][data-field="key"]`);
-    lib.name = nameEl.value.trim();
-    lib.key  = keyEl.value.trim();
-  });
+  syncLibrariesFromInputs();
+  libraries = libraries.filter(lib => lib.name || lib.key); // drop rows left fully blank
+  if (!libraries.length) libraries.push(blankLibrary());
   saveLibraries(libraries);
   dialog.close();
 };
 document.getElementById("testLibs").onclick = async () => {
+  syncLibrariesFromInputs();
   testHint.textContent = "Testing…";
   const results = [];
   for (const lib of libraries) {
@@ -709,6 +836,7 @@ async function runSearch(){
   // Closest matches to the search term first
   grouped.sort((a, b) => compareRank(relevanceRank(a.item.title, q), relevanceRank(b.item.title, q)));
 
+  lastSearchState = { grouped, container: resultsEl, formatMode: activeFormat };
   renderResults(grouped, resultsEl, activeFormat);
 
   statusEl.innerHTML = `${grouped.length} result${grouped.length===1?"":"s"} across ${configured.length} librar${configured.length===1?"y":"ies"}` +
@@ -822,6 +950,8 @@ function renderCard({item, libs}, formatMode){
     if (!seenLibKeys.has(lib.key)) { seenLibKeys.add(lib.key); uniqueLibs.push(lib); }
   });
 
+  const shelfMatch = getShelfStatus(item.title, authors);
+
   const card = document.createElement("div");
   card.className = "card";
   card.innerHTML = `
@@ -829,8 +959,9 @@ function renderCard({item, libs}, formatMode){
     <div class="meta">
       <p class="title">${escapeHtml(item.title || "Untitled")}</p>
       <p class="authors">${escapeHtml(authors)}</p>
-      ${formatGroup("Ebook", ebookLibs, formatMode, "ebook")}
-      ${formatGroup("Audiobook", audiobookLibs, formatMode, "audiobook")}
+      ${shelfMatch ? `<div class="shelfPillRow"><span class="shelfPill">${escapeHtml(shelfMatch.label)} · already on your list</span></div>` : ""}
+      ${formatGroup("Ebook", ebookLibs, formatMode, "ebook", !!shelfMatch)}
+      ${formatGroup("Audiobook", audiobookLibs, formatMode, "audiobook", !!shelfMatch)}
       <div class="actions">
         ${uniqueLibs.map(lib => `<a href="https://libbyapp.com/library/${encodeURIComponent(lib.key)}" target="_blank" rel="noopener">Open in ${escapeHtml(lib.name)} →</a>`).join("")}
       </div>
@@ -842,7 +973,7 @@ function renderCard({item, libs}, formatMode){
   return card;
 }
 
-function formatGroup(label, libs, formatMode, mediaType){
+function formatGroup(label, libs, formatMode, mediaType, hideAddButton){
   if (!libs.length) return "";
   return `
     <div class="formatGroup">
@@ -854,7 +985,7 @@ function formatGroup(label, libs, formatMode, mediaType){
                   <span class="badge ${w.available ? "avail" : "wait"}">${escapeHtml(w.label)}</span>`;
         }).join("")}
       </div>
-      <button type="button" class="addReadingBtn" data-media-type="${mediaType}">+ Add to Currently Reading</button>
+      ${hideAddButton ? "" : `<button type="button" class="addReadingBtn" data-media-type="${mediaType}">+ Add to Currently Reading</button>`}
     </div>
   `;
 }
@@ -935,6 +1066,7 @@ function escapeHtml(s){
 
 let browseFormat = "all";
 let browseGenres = new Set();
+let browseGenreMode = "or"; // "or" = match any selected genre, "and" = match all of them
 let browseSort = "popularity";
 let browseAvailOnly = false;
 let browseLanguage = "any";
@@ -973,6 +1105,17 @@ function renderGenreChips(){
   });
 }
 renderGenreChips();
+
+// ---- Genre match mode (ANY / ALL) ----
+document.querySelectorAll("#genreModeToggle .genreModeBtn").forEach(btn => {
+  btn.onclick = () => {
+    if (btn.classList.contains("active")) return;
+    document.querySelectorAll("#genreModeToggle .genreModeBtn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    browseGenreMode = btn.dataset.mode;
+    applyBrowseFilters();
+  };
+});
 
 // ---- Format chips (Browse) ----
 wireSingleSelectChips(document.getElementById("browseFormatChips"), (value) => {
@@ -1043,6 +1186,7 @@ document.getElementById("excludeAuthorInput").addEventListener("keydown", e => {
 // ---- Reset ----
 document.getElementById("browseResetBtn").onclick = () => {
   browseGenres = new Set();
+  browseGenreMode = "or";
   browseSort = "popularity";
   browseAvailOnly = false;
   browseLanguage = "any";
@@ -1055,6 +1199,7 @@ document.getElementById("browseResetBtn").onclick = () => {
   document.querySelectorAll("#browseFormatChips .chip").forEach(c => c.classList.remove("active"));
   document.querySelector('#browseFormatChips .chip[data-value="all"]').classList.add("active");
   browseFormat = "all";
+  document.querySelectorAll("#genreModeToggle .genreModeBtn").forEach(b => b.classList.toggle("active", b.dataset.mode === "or"));
   renderGenreChips();
   applyBrowseFilters();
 };
@@ -1174,7 +1319,10 @@ function matchesGenres(item){
   if (!browseGenres.size) return true;
   const subs = subjectsOf(item).map(s => s.toLowerCase());
   if (!subs.length) return false;
-  return [...browseGenres].some(g => subs.some(s => s.includes(g.toLowerCase())));
+  const genreMatches = g => subs.some(s => s.includes(g.toLowerCase()));
+  return browseGenreMode === "and"
+    ? [...browseGenres].every(genreMatches)
+    : [...browseGenres].some(genreMatches);
 }
 function matchesExcludedAuthors(item){
   if (!excludedAuthors.length) return true;
@@ -1262,6 +1410,7 @@ function applyBrowseFilters(){
 
   grouped.sort(sortComparator(browseSort));
 
+  lastBrowseState = { grouped, container: resultsEl, formatMode: browseFormat };
   renderResults(grouped, resultsEl, browseFormat);
 
   const configuredCount = libraries.filter(l => l.key).length;
