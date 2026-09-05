@@ -743,7 +743,49 @@ function maybeOpenPendingAddBook(){
   }
 }
 
-async function loadData(){
+// ---------------- Goodreads extension handoff ----------------
+// The "Add to Shelf & Spine" Firefox extension scrapes a Goodreads book page
+// and opens this app in a new tab with the scraped fields packed into a
+// ?wishAdd=<json> query param (no localStorage, since the extension runs on
+// a different origin). Once the first Firestore snapshot has come in, we
+// open the normal "Add to wishlist" form pre-filled with whatever the
+// extension found — everything stays editable before Save, same as any
+// other wishlist add.
+let pendingWishHandled = false;
+function maybeOpenPendingWish(){
+  if (pendingWishHandled) return;
+  pendingWishHandled = true;
+  try {
+    const params = new URLSearchParams(location.search);
+    const raw = params.get('wishAdd');
+    if (!raw) return;
+    const pre = JSON.parse(raw);
+    if (!pre || !pre.title) return;
+
+    // Clean the URL so a refresh doesn't try to reopen this.
+    history.replaceState(null, '', location.pathname);
+
+    state.tab = 'wishlist';
+    lsSet('shelf:lastTab', state.tab);
+    state.modal = { type: 'wish-form', payload: null }; // same as a normal "Add to wishlist"
+    render();
+
+    const setVal = (id, val) => {
+      const el = document.getElementById(id);
+      if (el && val) { el.value = val; el.dispatchEvent(new Event('input', { bubbles: true })); }
+    };
+    setVal('wf-title', pre.title);
+    setVal('wf-author', pre.author);
+    setVal('f-genre', pre.genre);
+    setVal('f-subgenre', pre.subGenre);
+    setVal('wf-pages', pre.pagesHours);
+    setVal('f-series-name', pre.seriesName);
+    setVal('f-series-number', pre.seriesNumber);
+    if (pre.coverUrl) setVal('f-cover-url', pre.coverUrl);
+  } catch (e) {
+    console.error('Failed to open pending Goodreads wishlist add:', e);
+  }
+}
   SHARED_DOC.onSnapshot((snap) => {
     if (!snap.exists) {
       // SAFETY: no longer auto-writes seed data here. Auto-seeding on an
@@ -756,6 +798,7 @@ async function loadData(){
       state.loaded = true;
       render();
       maybeOpenPendingAddBook();
+      maybeOpenPendingWish();
       return;
     }
     const data = snap.data();
@@ -766,6 +809,7 @@ async function loadData(){
     firestoreReady = true;
     render();
     maybeOpenPendingAddBook();
+    maybeOpenPendingWish();
   }, (err) => {
     console.error("Firestore sync error:", err);
     alert("Couldn't connect to the shared library. Check your internet connection.");
