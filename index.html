@@ -671,10 +671,11 @@ async function migrateLegacyLibraryIfNeeded(){
 }
 
 // ---------------- Libby handoff ----------------
-// When a book is added from libby.html ("+ Add to Currently Reading"), it
-// stashes a pre-filled draft in localStorage and sends the user here with
-// ?addBook=1. Once the first Firestore snapshot has come in, we open the
-// normal "Add a book" form and fill in whatever Libby gave us — the user
+// When a book is added from libby.html ("+ Add to Currently Reading" or
+// "+ Add to Wishlist"), it stashes a pre-filled draft in localStorage and
+// sends the user here with ?addBook=1. Once the first Firestore snapshot
+// has come in, we open the matching form (book-form for "reading",
+// wish-form for "wishlist") and fill in whatever Libby gave us — the user
 // still has to review and hit Save, same as adding a book any other way.
 let pendingAddBookHandled = false;
 function maybeOpenPendingAddBook(){
@@ -692,12 +693,35 @@ function maybeOpenPendingAddBook(){
     // Clean the URL so a refresh doesn't try to reopen this.
     history.replaceState(null, '', location.pathname);
 
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+
+    if (pre.dest === 'wishlist') {
+      state.tab = 'wishlist';
+      lsSet('shelf:lastTab', state.tab);
+      state.modal = { type: 'wish-form', payload: null }; // same as a normal "Add to wishlist"
+      render();
+
+      setVal('wf-title', pre.title);
+      setVal('wf-author', pre.author);
+      setVal('f-genre', pre.genre);
+      setVal('wf-pages', pre.pagesHours);
+      if (pre.coverUrl) {
+        setVal('f-cover-url', pre.coverUrl);
+        const hidden = document.getElementById('f-cover');
+        if (hidden) hidden.value = pre.coverUrl;
+        const preview = document.getElementById('cover-preview');
+        if (preview) { preview.classList.remove('empty'); preview.innerHTML = `<img src="${esc(pre.coverUrl)}" alt="cover preview"/>`; }
+      }
+      const gbBox = document.getElementById('gb-search-q');
+      if (gbBox) gbBox.value = [pre.title, pre.author].filter(Boolean).join(' ');
+      return;
+    }
+
     state.tab = 'tracker';
     lsSet('shelf:lastTab', state.tab);
     state.modal = { type: 'book-form', payload: null }; // same as a normal "Add a book"
     render();
 
-    const setVal = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
     setVal('f-title', pre.title);
     setVal('f-author', pre.author);
     setVal('f-genre', pre.genre);
