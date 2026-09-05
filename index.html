@@ -2436,6 +2436,7 @@ function wishFormHTML(w){
           <button type="button" class="btn btn-primary" data-action="gb-search" style="white-space:nowrap;" title="Search" aria-label="Search">🔎</button>
         </div>
         <div id="gb-results"></div>
+        <button type="button" class="btn-text" style="color:var(--oxblood);margin-top:6px;display:block;width:100%;text-align:left;" data-action="wish-goodreads-search">🔎 Search this book on Goodreads</button>
       </div>
       <div class="field" style="margin-bottom:0;">Cover image
         <div class="cover-upload-box">
@@ -3254,6 +3255,12 @@ document.addEventListener("click", (e)=>{
   else if(action==="goodreads-search"){
     const t = (document.getElementById("f-title")?.value || "").trim();
     const a = (document.getElementById("f-author")?.value || "").trim();
+    const q = [t,a].filter(Boolean).join(" ");
+    if(q){ window.open("https://www.goodreads.com/search?q=" + encodeURIComponent(q), "_blank", "noopener"); }
+  }
+  else if(action==="wish-goodreads-search"){
+    const t = (document.getElementById("wf-title")?.value || "").trim();
+    const a = (document.getElementById("wf-author")?.value || "").trim();
     const q = [t,a].filter(Boolean).join(" ");
     if(q){ window.open("https://www.goodreads.com/search?q=" + encodeURIComponent(q), "_blank", "noopener"); }
   }
