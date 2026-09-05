@@ -2171,6 +2171,12 @@ function renderMatchModal(itemId){
 
 
 <script>
+function getSleepDefault(key, fallback){
+  const v = parseInt(lsGet('sleep:last:' + key), 10);
+  return (Number.isFinite(v) && v > 0) ? v : fallback;
+}
+function setSleepDefault(key, val){ lsSet('sleep:last:' + key, String(val)); }
+
 function renderSleepModal(){
   const list = chapterLabelList();
   const hasChapters = list.length > 0;
@@ -2190,7 +2196,7 @@ function renderSleepModal(){
         <div class="divider-label" style="margin-top:0;">By book minutes</div>
         <p style="font-size:12px;color:var(--muted);margin:0 0 10px;line-height:1.45;">Stops after this many minutes of the book itself play — the same no matter your speed.</p>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:18px;">
-          <input type="number" id="sleep-book-input" min="1" max="600" value="30" style="width:64px;border:1.5px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;background:var(--panel-2);color:var(--ink);outline:none;">
+          <input type="number" id="sleep-book-input" min="1" max="600" value="${getSleepDefault('book', 30)}" style="width:64px;border:1.5px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;background:var(--panel-2);color:var(--ink);outline:none;">
           <span style="font-size:12.5px;color:var(--muted);">min</span>
           <button class="btn btn-accent btn-sm" data-action="set-sleep-book" style="margin-left:auto;">Start</button>
         </div>
@@ -2198,7 +2204,7 @@ function renderSleepModal(){
         <div class="divider-label">By speed <span style="color:var(--muted-dim);font-weight:600;text-transform:none;">(real listening time)</span></div>
         <p style="font-size:12px;color:var(--muted);margin:0 0 10px;line-height:1.45;">Stops after this many real minutes of listening — at ${player.rate.toFixed(2)}x that covers more of the book than the same time at 1x.</p>
         <div style="display:flex;gap:8px;align-items:center;${hasChapters?'margin-bottom:18px;':''}">
-          <input type="number" id="sleep-speed-input" min="1" max="600" value="30" style="width:64px;border:1.5px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;background:var(--panel-2);color:var(--ink);outline:none;">
+          <input type="number" id="sleep-speed-input" min="1" max="600" value="${getSleepDefault('speed', 30)}" style="width:64px;border:1.5px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;background:var(--panel-2);color:var(--ink);outline:none;">
           <span style="font-size:12.5px;color:var(--muted);">min</span>
           <button class="btn btn-accent btn-sm" data-action="set-sleep-speed" style="margin-left:auto;">Start</button>
         </div>
@@ -2206,7 +2212,7 @@ function renderSleepModal(){
         ${hasChapters ? `<div class="divider-label">By chapters</div>
         <p style="font-size:12px;color:var(--muted);margin:0 0 10px;line-height:1.45;">Stops at the end of this many more chapters.</p>
         <div style="display:flex;gap:8px;align-items:center;">
-          <input type="number" id="sleep-chapters-input" min="1" max="${Math.max(1,list.length)}" value="1" style="width:64px;border:1.5px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;background:var(--panel-2);color:var(--ink);outline:none;">
+          <input type="number" id="sleep-chapters-input" min="1" max="${Math.max(1,list.length)}" value="${Math.min(Math.max(1,list.length), getSleepDefault('chapters', 1))}" style="width:64px;border:1.5px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;background:var(--panel-2);color:var(--ink);outline:none;">
           <span style="font-size:12.5px;color:var(--muted);">chapter(s)</span>
           <button class="btn btn-accent btn-sm" data-action="set-sleep-chapters" style="margin-left:auto;">Start</button>
         </div>` : ''}
@@ -2444,19 +2450,19 @@ document.addEventListener('click', async (e) => {
   if (action === 'set-sleep-book'){
     const el = document.getElementById('sleep-book-input');
     const v = el ? parseFloat(el.value) : NaN;
-    if (v > 0) setSleepTimerBook(v);
+    if (v > 0){ setSleepDefault('book', v); setSleepTimerBook(v); }
     return;
   }
   if (action === 'set-sleep-speed'){
     const el = document.getElementById('sleep-speed-input');
     const v = el ? parseFloat(el.value) : NaN;
-    if (v > 0) setSleepTimerSpeed(v);
+    if (v > 0){ setSleepDefault('speed', v); setSleepTimerSpeed(v); }
     return;
   }
   if (action === 'set-sleep-chapters'){
     const el = document.getElementById('sleep-chapters-input');
     const v = el ? parseInt(el.value,10) : NaN;
-    if (v > 0) setSleepTimerChapters(v);
+    if (v > 0){ setSleepDefault('chapters', v); setSleepTimerChapters(v); }
     return;
   }
   if (action === 'cancel-sleep-timer'){ clearSleepTimer(); toast('Sleep timer canceled.'); render(); return; }
