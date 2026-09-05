@@ -786,6 +786,8 @@ function maybeOpenPendingWish(){
     console.error('Failed to open pending Goodreads wishlist add:', e);
   }
 }
+
+async function loadData(){
   SHARED_DOC.onSnapshot((snap) => {
     if (!snap.exists) {
       // SAFETY: no longer auto-writes seed data here. Auto-seeding on an
