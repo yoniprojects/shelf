@@ -1,0 +1,2263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Books — Shelf & Spine</title>
+<link rel="icon" type="image/png" href="https://i.imgur.com/htlhPe9.png?v=2" />
+<link rel="apple-touch-icon" href="https://i.imgur.com/htlhPe9.png?v=2" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Books" />
+<script>
+  // Resume where I left off: mark this page as the last one visited.
+  // (Redirecting elsewhere doesn't belong here — only index.html, the hub
+  // page, does that. This page is a destination, so it just records itself,
+  // the same way audiobooks.html and the other sub-pages do.)
+  try{ localStorage.setItem('shelf:lastPage','Books.html'); }catch(e){}
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:ital,wght@0,400;0,500;0,700;1,400&family=Roboto+Slab:wght@400;500;700&family=Lora:ital,wght@0,400;0,600;1,400&family=Rubik:wght@400;500;700&family=Frank+Ruhl+Libre:wght@400;500;700&family=Noto+Sans+Hebrew:wght@400;600&family=Noto+Serif+Hebrew:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --gap: 14px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  margin:0;
+  font-family: system-ui, -apple-system, 'Noto Sans Hebrew', sans-serif;
+  overflow:hidden;
+  background:#111;
+  color:#eee;
+}
+
+/* ---------- Themes ---------- */
+body[data-theme="light"]{
+  --bg:#F7F5F0; --bg2:#EFEDE6; --text:#242220; --sub:#6e6b63; --border:rgba(36,34,32,.12);
+  --accent:#8a5a3b; --ruler: rgba(230,190,60,.32); --shadow: rgba(0,0,0,.12);
+}
+body[data-theme="dark"]{
+  --bg:#1E1C19; --bg2:#28251F; --text:#E9E3D6; --sub:#a89f8d; --border:rgba(233,227,214,.12);
+  --accent:#d8a25a; --ruler: rgba(216,162,90,.22); --shadow: rgba(0,0,0,.4);
+}
+body[data-theme="paper"]{
+  --bg:#E9E2D2; --bg2:#E1D8C4; --text:#2E2A20; --sub:#726b58; --border:rgba(46,42,32,.16);
+  --accent:#5f6f4e; --ruler: rgba(95,111,78,.22); --shadow: rgba(0,0,0,.15);
+  --paper-texture: url("https://i.imgur.com/LT7cU3b.png");
+}
+/* the app shell (#app) sits opaque on top of <body>, so the texture is painted there
+   instead of on body — otherwise it would never be visible */
+body[data-theme="paper"] #app{
+  background-color: var(--bg);
+  background-image: var(--paper-texture);
+  background-size: 700px 700px;
+  background-blend-mode: multiply;
+}
+
+#app{position:fixed;inset:0;background:var(--bg);color:var(--text);}
+
+/* ---------- Library ---------- */
+#library{position:absolute;inset:0;overflow-y:auto;display:none;}
+#library.active{display:block;}
+.lib-header{display:flex;align-items:center;justify-content:space-between;padding:22px 20px 8px;}
+.lib-header h1{font-size:20px;margin:0;font-weight:600;letter-spacing:.2px;}
+.add-btn{
+  background:var(--accent);color:#fff;border:none;border-radius:10px;
+  padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;
+}
+.add-btn:active{opacity:.8;}
+.lib-empty{padding:60px 24px;text-align:center;color:var(--sub);font-size:15px;line-height:1.6;}
+.shelf{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));
+  gap:20px;padding:16px 20px 40px;
+}
+.book-card{cursor:pointer;text-align:left;}
+.book-cover{
+  width:100%;aspect-ratio:2/3;border-radius:6px;overflow:hidden;
+  background:var(--bg2);box-shadow:0 3px 10px var(--shadow);
+  display:flex;align-items:center;justify-content:center;position:relative;
+}
+.book-cover img{width:100%;height:100%;object-fit:cover;display:block;}
+.book-cover .fallback{padding:10px;font-size:12px;text-align:center;color:var(--sub);font-weight:600;line-height:1.3;}
+.book-cover .prog{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(0,0,0,.15);}
+.book-cover .prog i{display:block;height:100%;background:var(--accent);}
+.book-title{margin-top:7px;font-size:13px;font-weight:600;line-height:1.3;}
+.book-author{font-size:11.5px;color:var(--sub);margin-top:1px;}
+.book-card .stale{font-size:10.5px;color:#b0563f;margin-top:2px;}
+
+/* ---------- Gallery (tracker-backed: Currently Reading / To Be Read / Finished) ---------- */
+.section-label{font-size:11.5px;font-weight:700;color:var(--sub);letter-spacing:.5px;margin:0 0 12px;text-transform:uppercase;}
+.gallery-section{margin:0 20px 30px;}
+.gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:20px;}
+.feature-row{display:flex;flex-direction:column;gap:12px;}
+.feature-card{display:flex;gap:14px;background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:12px;cursor:pointer;box-shadow:0 3px 10px var(--shadow);}
+.feature-cover-wrap{position:relative;flex-shrink:0;}
+.feature-cover{width:66px;height:99px;border-radius:6px;flex-shrink:0;overflow:hidden;box-shadow:0 4px 12px var(--shadow);position:relative;background:var(--bg2);display:flex;align-items:center;justify-content:center;}
+.feature-cover img{width:100%;height:100%;object-fit:cover;}
+.feature-body{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:4px;}
+.feature-title-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.feature-title{font-weight:700;font-size:14.5px;line-height:1.3;}
+.feature-author{font-size:12px;color:var(--sub);}
+.feature-sub-row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
+.feature-due{font-size:10.5px;color:#b0563f;font-weight:700;}
+.feature-progress-row{display:flex;align-items:center;gap:9px;margin-top:4px;}
+.prog-bar{flex:1;height:6px;border-radius:999px;background:var(--border);overflow:hidden;}
+.prog-fill{height:100%;background:var(--accent);border-radius:999px;}
+.prog-pct{font-size:11px;font-weight:700;color:var(--accent);min-width:32px;text-align:right;}
+.feature-meta{font-size:11px;color:var(--sub);margin-top:2px;}
+.feature-meta.link-hint{color:var(--accent);font-weight:600;}
+
+.cover-ring{position:absolute;left:-8px;bottom:-8px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 2px 5px var(--shadow));}
+.cover-ring svg{display:block;}
+.cover-ring .ring-pct{position:absolute;font-size:8.5px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;}
+
+.mini-stars{display:inline-flex;line-height:1;}
+.mini-stars .star-slot{position:relative;display:inline-block;width:1em;height:1em;}
+.mini-stars .star-slot .star-base,.mini-stars .star-slot .star-fill{position:absolute;left:0;top:0;pointer-events:none;white-space:nowrap;}
+.mini-stars .star-slot .star-base{color:var(--border);}
+.mini-stars .star-slot .star-fill{color:var(--accent);overflow:hidden;width:0%;}
+.mini-stars.editable{gap:2px;}
+.mini-stars.editable .star-slot{cursor:pointer;}
+.mini-stars.editable .star-hit{position:absolute;top:-3px;bottom:-3px;width:25%;z-index:2;}
+.mini-stars.editable .star-hit-q1{left:0;} .mini-stars.editable .star-hit-q2{left:25%;}
+.mini-stars.editable .star-hit-q3{left:50%;} .mini-stars.editable .star-hit-q4{left:75%;}
+
+.cover-card{cursor:pointer;}
+.cover-card .cover{border-radius:6px;aspect-ratio:2/3;margin-bottom:7px;overflow:hidden;position:relative;box-shadow:0 3px 10px var(--shadow);background:var(--bg2);display:flex;align-items:center;justify-content:center;}
+.cover-card .cover img{width:100%;height:100%;object-fit:cover;}
+.cover-card .cover .ph{font-size:12px;font-weight:600;text-align:center;padding:8px;color:var(--sub);}
+.cover-card .cover .badge{position:absolute;top:5px;right:5px;}
+.cover-card .title{font-size:12.5px;font-weight:700;line-height:1.28;}
+.cover-card .author{font-size:11px;color:var(--sub);margin:2px 0 4px;}
+.cover-card .mini-pct{font-size:10.5px;color:var(--accent);font-weight:700;}
+.cover-card .mini-pill{font-size:10px;color:var(--sub);}
+.pill{background:var(--border);color:var(--sub);border-radius:999px;padding:2px 8px;font-size:10px;font-weight:700;letter-spacing:.3px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;}
+.pill.on{background:var(--accent);color:#fff;}
+.pill.off{background:var(--border);color:var(--sub);}
+
+.gallery-empty{text-align:center;padding:50px 24px;color:var(--sub);font-size:14px;line-height:1.6;}
+
+/* per-book connection state, shown inline on a Currently Reading feature card */
+.conn-line{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:11px;color:var(--sub);}
+.conn-line.warn{color:#b0563f;font-weight:600;}
+.conn-line .conn-btn{background:var(--accent);color:#fff;border:none;border-radius:7px;padding:4px 10px;font-size:10.5px;font-weight:700;cursor:pointer;}
+
+/* rating row shown under the reader top bar, for tracker-linked books */
+.reader-rating-row{display:flex;align-items:center;justify-content:center;gap:8px;padding:6px 0 2px;flex:0 0 auto;}
+
+/* ---------- toast ---------- */
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:var(--bg2);color:var(--text);padding:10px 18px;border-radius:14px;font-size:12.5px;font-weight:600;box-shadow:0 8px 24px var(--shadow);z-index:60;border:1px solid var(--border);max-width:min(92vw,420px);white-space:normal;word-break:break-word;text-align:center;line-height:1.4;}
+
+/* ---------- tracker modals (move-to-reading / complete) ---------- */
+#trackerModalRoot{position:absolute;inset:0;z-index:45;pointer-events:none;}
+.tm-overlay{position:absolute;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:16px;pointer-events:auto;}
+.tm-card{background:var(--bg);border:1px solid var(--border);border-radius:16px;width:420px;max-width:94vw;max-height:86vh;overflow-y:auto;box-shadow:0 20px 60px var(--shadow);}
+.tm-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:5;}
+.tm-head h3{font-size:16px;font-weight:700;margin:0;}
+.tm-close{border:none;background:none;font-size:19px;cursor:pointer;color:var(--sub);}
+.tm-body{padding:16px 20px 20px;}
+.tm-field{display:block;}
+.tm-field .lbl{font-size:12px;font-weight:700;color:var(--sub);margin-bottom:6px;}
+.tm-input{width:100%;border:1.5px solid var(--border);border-radius:9px;padding:9px 11px;font-size:13.5px;background:var(--bg2);color:var(--text);outline:none;}
+.tm-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px;}
+.tm-actions button{border:none;border-radius:8px;padding:9px 16px;font-size:13.5px;font-weight:700;cursor:pointer;}
+.tm-actions .tm-cancel{background:var(--bg2);color:var(--text);}
+.tm-actions .tm-confirm{background:var(--accent);color:#fff;}
+
+/* ---------- Reader ---------- */
+#reader{position:absolute;inset:0;display:none;flex-direction:column;}
+#reader.active{display:flex;}
+.top-bar{
+  display:flex;align-items:center;gap:10px;padding:10px 14px;
+  border-bottom:1px solid var(--border);flex:0 0 auto;
+}
+.icon-btn{
+  background:none;border:none;color:var(--text);font-size:18px;cursor:pointer;
+  width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+  flex:0 0 auto;
+}
+.icon-btn:active{background:var(--bg2);}
+.icon-btn svg{display:block;}
+.top-title{flex:1;min-width:0;font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;}
+
+.content-wrap{flex:1 1 auto;min-height:0;position:relative;overflow:hidden;}
+
+/* scroll mode */
+#scrollPane{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;}
+
+/* page mode */
+#pagePane{position:absolute;inset:0;overflow:hidden;}
+#pageViewport{position:absolute;inset:0;overflow:hidden;}
+.tap-zone{position:absolute;top:0;bottom:0;width:22%;z-index:5;}
+.tap-zone.left{left:0;}
+.tap-zone.right{right:0;}
+/* top/bottom tap-layout variant: same edge strips, split into a small
+   back zone up top and a larger forward zone below (display toggled by JS) */
+.tap-zone.top{bottom:auto;height:30%;display:none;}
+.tap-zone.bottom{top:auto;height:70%;display:none;}
+
+/* ruler */
+#ruler{
+  position:absolute;left:0;right:0;height:34px;pointer-events:none;
+  background:var(--ruler);border-top:1px solid var(--accent);border-bottom:1px solid var(--accent);
+  opacity:0;transition:opacity .15s;z-index:8;
+}
+#ruler.on{opacity:1;pointer-events:auto;cursor:grab;}
+#ruler.on:active{cursor:grabbing;}
+#ruler .handle{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:44px;height:44px;
+}
+
+.bottom-bar{
+  display:flex;align-items:stretch;justify-content:space-between;
+  padding:0 6px;flex:0 0 auto;font-size:12px;color:var(--sub);
+  border-top:1px solid var(--border);
+  padding-bottom:env(safe-area-inset-bottom, 0px);
+}
+.status-left{
+  cursor:pointer;user-select:none;flex:1;min-width:0;
+  display:flex;align-items:center;
+  padding:15px 10px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.status-right{
+  cursor:pointer;user-select:none;font-weight:600;border-radius:6px;flex:0 0 auto;
+  display:flex;align-items:center;
+  padding:15px 16px;
+}
+.status-left:active,.status-right:active{background:var(--bg2);}
+.status-right.hidden-pct{opacity:0;}
+
+/* settings panel */
+#settingsSheet{
+  position:absolute;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--border);
+  border-radius:16px 16px 0 0;box-shadow:0 -6px 24px var(--shadow);
+  transform:translateY(100%);transition:transform .25s ease;z-index:20;
+  max-height:82%;overflow-y:auto;padding:14px 18px 30px;
+}
+#settingsSheet.open{transform:translateY(0);}
+#scrim{position:absolute;inset:0;background:rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:opacity .25s;z-index:19;}
+#scrim.open{opacity:1;pointer-events:auto;}
+.sheet-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 14px;}
+.setting-group{margin-bottom:20px;}
+.setting-group h4{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--sub);font-weight:700;}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;}
+.row label{font-size:14px;}
+.seg{display:flex;background:var(--bg2);border-radius:9px;padding:3px;gap:3px;}
+.seg button{
+  flex:1;border:none;background:none;padding:8px 6px;font-size:12.5px;border-radius:7px;color:var(--text);cursor:pointer;font-weight:600;
+}
+.seg button.active{background:var(--accent);color:#fff;}
+.theme-swatches{display:flex;gap:10px;flex-wrap:wrap;}
+.swatch{width:44px;height:44px;border-radius:10px;border:2px solid transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;background-size:cover;background-position:center;position:relative;}
+.swatch.active{border-color:var(--accent);}
+.swatch .swatch-del{
+  position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;
+  background:var(--bg2);color:var(--text);border:1px solid var(--border);
+  font-size:12px;line-height:1;display:flex;align-items:center;justify-content:center;font-weight:700;
+}
+
+/* ---------- Custom modal (replaces unreliable native confirm/prompt in embedded webviews) ---------- */
+#modalScrim{position:absolute;inset:0;background:rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .2s;z-index:29;}
+#modalScrim.open{opacity:1;pointer-events:auto;}
+#customModal{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-46%);width:min(320px,86%);
+  background:var(--bg);border-radius:14px;box-shadow:0 10px 34px var(--shadow);
+  padding:18px 18px 16px;z-index:30;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;
+}
+#customModal.open{opacity:1;pointer-events:auto;transform:translate(-50%,-50%);}
+.custom-modal-title{font-size:16px;font-weight:700;margin-bottom:6px;}
+.custom-modal-msg{font-size:13.5px;color:var(--sub);line-height:1.5;margin-bottom:10px;}
+.modal-input{
+  width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--border);
+  background:var(--bg2);color:var(--text);font-size:15px;margin-bottom:14px;
+}
+.custom-modal-actions{display:flex;justify-content:flex-end;gap:8px;}
+.custom-modal-actions button{border:none;border-radius:8px;padding:9px 16px;font-size:14px;font-weight:600;cursor:pointer;}
+.custom-modal-actions .modal-cancel{background:var(--bg2);color:var(--text);}
+.custom-modal-actions .modal-confirm{background:var(--accent);color:#fff;}
+.font-list{display:flex;flex-direction:column;gap:6px;}
+.font-opt{
+  padding:10px 12px;border-radius:9px;background:var(--bg2);cursor:pointer;font-size:15px;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.font-opt.active{outline:2px solid var(--accent);}
+input[type=range]{width:100%;accent-color:var(--accent);}
+input[type=color]{width:44px;height:34px;border:none;border-radius:8px;padding:0;background:none;cursor:pointer;flex:0 0 auto;}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;}
+.switch{width:44px;height:26px;border-radius:13px;background:var(--bg2);position:relative;cursor:pointer;flex:0 0 auto;}
+.switch i{position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;background:var(--sub);transition:all .18s;}
+.switch.on{background:var(--accent);}
+.switch.on i{left:20px;background:#fff;}
+.small-btn{background:var(--bg2);border:none;color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600;}
+
+/* toc */
+#tocSheet{position:absolute;left:0;right:0;bottom:0;top:0;background:var(--bg);z-index:21;transform:translateX(-100%);transition:transform .25s ease;display:flex;flex-direction:column;}
+#tocSheet.open{transform:translateX(0);}
+.toc-header{padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;}
+.toc-list{overflow-y:auto;flex:1;padding:6px 0;}
+.toc-item{padding:13px 20px;font-size:14.5px;border-bottom:1px solid var(--border);cursor:pointer;}
+.toc-item.current{color:var(--accent);font-weight:700;}
+
+.center-msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;padding:30px;text-align:center;color:var(--sub);font-size:14px;}
+.spinner{width:26px;height:26px;border-radius:50%;border:3px solid var(--border);border-top-color:var(--accent);animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.hint-btn{background:var(--accent);color:#fff;border:none;padding:10px 18px;border-radius:9px;font-weight:600;cursor:pointer;font-size:14px;}
+
+::-webkit-scrollbar{width:0;height:0;}
+</style>
+</head>
+<body data-theme="light">
+<div id="app">
+
+  <!-- LIBRARY (gallery pulled live from the Shelf & Spine tracker) -->
+  <div id="library" class="active">
+    <div class="lib-header">
+      <h1>My Books</h1>
+    </div>
+    <div id="galleryRoot"></div>
+    <input type="file" id="fileInput" accept=".epub,application/epub+zip" style="display:none;">
+  </div>
+  <div id="trackerModalRoot"></div>
+
+  <!-- READER -->
+  <div id="reader">
+    <div class="top-bar">
+      <button class="icon-btn" id="backBtn" title="Library">‹</button>
+      <div class="top-title" id="topTitle"></div>
+      <button class="icon-btn" id="tocBtn" title="Chapters">☰</button>
+      <button class="icon-btn" id="rulerBtn" title="Ruler">▤</button>
+      <button class="icon-btn" id="settingsBtn" title="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
+    </div>
+    <div class="reader-rating-row" id="readerRatingRow" style="display:none;"></div>
+
+    <div class="content-wrap" id="contentWrap">
+      <div id="scrollPane"></div>
+
+      <div id="pagePane">
+        <div id="pageViewport"></div>
+        <div class="tap-zone left" id="tapLeft"></div>
+        <div class="tap-zone right" id="tapRight"></div>
+        <div class="tap-zone left top" id="tapLeftTop"></div>
+        <div class="tap-zone left bottom" id="tapLeftBottom"></div>
+        <div class="tap-zone right top" id="tapRightTop"></div>
+        <div class="tap-zone right bottom" id="tapRightBottom"></div>
+      </div>
+
+      <div id="ruler"><div class="handle"></div></div>
+      <div id="loadingMsg" class="center-msg" style="display:none;">
+        <div class="spinner"></div><div>Opening book…</div>
+      </div>
+      <div id="permMsg" class="center-msg" style="display:none;">
+        <div>This book needs permission to reopen its file.</div>
+        <button class="hint-btn" id="grantPermBtn">Grant Access</button>
+      </div>
+    </div>
+
+    <div class="bottom-bar">
+      <div class="status-left" id="statusLeft"></div>
+      <div class="status-right" id="statusRight">0%</div>
+    </div>
+  </div>
+
+  <!-- SETTINGS SHEET -->
+  <div id="scrim"></div>
+  <div id="settingsSheet">
+    <div class="sheet-handle"></div>
+
+    <div class="setting-group">
+      <h4>Theme</h4>
+      <div class="theme-swatches">
+        <div class="swatch" data-theme="light" style="background:#F7F5F0;color:#242220;">Light</div>
+        <div class="swatch" data-theme="dark" style="background:#1E1C19;color:#E9E3D6;">Dark</div>
+        <div class="swatch" data-theme="paper" style="background:#E9E2D2;color:#2E2A20;">Stone</div>
+        <div class="swatch" data-theme="custom" id="customSwatch" style="background:linear-gradient(135deg,#bbb,#777);color:#fff;">Custom</div>
+      </div>
+      <div class="theme-swatches" id="savedThemeSwatches" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="setting-group" id="customThemeGroup" style="display:none;">
+      <h4>Custom theme</h4>
+      <div class="row">
+        <label>Background image</label>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div id="customImagePreview" style="width:40px;height:40px;border-radius:8px;background:var(--bg2);background-size:cover;background-position:center;border:1px solid var(--border);flex:0 0 auto;"></div>
+          <button class="small-btn" id="customImageBtn">Upload image</button>
+        </div>
+      </div>
+      <div class="row">
+        <label>Overlay color</label>
+        <input type="color" id="customColorInput">
+      </div>
+      <div class="row">
+        <label>Overlay opacity — <span id="customOpacityVal"></span></label>
+      </div>
+      <input type="range" id="customOpacityRange" min="0" max="1" step="0.05">
+      <div class="row" style="margin-top:10px;">
+        <label>Text color</label>
+        <input type="color" id="customTextColorInput">
+      </div>
+      <input type="file" id="customImageInput" accept="image/*" style="display:none;">
+      <div class="row" style="margin-top:14px;">
+        <button class="small-btn" id="saveThemeBtn">Save theme…</button>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <h4>Font</h4>
+      <div class="font-list" id="fontList"></div>
+    </div>
+
+    <div class="setting-group">
+      <h4>Text size — <span id="sizeVal"></span>px</h4>
+      <input type="range" id="sizeRange" min="14" max="30" step="1">
+    </div>
+    <div class="setting-group">
+      <h4>Line spacing — <span id="lineVal"></span></h4>
+      <input type="range" id="lineRange" min="1.2" max="2.4" step="0.1">
+    </div>
+    <div class="setting-group">
+      <h4>Letter spacing — <span id="letterVal"></span>px</h4>
+      <input type="range" id="letterRange" min="0" max="2" step="0.1">
+    </div>
+    <div class="setting-group">
+      <h4>Paragraph spacing — <span id="paraVal"></span>em</h4>
+      <input type="range" id="paraRange" min="0.3" max="2.2" step="0.1">
+    </div>
+
+    <div class="setting-group">
+      <h4>Tap zones</h4>
+      <div class="toggle-row">
+        <label>Top/bottom page turns</label>
+        <div class="switch" id="tapLayoutSwitch"><i></i></div>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <h4>View mode</h4>
+      <div class="seg" id="viewSeg">
+        <button data-v="page">Single page</button>
+        <button data-v="scroll">Endless scroll</button>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <h4>Reading speed — <span id="wpmVal"></span> wpm</h4>
+      <input type="range" id="wpmRange" min="120" max="450" step="10">
+    </div>
+
+    <div class="setting-group">
+      <button class="small-btn" id="removeBookBtn">Unlink file from this device</button>
+    </div>
+  </div>
+
+  <!-- TOC -->
+  <div id="tocSheet">
+    <div class="toc-header">
+      <button class="icon-btn" id="tocCloseBtn">✕</button>
+      <div style="font-weight:700;font-size:15px;">Chapters</div>
+    </div>
+    <div class="toc-list" id="tocList"></div>
+  </div>
+
+  <!-- CUSTOM MODAL (replaces window.confirm/prompt, which don't work reliably in embedded webviews) -->
+  <div id="modalScrim"></div>
+  <div id="customModal">
+    <div class="custom-modal-title" id="modalTitle"></div>
+    <div class="custom-modal-msg" id="modalMsg"></div>
+    <input type="text" id="modalInput" class="modal-input" style="display:none;">
+    <div class="custom-modal-actions">
+      <button class="modal-cancel" id="modalCancelBtn">Cancel</button>
+      <button class="modal-confirm" id="modalConfirmBtn">OK</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   Storage helpers
+   ============================================================ */
+const LS_SETTINGS = 'reader.settings.v1';
+const LS_PROG = 'reader.progress.v2'; // bookId -> {cfi, percent, updatedAt} — local mirror of PROGRESS_DOC
+const LS_LOCATIONS = 'reader.locations.v1'; // bookId -> epub.js locations save() blob (device-local only, never synced)
+const LS_CUSTOM_THEMES = 'reader.customThemes.v1';
+
+function loadJSON(key, fallback){
+  try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch(e){ return fallback; }
+}
+function saveJSON(key, val){
+  try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){}
+}
+
+const DEFAULT_SETTINGS = {
+  theme:'light', font:'literata', fontSize:18, lineHeight:1.7, letterSpacing:0, paraSpacing:1,
+  viewMode:'page', percentVisible:true, statusMode:1, rulerOn:false, rulerPos:0.42, wpm:230, tapLayout:'sides',
+  custom:{ image:null, color:'#1a1a1a', opacity:0.35, textColor:'#2a241c' },
+  activeCustomThemeId:null
+};
+let settings = Object.assign({}, DEFAULT_SETTINGS, loadJSON(LS_SETTINGS, {}));
+// progressMap is this device's local mirror of exact reading position, keyed by the
+// tracker's own book id (not a file hash — see the identity note further down). It's
+// written to instantly for a snappy resume, and also synced up to PROGRESS_DOC below
+// so another device picks up the same spot. locationsMap is kept separate and never
+// synced: epub.js's location index is just a per-device pagination cache, regenerating
+// it fresh on another device is fine and cheap-ish, and it can be too large to want in
+// every Firestore read.
+let progressMap = loadJSON(LS_PROG, {}); // bookId -> {cfi, percent, updatedAt}
+let locationsMap = loadJSON(LS_LOCATIONS, {}); // bookId -> locations blob
+let customThemes = loadJSON(LS_CUSTOM_THEMES, []); // [{id,name,image,color,opacity,textColor}]
+
+function persistSettings(){ saveJSON(LS_SETTINGS, settings); }
+function persistLocalProgress(){ saveJSON(LS_PROG, progressMap); }
+function persistLocations(){ saveJSON(LS_LOCATIONS, locationsMap); }
+function persistCustomThemes(){ saveJSON(LS_CUSTOM_THEMES, customThemes); }
+
+/* ============================================================
+   FIREBASE — same Shelf & Spine project as index.html and audiobooks.html.
+   This app READS the "shelf-spine" collection (tracker books/wishlist) and
+   WRITES to its own "books-app" collection (exact reading position). It
+   only ever writes progressPercent/progressPercentUpdatedAt, rating, and
+   status/dateFinished/priority/dueDate back into "shelf-spine" — the same
+   fields the main tracker and Audiobooks itself write, and never anything
+   that could clobber another format's data.
+   ============================================================ */
+const firebaseConfig = {
+  apiKey: "AIzaSyBqOuK-l7h5Do9sAk1y4MBxwYkFFu2pusY",
+  authDomain: "readingtracker-73e78.firebaseapp.com",
+  projectId: "readingtracker-73e78",
+  storageBucket: "readingtracker-73e78.firebasestorage.app",
+  messagingSenderId: "391536984056",
+  appId: "1:391536984056:web:ec841e6e42dbfd51e8e00d"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+db.enablePersistence().catch(()=>{});
+
+function lsGet(key){ try{ return localStorage.getItem(key); } catch(e){ return null; } }
+function lsSet(key, val){ try{ localStorage.setItem(key, val); return true; } catch(e){ return false; } }
+function getCurrentUserId(){ return lsGet('shelf:currentUser') || 'shared'; }
+const BOOKS_DOC = db.collection("shelf-spine").doc(getCurrentUserId());
+const PROGRESS_DOC = db.collection("books-app").doc(getCurrentUserId());
+
+function esc(s){ return (s==null?"":String(s)).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function toast(msg, ms){
+  ms = ms || 2600;
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(), ms);
+}
+function hashStr(s){ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h; }
+const SPINE_COLORS = ["#4A7A4C","#C08A4E","#7FB59A","#C29A2E","#8A9C5E","#B5794A","#5E8F87","#A0703F","#6E8A4E","#9C8248"];
+function spineColor(title){ return SPINE_COLORS[hashStr(title||"x")%SPINE_COLORS.length]; }
+
+/* ============================================================
+   TRACKER STATE — books/wishlist as read from BOOKS_DOC, filtered to
+   non-Audio formats (Physical/Digital). This is the library's real source
+   of truth now; the per-device file cache below only ever supplies the
+   actual bytes for a Digital book that's already listed here.
+   ============================================================ */
+let tstate = {
+  loaded: false,
+  allBooks: [],   // EVERY book from the tracker doc, all formats — never filtered when writing back
+  books: [],      // format !== 'Audio' tracker books (this app's own view)
+  wishlist: [],   // full wishlist; filtered to text/either wants in allBookItems()
+  progress: {},   // bookId -> {cfi, percent, updatedAt} — Firestore's copy, merged into progressMap
+  matches: {},    // bookId -> true once a file is cached in IndexedDB on this device
+  modal: null,
+};
+
+function allBookItems(){
+  const fromBooks = tstate.books.map(b => ({
+    id: b.id, title: b.title, author: b.author, coverUrl: b.coverUrl,
+    section: b.status === 'reading' ? 'reading' : (b.status === 'done' ? 'finished' : 'dnf'),
+    source: 'book', raw: b,
+  }));
+  const fromWishlist = tstate.wishlist
+    .filter(w => w.wantFormat === 'book' || !w.wantFormat) // only "Physical/Digital" or "Either" wants — skip audio-only
+    .map(w => ({
+      id: 'wish:'+w.id, title: w.title, author: w.author, coverUrl: w.coverUrl,
+      section: 'toberead', source: 'wishlist', raw: w,
+    }));
+  return [...fromBooks, ...fromWishlist];
+}
+function findTrackerItem(id){ return allBookItems().find(i => i.id === id) || null; }
+
+let booksReadyResolve, progressReadyResolve;
+const booksReadyPromise = new Promise(res => { booksReadyResolve = res; });
+const progressReadyPromise = new Promise(res => { progressReadyResolve = res; });
+
+function loadTrackerBooks(){
+  BOOKS_DOC.onSnapshot((snap) => {
+    const data = snap.exists ? snap.data() : {};
+    const incomingBooks = Array.isArray(data.books) ? data.books : [];
+    const wishlist = Array.isArray(data.wishlist) ? data.wishlist : [];
+    // Guard against a stale cached snapshot undoing a percent this device just
+    // wrote — same fix, same reasoning, as Audiobooks' loadBooks(). Every other
+    // field (rating, status, due date, etc.) still comes straight from the snapshot.
+    const prevById = new Map(tstate.allBooks.map(b => [b.id, b]));
+    const books = incomingBooks.map(b => {
+      const prev = prevById.get(b.id);
+      if (prev && (prev.progressPercentUpdatedAt||0) > (b.progressPercentUpdatedAt||0)){
+        return { ...b, progressPercent: prev.progressPercent, progressPercentUpdatedAt: prev.progressPercentUpdatedAt };
+      }
+      return b;
+    });
+    tstate.allBooks = books;
+    tstate.books = books.filter(b => b.format !== 'Audio');
+    tstate.wishlist = wishlist;
+    tstate.loaded = true;
+    if (booksReadyResolve) { booksReadyResolve(); booksReadyResolve = null; }
+    renderGallery();
+  }, (err) => {
+    console.error('Firestore sync error:', err);
+    tstate.loaded = true;
+    if (booksReadyResolve) { booksReadyResolve(); booksReadyResolve = null; }
+    renderGallery();
+  });
+}
+
+function loadReadingProgress(){
+  PROGRESS_DOC.onSnapshot((snap) => {
+    const data = snap.exists ? snap.data() : {};
+    tstate.progress = (data && typeof data.progress === 'object' && data.progress) || {};
+    // Merge into the local mirror: whichever side has the newer updatedAt wins,
+    // same stale-snapshot guard idea used for progressPercent above.
+    Object.keys(tstate.progress).forEach(bookId => {
+      const remote = tstate.progress[bookId];
+      const local = progressMap[bookId];
+      if (!local || (remote.updatedAt||0) >= (local.updatedAt||0)){
+        progressMap[bookId] = { ...local, ...remote };
+      }
+    });
+    persistLocalProgress();
+    if (progressReadyResolve) { progressReadyResolve(); progressReadyResolve = null; }
+    renderGallery();
+  }, (err) => {
+    console.error('Progress sync error:', err);
+    if (progressReadyResolve) { progressReadyResolve(); progressReadyResolve = null; }
+  });
+}
+
+let progressSaveDebounce = null;
+function persistProgressCloud(bookId, patch){
+  progressMap[bookId] = { ...(progressMap[bookId]||{}), ...patch, updatedAt: Date.now() };
+  persistLocalProgress();
+  clearTimeout(progressSaveDebounce);
+  progressSaveDebounce = setTimeout(() => {
+    PROGRESS_DOC.set({ progress: { [bookId]: progressMap[bookId] } }, { merge: true })
+      .catch(err => console.error('Failed to save reading position:', err));
+  }, 900);
+}
+function persistProgressCloudNow(bookId, patch){
+  progressMap[bookId] = { ...(progressMap[bookId]||{}), ...patch, updatedAt: Date.now() };
+  persistLocalProgress();
+  PROGRESS_DOC.set({ progress: { [bookId]: progressMap[bookId] } }, { merge: true })
+    .catch(err => console.error('Failed to save reading position:', err));
+}
+
+// Applies `patch` to one tracker book and writes the FULL book list back to
+// Firestore — see Audiobooks' saveBookPatch for why this always re-fetches
+// from the server first rather than building the write from cached state.
+let bookPatchChain = Promise.resolve();
+function saveBookPatch(itemId, patch){
+  const optimisticAllBooks = tstate.allBooks.map(b => b.id === itemId ? { ...b, ...patch } : b);
+  tstate.allBooks = optimisticAllBooks;
+  tstate.books = optimisticAllBooks.filter(b => b.format !== 'Audio');
+
+  const run = () => BOOKS_DOC.get({ source: 'server' }).then(snap => {
+    const data = snap.exists ? snap.data() : {};
+    const freshBooks = Array.isArray(data.books) ? data.books : [];
+    const newAllBooks = freshBooks.map(b => b.id === itemId ? { ...b, ...patch } : b);
+    tstate.allBooks = newAllBooks;
+    tstate.books = newAllBooks.filter(b => b.format !== 'Audio');
+    renderGallery();
+    return BOOKS_DOC.set({ books: newAllBooks }, { merge: true });
+  });
+
+  const outcome = bookPatchChain.then(run, run);
+  bookPatchChain = outcome.catch(() => {});
+  return outcome;
+}
+
+function setRating(bookId, value){
+  value = Math.max(0, Math.min(5, Math.round(Number(value)*4)/4 || 0));
+  const bk = tstate.books.find(b => b.id === bookId);
+  if (!bk) return;
+  if ((Number(bk.rating)||0) === value) return;
+  const writePromise = saveBookPatch(bookId, { rating: value });
+  renderGallery();
+  updateReaderRatingRow();
+  writePromise.catch(err => console.error('Failed to sync rating:', err));
+}
+
+// Pushes % done back into the tracker's own book record, so the "Currently
+// Reading" card on the main site reflects reading progress too — same
+// debounced-but-capped pattern as Audiobooks' syncPercentToMainSite, so a
+// long uninterrupted reading session still flushes periodically (~20s)
+// instead of only updating once you stop.
+let bookSyncDebounce = null;
+let bookSyncFirstPendingAt = 0;
+const BOOK_SYNC_MAX_WAIT_MS = 20000;
+function writeBookPercent(bookId, pct){
+  saveBookPatch(bookId, { progressPercent: pct, progressPercentUpdatedAt: Date.now() })
+    .catch(err => console.error('Failed to sync % to main site:', err));
+}
+function syncPercentToMainSite(bookId, pct){
+  const bk = tstate.books.find(b => b.id === bookId);
+  if (!bk || bk.status !== 'reading' || Math.round(Number(bk.progressPercent)||0) === pct) return;
+  const now = Date.now();
+  if (!bookSyncFirstPendingAt) bookSyncFirstPendingAt = now;
+  clearTimeout(bookSyncDebounce);
+  const wait = Math.max(0, Math.min(1500, BOOK_SYNC_MAX_WAIT_MS - (now - bookSyncFirstPendingAt)));
+  bookSyncDebounce = setTimeout(() => {
+    bookSyncFirstPendingAt = 0;
+    writeBookPercent(bookId, pct);
+  }, wait);
+}
+function syncPercentToMainSiteNow(bookId, pct){
+  const bk = tstate.books.find(b => b.id === bookId);
+  if (!bk || bk.status !== 'reading' || Math.round(Number(bk.progressPercent)||0) === pct) return;
+  clearTimeout(bookSyncDebounce);
+  bookSyncFirstPendingAt = 0;
+  writeBookPercent(bookId, pct);
+}
+
+function formatDueDate(iso){
+  if (!iso) return '';
+  const [y,m,d] = iso.split('-');
+  return getCurrentUserId()==='tom' ? `${m}/${d}` : `${d}/${m}`;
+}
+
+/* IndexedDB: 'handles' holds FileSystemFileHandle objects (desktop-only, optional
+   enhancement); 'files' holds the actual EPUB bytes (as the original File/Blob) so a book
+   never has to be re-selected once it's been added, even on browsers/webviews without
+   File System Access support (which is most mobile browsers, including this app's own
+   embedded view). Both stores are keyed directly by the tracker's own book id now —
+   the file cache is just "does this tracker book have bytes on this device yet", the
+   same relationship Audiobooks has between its match cache and BOOKS_DOC. */
+const HAS_FS_ACCESS = 'showOpenFilePicker' in window;
+let idb = null;
+function openIDB(){
+  return new Promise((resolve,reject)=>{
+    const req = indexedDB.open('reader-handles-db', 2);
+    req.onupgradeneeded = ()=>{
+      const d = req.result;
+      if(!d.objectStoreNames.contains('handles')) d.createObjectStore('handles');
+      if(!d.objectStoreNames.contains('files')) d.createObjectStore('files');
+    };
+    req.onsuccess = ()=> resolve(req.result);
+    req.onerror = ()=> reject(req.error);
+  });
+}
+async function idbPut(store, id, val){
+  if(!idb) idb = await openIDB();
+  return new Promise((resolve,reject)=>{
+    const tx = idb.transaction(store,'readwrite');
+    tx.objectStore(store).put(val, id);
+    tx.oncomplete = ()=>resolve();
+    tx.onerror = ()=>reject(tx.error);
+  });
+}
+async function idbGet(store, id){
+  if(!idb) idb = await openIDB();
+  return new Promise((resolve,reject)=>{
+    const tx = idb.transaction(store,'readonly');
+    const r = tx.objectStore(store).get(id);
+    r.onsuccess = ()=>resolve(r.result || null);
+    r.onerror = ()=>reject(r.error);
+  });
+}
+async function idbDelete(store, id){
+  if(!idb) idb = await openIDB();
+  return new Promise((resolve,reject)=>{
+    const tx = idb.transaction(store,'readwrite');
+    tx.objectStore(store).delete(id);
+    tx.oncomplete = ()=>resolve();
+    tx.onerror = ()=>reject(tx.error);
+  });
+}
+
+/* ============================================================
+   Fonts
+   ============================================================ */
+const FONTS = [
+  {id:'literata', label:'Literata', sample:'Aa אב', stack:"'Literata','Noto Serif Hebrew',Georgia,serif"},
+  {id:'robotoslab', label:'Roboto Slab (Caecilia-style)', sample:'Aa אב', stack:"'Roboto Slab','Noto Serif Hebrew',Georgia,serif"},
+  {id:'lora', label:'Lora', sample:'Aa אב', stack:"'Lora','Noto Serif Hebrew',Georgia,serif"},
+  {id:'georgia', label:'Georgia', sample:'Aa אב', stack:"Georgia,'Noto Serif Hebrew',serif"},
+  {id:'rubik', label:'Rubik (sans, Hebrew-native)', sample:'Aa אב', stack:"'Rubik','Noto Sans Hebrew',sans-serif"},
+  {id:'frankruhl', label:'Frank Ruhl Libre (Hebrew serif)', sample:'Aa אב', stack:"'Frank Ruhl Libre','Noto Serif Hebrew',serif"},
+  {id:'system', label:'System default', sample:'Aa אב', stack:"system-ui,-apple-system,'Noto Sans Hebrew',sans-serif"}
+];
+function fontStack(id){ const f = FONTS.find(f=>f.id===id); return f ? f.stack : FONTS[0].stack; }
+
+const THEME_COLORS = {
+  light:{bg:'#F7F5F0', text:'#242220', accent:'#8a5a3b'},
+  dark:{bg:'#1E1C19', text:'#E9E3D6', accent:'#d8a25a'},
+  paper:{bg:'#E9E2D2', text:'#2E2A20', accent:'#5f6f4e'}
+};
+
+/* ---------- Custom theme helpers ---------- */
+function hexToRgb(hex){
+  hex = (hex||'#000000').replace('#','');
+  if(hex.length===3) hex = hex.split('').map(c=>c+c).join('');
+  const num = parseInt(hex,16) || 0;
+  return { r:(num>>16)&255, g:(num>>8)&255, b:num&255 };
+}
+function customOverlayRgba(c){
+  c = c || {};
+  const rgb = hexToRgb(c.color || '#000000');
+  const a = (c.opacity != null ? c.opacity : 0.35);
+  return `rgba(${rgb.r},${rgb.g},${rgb.b},${a})`;
+}
+// approximate flattened solid color (overlay tint blended over white) — used
+// wherever a plain background color is needed (chrome that isn't the image itself)
+function customBlendOverWhite(c, extra){
+  c = c || {};
+  const rgb = hexToRgb(c.color || '#000000');
+  const a = Math.min(1, (c.opacity != null ? c.opacity : 0.35) + (extra||0));
+  const r = Math.round(rgb.r*a + 255*(1-a));
+  const g = Math.round(rgb.g*a + 255*(1-a));
+  const b = Math.round(rgb.b*a + 255*(1-a));
+  return `rgb(${r},${g},${b})`;
+}
+function getThemeColors(){
+  if(settings.theme === 'custom'){
+    const c = settings.custom || {};
+    return { bg: customBlendOverWhite(c), text: c.textColor || '#222222', accent: c.textColor || '#222222' };
+  }
+  return THEME_COLORS[settings.theme] || THEME_COLORS.light;
+}
+// keeps #app (and, via CSS vars, all the chrome — library, settings sheet, bars)
+// in sync with the custom image/overlay/text color whenever they change
+function updateCustomThemeCSS(){
+  let styleEl = document.getElementById('customThemeStyle');
+  if(!styleEl){
+    styleEl = document.createElement('style');
+    styleEl.id = 'customThemeStyle';
+    document.head.appendChild(styleEl);
+  }
+  const c = settings.custom || {};
+  const overlay = customOverlayRgba(c);
+  const bg = customBlendOverWhite(c);
+  const bg2 = customBlendOverWhite(c, 0.08);
+  const text = c.textColor || '#222222';
+  const textRgb = hexToRgb(text);
+  const bgImage = c.image
+    ? `linear-gradient(${overlay},${overlay}), url("${c.image}")`
+    : `linear-gradient(${overlay},${overlay})`;
+  styleEl.textContent = `
+    body[data-theme="custom"]{
+      --bg:${bg}; --bg2:${bg2}; --text:${text};
+      --sub: rgba(${textRgb.r},${textRgb.g},${textRgb.b},.62);
+      --border: rgba(${textRgb.r},${textRgb.g},${textRgb.b},.16);
+      --accent:${text}; --ruler: ${overlay}; --shadow: rgba(0,0,0,.15);
+    }
+    body[data-theme="custom"] #app{
+      background-image:${bgImage} !important;
+      background-size:cover !important;
+      background-position:center !important;
+      background-repeat:no-repeat !important;
+    }
+  `;
+}
+/* same texture used behind #app, reused here so the actual reading page (which
+   lives inside the epub.js iframe) shows the paper grain too */
+
+/* ============================================================
+   DOM refs
+   ============================================================ */
+const $ = sel => document.querySelector(sel);
+const libraryEl = $('#library'), readerEl = $('#reader');
+const galleryRootEl = $('#galleryRoot');
+const trackerModalRootEl = $('#trackerModalRoot');
+const readerRatingRowEl = $('#readerRatingRow');
+const fileInput = $('#fileInput');
+const scrollPane = $('#scrollPane');
+const pagePane = $('#pagePane'), pageViewport = $('#pageViewport');
+const rulerEl = $('#ruler');
+const settingsSheet = $('#settingsSheet'), scrim = $('#scrim');
+const tocSheet = $('#tocSheet'), tocList = $('#tocList');
+const statusLeft = $('#statusLeft'), statusRight = $('#statusRight');
+const topTitle = $('#topTitle');
+const loadingMsg = $('#loadingMsg'), permMsg = $('#permMsg');
+const modalScrim = $('#modalScrim'), customModal = $('#customModal');
+const modalTitle = $('#modalTitle'), modalMsg = $('#modalMsg'), modalInput = $('#modalInput');
+const modalCancelBtn = $('#modalCancelBtn'), modalConfirmBtn = $('#modalConfirmBtn');
+
+/* ============================================================
+   App / book state
+   ============================================================ */
+let book = null; // current open book object
+/*
+book = {
+  id, title, author, dir('ltr'|'rtl'),
+  epubBook: epub.js Book instance, rendition: epub.js Rendition instance,
+  navToc: [{label, href, index}],
+  currentCfi, currentHref, currentIndex, currentDisplayed:{page,total}, atStart, atEnd,
+  savedCfi, wordCounts:{counts:[...], total}, locationsReady
+}
+*/
+
+/* ---------------- Gallery rendering (Currently Reading / To Be Read / Finished) ---------------- */
+function coverHtml(item, sizeClass){
+  if (item.coverUrl){
+    return `<div class="${sizeClass}"><img src="${esc(item.coverUrl)}" alt="${esc(item.title)} cover" loading="lazy" onerror="this.parentElement.innerHTML='<div class=&quot;ph&quot;>${esc(item.title)}</div>'" /></div>`;
+  }
+  return `<div class="${sizeClass}" style="background:linear-gradient(150deg, ${spineColor(item.title)}55, var(--bg2))"><div class="ph">${esc(item.title)}</div></div>`;
+}
+function progressRingHTML(pct){
+  const size = 28, stroke = 3, r = (size-stroke)/2, c = 2*Math.PI*r;
+  const offset = c * (1 - Math.max(0,Math.min(100,pct))/100);
+  return `<div class="cover-ring" style="width:${size}px;height:${size}px;">
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="var(--bg)" stroke="var(--border)" stroke-width="${stroke}"/>
+      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--accent)" stroke-width="${stroke}" stroke-linecap="round"
+        stroke-dasharray="${c}" stroke-dashoffset="${offset}" transform="rotate(-90 ${size/2} ${size/2})"/>
+    </svg>
+    <span class="ring-pct">${Math.round(pct)}</span>
+  </div>`;
+}
+function starsHTML(value, size){
+  size = size || 12;
+  value = Math.max(0, Math.min(5, Number(value)||0));
+  if (!value) return '';
+  let out = `<span class="mini-stars" style="font-size:${size}px">`;
+  for (let n=1;n<=5;n++){
+    const frac = Math.max(0, Math.min(1, value-(n-1)));
+    out += `<span class="star-slot"><span class="star-base">★</span><span class="star-fill" style="width:${Math.round(frac*100)}%">★</span></span>`;
+  }
+  return out + `</span>`;
+}
+function starsEditableHTML(bookId, value, size){
+  size = size || 18;
+  value = Math.max(0, Math.min(5, Number(value)||0));
+  let out = `<span class="mini-stars editable" style="font-size:${size}px" data-rating-for="${esc(bookId)}">`;
+  for (let n=1;n<=5;n++){
+    const frac = Math.max(0, Math.min(1, value-(n-1)));
+    out += `<span class="star-slot">
+      <span class="star-base">★</span>
+      <span class="star-fill" style="width:${Math.round(frac*100)}%">★</span>
+      <span class="star-hit star-hit-q1"></span>
+      <span class="star-hit star-hit-q2"></span>
+      <span class="star-hit star-hit-q3"></span>
+      <span class="star-hit star-hit-q4"></span>
+    </span>`;
+  }
+  return out + `</span>`;
+}
+// Progress for a tracker book, straight off the tracker's own progressPercent field
+// (kept in sync by writeBookPercent as this device reads) — not epub.js locations,
+// so it reads correctly even for a book that isn't cached on this device yet.
+function progressForBook(raw){
+  const pct = Math.max(0, Math.min(100, Math.round(Number(raw.progressPercent)||0)));
+  const pages = Number(raw.pagesHours);
+  const pagesLeft = (!isNaN(pages) && pages>0) ? Math.max(0, Math.round(pages * (1-pct/100))) : null;
+  return { pct, pagesLeft };
+}
+function connectionLineHTML(item){
+  if (item.raw && item.raw.format === 'Physical'){
+    return `<div class="conn-line">📕 Physical copy — no e-file to open</div>`;
+  }
+  if (tstate.matches[item.id]){
+    return '';
+  }
+  return `<div class="conn-line warn">No file linked on this device
+    <button class="conn-btn" data-action="add-file" data-id="${esc(item.id)}">Add file…</button>
+  </div>`;
+}
+function renderFeatureCard(item){
+  const raw = item.raw || {};
+  const prog = progressForBook(raw);
+  const due = raw.source === 'Borrowed' && raw.dueDate ? formatDueDate(raw.dueDate) : '';
+  const stars = starsHTML(raw.rating, 11);
+  const canOpen = raw.format !== 'Physical' && tstate.matches[item.id];
+  return `<div class="feature-card" data-action="${canOpen ? 'open-book' : 'noop'}" data-id="${esc(item.id)}">
+    <div class="feature-cover-wrap">
+      ${coverHtml(item,'feature-cover')}
+      ${progressRingHTML(prog.pct)}
+    </div>
+    <div class="feature-body">
+      <div class="feature-title-row">
+        <div class="feature-title">${esc(item.title)}</div>
+        ${stars}
+      </div>
+      <div class="feature-author">${esc(item.author||'')}</div>
+      ${due ? `<div class="feature-sub-row"><span class="feature-due">Due by ${esc(due)}</span></div>` : ''}
+      <div class="feature-progress-row">
+        <div class="prog-bar"><div class="prog-fill" style="width:${prog.pct}%"></div></div>
+        <div class="prog-pct">${prog.pct}%</div>
+      </div>
+      ${prog.pagesLeft!=null ? `<div class="feature-meta">${prog.pagesLeft} page${prog.pagesLeft===1?'':'s'} left</div>` : ''}
+      ${connectionLineHTML(item)}
+      ${canOpen ? `<div class="feature-meta link-hint">Tap to open</div>` : ''}
+    </div>
+  </div>`;
+}
+function matchBadge(item){
+  return tstate.matches[item.id] ? `<span class="pill on badge">🔗</span>` : `<span class="pill off badge">＋</span>`;
+}
+function renderCoverCard(item){
+  const raw = item.raw || {};
+  const isWishlist = item.source === 'wishlist';
+  const prog = progressForBook(raw);
+  return `<div class="cover-card" data-action="open-book" data-id="${esc(item.id)}">
+    <div style="position:relative;">${coverHtml(item,'cover')}${isWishlist || raw.format==='Physical' ? '' : matchBadge(item)}</div>
+    <div class="title">${esc(item.title)}</div>
+    <div class="author">${esc(item.author||'')}</div>
+    ${isWishlist ? `<div class="mini-pill">Start reading…</div>`
+      : (raw.status==='done' ? `<div class="mini-pct">${prog.pct}%${prog.pct>=100?' · Finished':''}</div>`
+        : `<div class="mini-pill">${raw.format==='Physical' ? 'Physical copy' : (tstate.matches[item.id] ? 'Not started' : 'Tap to add')}</div>`)}
+  </div>`;
+}
+function renderGallery(){
+  if (!galleryRootEl) return;
+  const items = allBookItems();
+  const reading = items.filter(i => i.section === 'reading');
+  const toberead = items.filter(i => i.section === 'toberead');
+  const finished = items.filter(i => i.section === 'finished');
+
+  if (!tstate.loaded){
+    galleryRootEl.innerHTML = `<div class="gallery-empty">Loading your library…</div>`;
+    renderTrackerModal();
+    return;
+  }
+  if (!items.length){
+    galleryRootEl.innerHTML = `<div class="gallery-empty">No books yet. Mark a book's format as Physical or Digital in your tracker, or add something to your wishlist, and it'll show up here.</div>`;
+    renderTrackerModal();
+    return;
+  }
+  galleryRootEl.innerHTML = `
+    ${reading.length ? `<section class="gallery-section"><div class="section-label">Currently reading</div>
+      <div class="feature-row">${reading.map(renderFeatureCard).join('')}</div>
+    </section>` : ''}
+    ${toberead.length ? `<section class="gallery-section"><div class="section-label">To be read</div>
+      <div class="gallery-grid">${toberead.map(renderCoverCard).join('')}</div>
+    </section>` : ''}
+    ${finished.length ? `<section class="gallery-section"><div class="section-label">Finished</div>
+      <div class="gallery-grid">${finished.map(renderCoverCard).join('')}</div>
+    </section>` : ''}
+  `;
+  renderTrackerModal();
+}
+
+function showLibrary(){
+  libraryEl.classList.add('active');
+  readerEl.classList.remove('active');
+  renderGallery();
+}
+function showReader(){
+  libraryEl.classList.remove('active');
+  readerEl.classList.add('active');
+}
+
+/* ---------------- Per-book file linking ---------------- */
+// Refreshes tstate.matches for every currently-reading Digital book, by checking
+// which ones already have bytes cached in IndexedDB on this device. Wishlist items
+// and Physical books are never checked — there's nothing to cache for them yet/ever.
+async function refreshMatches(){
+  const items = allBookItems().filter(i => i.source === 'book' && i.raw.format !== 'Physical');
+  for (const item of items){
+    try{
+      const file = await idbGet('files', item.id);
+      tstate.matches[item.id] = !!file;
+    }catch(e){ tstate.matches[item.id] = false; }
+  }
+  renderGallery();
+}
+
+// Triggered from a "Add file…" button on an unmatched Currently Reading card, or
+// from Settings > "Unlink file" followed by re-adding. Uses the File System Access
+// picker when available (so a handle can be kept for future permission checks),
+// falling back to the plain <input type=file> everywhere else — same fallback
+// order Books.html always used, just keyed by tracker id instead of a file hash now.
+let pendingLinkItem = null;
+async function addFileForItem(item){
+  pendingLinkItem = item;
+  if (HAS_FS_ACCESS){
+    try{
+      const [handle] = await window.showOpenFilePicker({
+        types:[{description:'EPUB', accept:{'application/epub+zip':['.epub']}}],
+        multiple:false
+      });
+      const file = await handle.getFile();
+      await linkFileToItem(item, file, handle);
+    }catch(e){ /* user cancelled */ }
+    return;
+  }
+  fileInput.click();
+}
+async function linkFileToItem(item, file, handle){
+  loadingMsg.style.display = 'flex';
+  showReader();
+  try{
+    if (handle) await idbPut('handles', item.id, handle).catch(()=>{});
+    await idbPut('files', item.id, file);
+    tstate.matches[item.id] = true;
+    toast('Matched.');
+    await openTrackerBookFile(file, item);
+  }catch(err){
+    console.error('linkFileToItem: could not read/cache EPUB', file.name, file.size, 'bytes:', err);
+    loadingMsg.style.display = 'none';
+    showLibrary();
+    toast('Could not read this EPUB file.');
+  }
+}
+fileInput.addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  fileInput.value = '';
+  const item = pendingLinkItem;
+  pendingLinkItem = null;
+  if (file && item) await linkFileToItem(item, file, null);
+});
+
+/* ---------------- Opening a tracker book ---------------- */
+async function openTrackerBook(item){
+  if (item.source === 'wishlist') return openMoveWishModal(item.raw.id);
+  if (item.raw && item.raw.format === 'Physical'){ toast('This is your physical copy — nothing to open here.'); return; }
+  loadingMsg.style.display = 'flex';
+  permMsg.style.display = 'none';
+  showReader();
+
+  // 1) Fast path: bytes already cached in IndexedDB on this device.
+  let file = null;
+  try{ file = await idbGet('files', item.id); }catch(e){ console.warn(e); }
+  if (file){ await openTrackerBookFile(file, item); return; }
+
+  // 2) Legacy/desktop fallback: a stored FileSystemFileHandle.
+  if (HAS_FS_ACCESS){
+    try{
+      const handle = await idbGet('handles', item.id);
+      if (handle){
+        let perm = await handle.queryPermission({mode:'read'});
+        if (perm !== 'granted') perm = await handle.requestPermission({mode:'read'});
+        if (perm === 'granted') file = await handle.getFile();
+      }
+    }catch(e){ console.warn(e); }
+    if (file){
+      await idbPut('files', item.id, file).catch(()=>{});
+      tstate.matches[item.id] = true;
+      await openTrackerBookFile(file, item);
+      return;
+    }
+  }
+
+  // 3) Nothing cached at all — same "tap to add file" prompt as the gallery card.
+  loadingMsg.style.display = 'none';
+  permMsg.querySelector('div').textContent = 'Add this book\'s EPUB file to open it.';
+  permMsg.style.display = 'flex';
+  $('#grantPermBtn').textContent = 'Add file…';
+  $('#grantPermBtn').onclick = ()=> addFileForItem(item);
+}
+
+async function openTrackerBookFile(file, item){
+  try{
+    const epubBook = await openEpubFromFile(file);
+    const metadata = await epubBook.loaded.metadata;
+    const navigation = await epubBook.loaded.navigation;
+    const dir = detectDirection(metadata);
+
+    // Wait for this device's synced reading position to actually arrive before
+    // deciding where to open — mounting immediately (before Firestore/local cache
+    // is known) is exactly the class of bug Audiobooks' "resets to 0" note
+    // describes: opening from a stale/empty position and then saving right over
+    // a real one. This resolves fast in practice (Firestore's local persistence
+    // usually already has it cached).
+    await progressReadyPromise;
+
+    book = {
+      id: item.id, title: item.title || metadata.title || file.name, author: item.author || metadata.creator || '',
+      dir, epubBook, rendition: null,
+      navToc: buildNavToc(epubBook, navigation.toc),
+      currentCfi: null, currentHref: null, currentIndex: 0, currentDisplayed: null,
+      atStart:false, atEnd:false,
+      savedCfi: null,
+      wordCounts: null, locationsReady: false,
+      trackerItem: item, // the tracker book/wishlist item this reader session is linked to
+    };
+    const prog = progressMap[item.id];
+    if(prog && prog.cfi) book.savedCfi = prog.cfi;
+
+    topTitle.textContent = book.title;
+    $('#grantPermBtn').textContent = 'Add file…';
+    loadingMsg.style.display = 'none';
+    initReaderView();
+    updateReaderRatingRow();
+
+    // background: word counts (for time estimates) + locations (for percent/page-of-book)
+    computeWordCounts(epubBook).then(res=>{ if(book && book.epubBook===epubBook){ book.wordCounts = res; updateBottomBar(); } }).catch(()=>{});
+    const savedLocs = locationsMap[item.id];
+    (savedLocs ? Promise.resolve(epubBook.locations.load(savedLocs)) : epubBook.locations.generate(1600))
+      .then(()=>{
+        if(!book || book.epubBook!==epubBook) return;
+        book.locationsReady = true;
+        updateBottomBar();
+        try{
+          locationsMap[item.id] = epubBook.locations.save();
+          persistLocations();
+        }catch(e){}
+      }).catch(()=>{});
+  }catch(err){
+    console.error('openTrackerBookFile failed for', file.name, file.size, 'bytes:', err);
+    loadingMsg.style.display = 'none';
+    toast('Could not open this EPUB file.');
+    showLibrary();
+  }
+}
+
+// Editable star rating shown under the reader's top bar, for the tracker book
+// currently open — mirrors Audiobooks' always-visible player rating row.
+function updateReaderRatingRow(){
+  if (!readerRatingRowEl) return;
+  if (!book || !book.trackerItem || book.trackerItem.source !== 'book'){
+    readerRatingRowEl.style.display = 'none';
+    readerRatingRowEl.innerHTML = '';
+    return;
+  }
+  const raw = tstate.books.find(b => b.id === book.trackerItem.id) || book.trackerItem.raw || {};
+  readerRatingRowEl.style.display = 'flex';
+  readerRatingRowEl.innerHTML = starsEditableHTML(book.trackerItem.id, Number(raw.rating)||0, 18);
+}
+
+function detectDirection(metadata){
+  const language = (metadata.language||'').toLowerCase();
+  const metaDir = (metadata.direction||'').toLowerCase();
+  if(metaDir==='rtl') return 'rtl';
+  if(metaDir==='ltr') return 'ltr';
+  return /^he|^iw|^ar|^fa|^ur/.test(language) ? 'rtl' : 'ltr';
+}
+
+function buildNavToc(epubBook, items, depth){
+  depth = depth || 0;
+  let out = [];
+  (items||[]).forEach(item=>{
+    let idx = null;
+    try{ const s = epubBook.spine.get(item.href); idx = s ? s.index : null; }catch(e){}
+    out.push({ label: (depth>0?'  '.repeat(depth):'') + (item.label||'').trim(), href: item.href, index: idx });
+    if(item.subitems && item.subitems.length) out = out.concat(buildNavToc(epubBook, item.subitems, depth+1));
+  });
+  return out;
+}
+
+/* ============================================================
+   Robust EPUB opening
+   ------------------------------------------------------------
+   Earlier attempts here called `ePub()` with no arguments and then
+   `.open(buf, 'binary')` separately, wrapped in retry logic. That
+   turned out to be the actual bug: constructing the Book and opening
+   it in two steps left it failing the *first* time a given file was
+   opened in a session and then succeeding on a subsequent attempt
+   (which is exactly what re-picking the same file worked around).
+   Going back to the single-step `ePub(buf)` form — which is what the
+   known-good earlier version of this file used — avoids that
+   altogether. A light retry is kept around the raw file read only,
+   since a freshly-picked file's bytes can occasionally be reported
+   before they're fully available.
+   ============================================================ */
+function looksLikeZip(buf){
+  if(!buf || buf.byteLength < 4) return false;
+  const b = new Uint8Array(buf, 0, 4);
+  return b[0]===0x50 && b[1]===0x4B; // 'P','K'
+}
+
+async function readFileBuffer(file, attempt){
+  const buf = await file.arrayBuffer();
+  if(buf.byteLength && buf.byteLength === file.size && looksLikeZip(buf)) return buf;
+  if(attempt >= 4){
+    console.warn('EPUB read looks truncated/invalid after retries:', {got: buf.byteLength, expected: file.size});
+    return buf; // give up and hand back whatever we have; let epub.js's own error surface
+  }
+  await new Promise(r=>setTimeout(r, 250*attempt));
+  return readFileBuffer(file, attempt+1);
+}
+
+async function openEpubFromFile(file){
+  const buf = await readFileBuffer(file, 1);
+  const epubBook = ePub(buf);
+  await epubBook.ready;
+  return epubBook;
+}
+
+/* ============================================================
+   EPUB metadata-only extraction (for library cards)
+   ============================================================ */
+async function extractEpubMeta(file){
+  const epubBook = await openEpubFromFile(file);
+  const metadata = await epubBook.loaded.metadata;
+  let coverDataUrl = null;
+  try{
+    const coverUrl = await epubBook.coverUrl();
+    if(coverUrl){
+      const resp = await fetch(coverUrl);
+      const blob = await resp.blob();
+      coverDataUrl = await blobToDataUrl(blob);
+      URL.revokeObjectURL(coverUrl);
+    }
+  }catch(e){ console.warn('cover extraction failed', e); }
+  const result = {
+    title: (metadata.title||'').trim(),
+    author: (metadata.creator||'').trim(),
+    coverDataUrl,
+    dir: detectDirection(metadata)
+  };
+  try{ epubBook.destroy(); }catch(e){}
+  return result;
+}
+
+function blobToDataUrl(blob){
+  return new Promise((resolve,reject)=>{
+    const r = new FileReader();
+    r.onload = ()=>resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
+}
+
+/* ============================================================
+   Word counts (background, powers the time-remaining status modes)
+   ============================================================ */
+async function computeWordCounts(epubBook){
+  const counts = [];
+  let total = 0;
+  for(const item of epubBook.spine.spineItems){
+    try{
+      await item.load(epubBook.load.bind(epubBook));
+      const text = (item.document && item.document.body) ? item.document.body.textContent : '';
+      const wc = (text.trim().match(/\S+/g)||[]).length;
+      counts.push(wc); total += wc;
+      item.unload();
+    }catch(e){ counts.push(0); }
+  }
+  return {counts, total};
+}
+
+/* ============================================================
+   Reader view: rendering via epub.js
+   ============================================================ */
+function applyTypography(){
+  document.body.setAttribute('data-theme', settings.theme);
+}
+
+const GOOGLE_FONTS_URL = "https://fonts.googleapis.com/css2?family=Literata:ital,wght@0,400;0,500;0,700;1,400&family=Roboto+Slab:wght@400;500;700&family=Lora:ital,wght@0,400;0,600;1,400&family=Rubik:wght@400;500;700&family=Frank+Ruhl+Libre:wght@400;500;700&family=Noto+Sans+Hebrew:wght@400;600&family=Noto+Serif+Hebrew:wght@400;700&display=swap";
+
+function injectDynamicStyle(contents){
+  if(!contents || !contents.document) return;
+  const doc = contents.document;
+  // book content renders inside its own iframe document, so custom
+  // webfonts need to be loaded there too (they don't inherit from the parent page)
+  try{ contents.addStylesheet(GOOGLE_FONTS_URL); }catch(e){}
+  const theme = getThemeColors();
+  const stack = fontStack(settings.font);
+  let paperBg;
+  if(settings.theme==='paper' || settings.theme==='custom'){
+    // The texture/image is painted once on the persistent #app shell behind the
+    // reader (see body[data-theme] #app rules / updateCustomThemeCSS), which is
+    // fixed to the viewport and never repainted. Each book page/section renders
+    // in its own iframe, so if we painted the image here too it would be
+    // re-sized ("cover") and re-positioned per section, making it look like it
+    // zoomed and shifted on every page turn. Leaving the iframe transparent
+    // lets the stable #app background show through unchanged on every page,
+    // in both paginated and endless-scroll modes.
+    paperBg = `background:transparent !important;`;
+  } else {
+    paperBg = `background:${theme.bg} !important;`;
+  }
+  const css = `
+    html, body{ ${paperBg} color:${theme.text} !important; margin:0; }
+    body, p, div, span, li, td{
+      font-family:${stack} !important;
+      font-size:${settings.fontSize}px !important;
+      line-height:${settings.lineHeight} !important;
+      letter-spacing:${settings.letterSpacing}px !important;
+    }
+    p{ margin:0 0 ${settings.paraSpacing}em !important; text-align:justify; text-wrap:pretty; orphans:2; widows:2; }
+    h1,h2,h3{ line-height:1.3; margin:.6em 0 .5em; }
+    hr{ border:none; border-top:1px solid ${theme.text}22; margin:2em 0; }
+    a{ color:${theme.accent}; }
+    img, svg{ max-width:100%; height:auto; }
+  `;
+  let styleEl = doc.getElementById('reader-dyn-style');
+  if(!styleEl){
+    styleEl = doc.createElement('style');
+    styleEl.id = 'reader-dyn-style';
+    doc.head.appendChild(styleEl);
+  }
+  styleEl.textContent = css;
+}
+
+function initReaderView(){
+  applyTypography();
+  updateViewModeUI();
+  updateRulerPosition();
+  mountRendition();
+  updateBottomBar();
+  saveProgressDebounced();
+}
+
+function createRendition(container, mode){
+  const opts = mode==='page'
+    ? { width:'100%', height:'100%', manager:'default', flow:'paginated', spread:'none', minSpreadWidth:9999, allowScriptedContent:false }
+    : { width:'100%', height:'100%', manager:'continuous', flow:'scrolled', allowScriptedContent:false };
+  const rendition = book.epubBook.renderTo(container, opts);
+  rendition.hooks.content.register(injectDynamicStyle);
+  rendition.hooks.content.register(attachContentTouch);
+  rendition.on('relocated', onRelocated);
+  return rendition;
+}
+
+function mountRendition(){
+  if(book.rendition){ try{ book.rendition.destroy(); }catch(e){} book.rendition = null; }
+  scrollPane.style.display = settings.viewMode==='scroll' ? 'block':'none';
+  pagePane.style.display = settings.viewMode==='page' ? 'block':'none';
+  const containerEl = settings.viewMode==='scroll' ? scrollPane : pageViewport;
+  containerEl.innerHTML = '';
+  book.rendition = createRendition(containerEl, settings.viewMode);
+  const startAt = book.currentCfi || book.savedCfi || undefined;
+  book.rendition.display(startAt);
+}
+
+function onRelocated(location){
+  if(!book) return;
+  book.currentCfi = location.start.cfi;
+  book.currentHref = location.start.href;
+  book.currentIndex = location.start.index;
+  book.currentDisplayed = location.start.displayed || null;
+  book.atStart = !!location.atStart;
+  book.atEnd = !!location.atEnd;
+  updateBottomBar();
+  saveProgressDebounced();
+  if(tocSheet.classList.contains('open')) renderTOC();
+}
+
+function reflowCurrent(){
+  if(!book || !book.rendition) return;
+  const r = book.rendition;
+  r.getContents().forEach(injectDynamicStyle);
+  if(settings.viewMode==='page' && book.currentCfi){
+    r.display(book.currentCfi);
+  }
+}
+
+/* ---------- Page navigation (tap zones + swipe, works anywhere on the page) ---------- */
+function isRTL(){ return !!(book && book.dir==='rtl'); }
+
+// turnPageAbs takes an absolute forward(true)/back(false) direction in reading order.
+function turnPageAbs(goNext){
+  if(!book || !book.rendition) return;
+  if(goNext && book.atEnd) return;
+  if(!goNext && book.atStart) return;
+  if(goNext) book.rendition.next(); else book.rendition.prev();
+}
+
+// visualDir is the physical/on-screen direction the gesture implies ('left' or 'right'),
+// independent of reading direction — RTL vs LTR only changes which epub.js call it maps to,
+// so a left swipe/tap always *looks* like a left-moving turn, in either language.
+function turnPage(visualDir){
+  if(!book || !book.rendition) return;
+  turnPageAbs((visualDir==='left') ? !isRTL() : isRTL());
+}
+
+let suppressTapClick = false;
+// "sides" layout: left edge = back, right edge = forward (mirrored under RTL by turnPage)
+$('#tapLeft').addEventListener('click', ()=>{ if(!suppressTapClick) turnPage('right'); });
+$('#tapRight').addEventListener('click', ()=>{ if(!suppressTapClick) turnPage('left'); });
+// "top/bottom" layout: on either edge strip, the bottom 70% turns forward and the
+// top 30% goes back — direction is absolute (not affected by RTL), since it's driven
+// by vertical position rather than which side of the screen was tapped.
+$('#tapLeftBottom').addEventListener('click', ()=>{ if(!suppressTapClick) turnPageAbs(true); });
+$('#tapRightBottom').addEventListener('click', ()=>{ if(!suppressTapClick) turnPageAbs(true); });
+$('#tapLeftTop').addEventListener('click', ()=>{ if(!suppressTapClick) turnPageAbs(false); });
+$('#tapRightTop').addEventListener('click', ()=>{ if(!suppressTapClick) turnPageAbs(false); });
+
+function updateTapZoneLayout(){
+  // note: .tap-zone.top / .tap-zone.bottom carry "display:none" in the stylesheet,
+  // so showing them needs an explicit 'block' — setting '' just removes the inline
+  // override and falls back to that CSS rule, which stays none and swallows taps.
+  const topBottom = settings.tapLayout === 'topBottom';
+  $('#tapLeft').style.display = topBottom ? 'none' : '';
+  $('#tapRight').style.display = topBottom ? 'none' : '';
+  $('#tapLeftTop').style.display = topBottom ? 'block' : 'none';
+  $('#tapLeftBottom').style.display = topBottom ? 'block' : 'none';
+  $('#tapRightTop').style.display = topBottom ? 'block' : 'none';
+  $('#tapRightBottom').style.display = topBottom ? 'block' : 'none';
+}
+
+// Shared touch handlers, attached both to the outer pane (for the tap-zone strips and any
+// blank chrome) and, via the epub.js content hook below, directly onto each chapter's iframe
+// document — otherwise touches that start over the actual book text never bubble out of the
+// iframe and swiping only worked at the very edges of the screen. Direction always follows
+// the swipe itself (left-moving swipe = forward, right-moving = back) no matter where on the
+// page it started or ended — including over the tap-zone strips, where we briefly suppress
+// the strip's own click so a swipe there isn't immediately re-triggered as a fixed-direction tap.
+let touchStartX = null, touchStartY = null;
+function onContentTouchStart(e){
+  if(!e.touches || !e.touches.length) return;
+  touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY;
+}
+function onContentTouchEnd(e){
+  if(touchStartX===null || settings.viewMode!=='page' || !book || !book.rendition) { touchStartX=null; return; }
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - (touchStartY||0);
+  touchStartX = null;
+  if(Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return; // require a clearly horizontal swipe
+  suppressTapClick = true;
+  turnPage(dx < 0 ? 'left' : 'right');
+  setTimeout(()=>{ suppressTapClick = false; }, 400);
+}
+pagePane.addEventListener('touchstart', onContentTouchStart, {passive:true});
+pagePane.addEventListener('touchend', onContentTouchEnd, {passive:true});
+
+function attachContentTouch(contents){
+  if(!contents || !contents.document) return;
+  const doc = contents.document;
+  doc.addEventListener('touchstart', onContentTouchStart, {passive:true});
+  doc.addEventListener('touchend', onContentTouchEnd, {passive:true});
+}
+
+window.addEventListener('resize', debounce(()=>{
+  updateRulerPosition();
+}, 200));
+
+/* ---------- View mode switching ---------- */
+function updateViewModeUI(){
+  document.querySelectorAll('#viewSeg button').forEach(b=>b.classList.toggle('active', b.dataset.v===settings.viewMode));
+}
+$('#viewSeg').addEventListener('click', e=>{
+  const btn = e.target.closest('button'); if(!btn) return;
+  settings.viewMode = btn.dataset.v;
+  persistSettings();
+  updateViewModeUI();
+  if(!book) return;
+  mountRendition();
+});
+
+/* ============================================================
+   Bottom bar: percent + status cycle
+   ============================================================ */
+const STATUS_MODES = [
+  'none','pageInBook','pageInChapter','timeInBook','timeInChapter','flipsInBook','flipsInChapter'
+];
+
+function currentPercent(){
+  if(!book) return 0;
+  if(book.locationsReady && book.currentCfi){
+    try{ return book.epubBook.locations.percentageFromCfi(book.currentCfi); }catch(e){}
+  }
+  const total = (book.epubBook.spine && book.epubBook.spine.length) || 1;
+  let frac = (book.currentIndex||0)/total;
+  if(book.currentDisplayed && book.currentDisplayed.total){
+    frac += (1/total) * ((book.currentDisplayed.page-1)/book.currentDisplayed.total);
+  }
+  return Math.max(0, Math.min(1, frac));
+}
+
+function wordsRemainingInChapter(){
+  if(!book || !book.wordCounts) return null;
+  const idx = book.currentIndex||0;
+  let curFrac = 1;
+  if(book.currentDisplayed && book.currentDisplayed.total){
+    curFrac = 1 - (book.currentDisplayed.page/book.currentDisplayed.total);
+  }
+  return Math.round((book.wordCounts.counts[idx]||0) * curFrac);
+}
+function wordsRemainingInBook(){
+  if(!book || !book.wordCounts) return null;
+  const idx = book.currentIndex||0;
+  let rem = wordsRemainingInChapter() || 0;
+  for(let i=idx+1;i<book.wordCounts.counts.length;i++) rem += book.wordCounts.counts[i];
+  return rem;
+}
+function fmtTime(words){
+  if(words==null) return null;
+  const mins = words / settings.wpm;
+  if(mins < 1) return '<1 min';
+  if(mins < 60) return Math.round(mins)+' min';
+  const h = Math.floor(mins/60), m = Math.round(mins%60);
+  return h+'h '+(m>0? m+'m':'');
+}
+
+function updateBottomBar(){
+  if(!book) return;
+  const pct = Math.round(currentPercent()*100);
+  statusRight.textContent = pct+'%';
+  statusRight.classList.toggle('hidden-pct', !settings.percentVisible);
+
+  const mode = STATUS_MODES[settings.statusMode];
+  let text = '';
+  switch(mode){
+    case 'none': text=''; break;
+    case 'pageInBook':
+      if(book.locationsReady && book.currentCfi){
+        const loc = book.epubBook.locations.locationFromCfi(book.currentCfi);
+        text = `Location ${loc+1} of ${book.epubBook.locations.total}`;
+      } else text = 'Calculating…';
+      break;
+    case 'pageInChapter':
+      if(settings.viewMode==='page' && book.currentDisplayed){
+        text = `Page ${book.currentDisplayed.page} of ${book.currentDisplayed.total} (chapter)`;
+      } else text = 'Page view only';
+      break;
+    case 'timeInBook': {
+      const t = fmtTime(wordsRemainingInBook());
+      text = t ? (t+' left in book') : 'Calculating…';
+      break;
+    }
+    case 'timeInChapter': {
+      const t = fmtTime(wordsRemainingInChapter());
+      text = t ? (t+' left in chapter') : 'Calculating…';
+      break;
+    }
+    case 'flipsInBook':
+      if(book.locationsReady && book.currentCfi){
+        const loc = book.epubBook.locations.locationFromCfi(book.currentCfi);
+        text = (book.epubBook.locations.total-loc-1)+' locations left in book';
+      } else text = 'Calculating…';
+      break;
+    case 'flipsInChapter':
+      if(settings.viewMode==='page' && book.currentDisplayed){
+        text = (book.currentDisplayed.total-book.currentDisplayed.page)+' flips left in chapter';
+      } else text = 'Switch to page view';
+      break;
+  }
+  statusLeft.textContent = text;
+}
+
+statusRight.addEventListener('click', ()=>{
+  settings.percentVisible = !settings.percentVisible;
+  persistSettings();
+  updateBottomBar();
+});
+statusLeft.addEventListener('click', ()=>{
+  settings.statusMode = (settings.statusMode+1) % STATUS_MODES.length;
+  persistSettings();
+  updateBottomBar();
+});
+
+/* ============================================================
+   Ruler
+   ============================================================ */
+function updateRulerPosition(){
+  const wrap = $('#contentWrap');
+  const h = wrap.clientHeight;
+  const lh = settings.fontSize * settings.lineHeight;
+  rulerEl.style.height = Math.max(28, lh+6)+'px';
+  const top = settings.rulerPos * (h - rulerEl.offsetHeight);
+  rulerEl.style.top = top+'px';
+  rulerEl.classList.toggle('on', settings.rulerOn);
+}
+$('#rulerBtn').addEventListener('click', ()=>{
+  settings.rulerOn = !settings.rulerOn;
+  persistSettings();
+  updateRulerPosition();
+});
+(function setupRulerDrag(){
+  let dragging=false, startY=0, startTop=0;
+  function down(y){
+    dragging=true; startY=y; startTop=parseFloat(rulerEl.style.top||0);
+  }
+  function move(y){
+    if(!dragging) return;
+    const wrap = $('#contentWrap');
+    const h = wrap.clientHeight;
+    let top = startTop + (y-startY);
+    top = Math.max(0, Math.min(top, h-rulerEl.offsetHeight));
+    rulerEl.style.top = top+'px';
+    settings.rulerPos = top / (h-rulerEl.offsetHeight || 1);
+  }
+  function up(){ if(dragging){ dragging=false; persistSettings(); } }
+  rulerEl.addEventListener('mousedown', e=>down(e.clientY));
+  window.addEventListener('mousemove', e=>move(e.clientY));
+  window.addEventListener('mouseup', up);
+  rulerEl.addEventListener('touchstart', e=>down(e.touches[0].clientY), {passive:true});
+  rulerEl.addEventListener('touchmove', e=>{ move(e.touches[0].clientY); }, {passive:true});
+  rulerEl.addEventListener('touchend', up);
+})();
+
+/* ============================================================
+   Custom modal (confirm/prompt replacement)
+   ------------------------------------------------------------
+   window.confirm()/prompt() are unreliable (often no-op or throw)
+   inside embedded webviews like this app's own, so anything that
+   needs a yes/no or a short text answer goes through this instead.
+   Resolves to: null if cancelled/dismissed; true if confirmed with
+   no input field; the trimmed input string if confirmed with one.
+   ============================================================ */
+let modalResolve = null;
+function showModal(opts){
+  opts = opts || {};
+  return new Promise(resolve=>{
+    modalResolve = resolve;
+    modalTitle.textContent = opts.title || '';
+    modalMsg.textContent = opts.message || '';
+    modalMsg.style.display = opts.message ? '' : 'none';
+    modalInput.style.display = opts.showInput ? 'block' : 'none';
+    modalInput.value = opts.inputValue || '';
+    modalInput.placeholder = opts.placeholder || '';
+    modalConfirmBtn.textContent = opts.confirmLabel || 'OK';
+    modalCancelBtn.textContent = opts.cancelLabel || 'Cancel';
+    modalScrim.classList.add('open');
+    customModal.classList.add('open');
+    if(opts.showInput) setTimeout(()=>{ modalInput.focus(); modalInput.select(); }, 60);
+  });
+}
+function closeModal(result){
+  modalScrim.classList.remove('open');
+  customModal.classList.remove('open');
+  const resolve = modalResolve;
+  modalResolve = null;
+  if(resolve) resolve(result);
+}
+modalCancelBtn.addEventListener('click', ()=> closeModal(null));
+modalScrim.addEventListener('click', ()=> closeModal(null));
+modalConfirmBtn.addEventListener('click', ()=>{
+  if(modalInput.style.display !== 'none') closeModal(modalInput.value.trim());
+  else closeModal(true);
+});
+modalInput.addEventListener('keydown', e=>{
+  if(e.key==='Enter') modalConfirmBtn.click();
+  if(e.key==='Escape') closeModal(null);
+});
+
+/* ============================================================
+   Settings sheet UI
+   ============================================================ */
+function openSettings(){ settingsSheet.classList.add('open'); scrim.classList.add('open'); }
+function closeSettings(){ settingsSheet.classList.remove('open'); scrim.classList.remove('open'); }
+$('#settingsBtn').addEventListener('click', openSettings);
+scrim.addEventListener('click', ()=>{ closeSettings(); closeTOC(); });
+
+document.querySelectorAll('.swatch[data-theme]').forEach(sw=>{
+  sw.addEventListener('click', ()=>{
+    settings.theme = sw.dataset.theme;
+    if(sw.dataset.theme !== 'custom') settings.activeCustomThemeId = null;
+    persistSettings();
+    applyTypography();
+    refreshSettingsUI();
+    if(book) reflowCurrent();
+  });
+});
+
+$('#customImageBtn').addEventListener('click', ()=> $('#customImageInput').click());
+$('#customImageInput').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  const dataUrl = await blobToDataUrl(file);
+  settings.custom = Object.assign({}, settings.custom, {image: dataUrl});
+  settings.activeCustomThemeId = null;
+  persistSettings();
+  refreshSettingsUI();
+  if(book) reflowCurrent();
+});
+$('#customColorInput').addEventListener('input', (e)=>{
+  settings.custom = Object.assign({}, settings.custom, {color: e.target.value});
+  settings.activeCustomThemeId = null;
+  persistSettings();
+  updateCustomThemeCSS();
+  renderSavedThemeSwatches();
+  if(book) reflowCurrent();
+});
+$('#customOpacityRange').addEventListener('input', (e)=>{
+  const v = parseFloat(e.target.value);
+  settings.custom = Object.assign({}, settings.custom, {opacity: v});
+  settings.activeCustomThemeId = null;
+  $('#customOpacityVal').textContent = Math.round(v*100)+'%';
+  persistSettings();
+  updateCustomThemeCSS();
+  renderSavedThemeSwatches();
+  if(book) reflowCurrent();
+});
+$('#customTextColorInput').addEventListener('input', (e)=>{
+  settings.custom = Object.assign({}, settings.custom, {textColor: e.target.value});
+  settings.activeCustomThemeId = null;
+  persistSettings();
+  updateCustomThemeCSS();
+  renderSavedThemeSwatches();
+  if(book) reflowCurrent();
+});
+
+/* ---------- Saved custom themes ---------- */
+$('#saveThemeBtn').addEventListener('click', async ()=>{
+  const name = await showModal({
+    title: 'Save theme',
+    showInput: true,
+    placeholder: 'Theme name',
+    confirmLabel: 'Save',
+    cancelLabel: 'Cancel'
+  });
+  if(name === null) return; // cancelled
+  const c = settings.custom || {};
+  const themeObj = {
+    id: 'ct'+Date.now()+Math.floor(Math.random()*1000),
+    name: name || 'Custom theme',
+    image: c.image || null,
+    color: c.color || '#1a1a1a',
+    opacity: (c.opacity != null ? c.opacity : 0.35),
+    textColor: c.textColor || '#2a241c'
+  };
+  customThemes.push(themeObj);
+  persistCustomThemes();
+  settings.activeCustomThemeId = themeObj.id;
+  persistSettings();
+  renderSavedThemeSwatches();
+});
+
+function renderSavedThemeSwatches(){
+  const container = $('#savedThemeSwatches');
+  if(!container) return;
+  container.innerHTML = '';
+  customThemes.forEach(t=>{
+    const div = document.createElement('div');
+    div.className = 'swatch';
+    div.title = t.name;
+    const overlay = customOverlayRgba(t);
+    div.style.background = t.image
+      ? `linear-gradient(${overlay},${overlay}), url("${t.image}")`
+      : customBlendOverWhite(t);
+    div.style.color = t.textColor || '#fff';
+    div.classList.toggle('active', settings.theme==='custom' && settings.activeCustomThemeId===t.id);
+    const label = document.createElement('span');
+    label.textContent = (t.name||'?').trim().slice(0,2).toUpperCase();
+    div.appendChild(label);
+    const del = document.createElement('span');
+    del.className = 'swatch-del';
+    del.textContent = '×';
+    del.title = 'Delete theme';
+    div.appendChild(del);
+    div.addEventListener('click', (e)=>{
+      if(e.target === del) return;
+      settings.theme = 'custom';
+      settings.custom = {image: t.image, color: t.color, opacity: t.opacity, textColor: t.textColor};
+      settings.activeCustomThemeId = t.id;
+      persistSettings();
+      applyTypography();
+      updateCustomThemeCSS();
+      refreshSettingsUI();
+      if(book) reflowCurrent();
+    });
+    del.addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      const ok = await showModal({
+        title: 'Delete theme?',
+        message: 'Delete "'+t.name+'"? This can\'t be undone.',
+        confirmLabel: 'Delete',
+        cancelLabel: 'Cancel'
+      });
+      if(!ok) return;
+      customThemes = customThemes.filter(x=>x.id!==t.id);
+      persistCustomThemes();
+      if(settings.activeCustomThemeId === t.id){
+        settings.activeCustomThemeId = null;
+        persistSettings();
+      }
+      renderSavedThemeSwatches();
+    });
+    container.appendChild(div);
+  });
+}
+
+const fontListEl = $('#fontList');
+FONTS.forEach(f=>{
+  const div = document.createElement('div');
+  div.className='font-opt';
+  div.dataset.id = f.id;
+  div.innerHTML = `<span>${f.label}</span><span style="font-family:${f.stack};font-size:19px;">${f.sample}</span>`;
+  div.addEventListener('click', ()=>{
+    settings.font = f.id; persistSettings(); refreshSettingsUI();
+    if(book) reflowCurrent();
+  });
+  fontListEl.appendChild(div);
+});
+
+function bindRange(id, key, fmt, after, needsReflow){
+  if(needsReflow === undefined) needsReflow = true;
+  const el = $(id);
+  el.addEventListener('input', ()=>{
+    settings[key] = parseFloat(el.value);
+    persistSettings();
+    document.getElementById(id.slice(1).replace('Range','Val')).textContent = fmt ? fmt(settings[key]) : settings[key];
+    if(needsReflow && book) reflowCurrent();
+    if(after) after();
+  });
+}
+bindRange('#sizeRange','fontSize', v=>v);
+bindRange('#lineRange','lineHeight', v=>v.toFixed(1), updateRulerPosition);
+bindRange('#letterRange','letterSpacing', v=>v.toFixed(1));
+bindRange('#paraRange','paraSpacing', v=>v.toFixed(1));
+bindRange('#wpmRange','wpm', v=>Math.round(v), updateBottomBar, false);
+
+$('#tapLayoutSwitch').addEventListener('click', ()=>{
+  settings.tapLayout = (settings.tapLayout === 'topBottom') ? 'sides' : 'topBottom';
+  persistSettings();
+  refreshSettingsUI();
+});
+
+$('#removeBookBtn').addEventListener('click', async ()=>{
+  if(!book) return;
+  const ok = await showModal({
+    title: 'Unlink file?',
+    message: '"'+book.title+'" will stay in your library and tracker — this only forgets the file on this device. (The file itself is not deleted.)',
+    confirmLabel: 'Unlink',
+    cancelLabel: 'Cancel'
+  });
+  if(!ok) return;
+  const bookId = book.id;
+  tstate.matches[bookId] = false;
+  idbDelete('files', bookId).catch(()=>{});
+  idbDelete('handles', bookId).catch(()=>{});
+  closeSettings();
+  try{ if(book.rendition) book.rendition.destroy(); }catch(e){}
+  try{ book.epubBook.destroy(); }catch(e){}
+  book = null;
+  toast('File unlinked from this device.');
+  showLibrary();
+});
+
+function refreshSettingsUI(){
+  document.querySelectorAll('.swatch').forEach(sw=>sw.classList.toggle('active', sw.dataset.theme===settings.theme));
+  document.querySelectorAll('.font-opt').forEach(f=>f.classList.toggle('active', f.dataset.id===settings.font));
+  $('#sizeRange').value = settings.fontSize; $('#sizeVal').textContent = settings.fontSize;
+  $('#lineRange').value = settings.lineHeight; $('#lineVal').textContent = settings.lineHeight.toFixed(1);
+  $('#letterRange').value = settings.letterSpacing; $('#letterVal').textContent = settings.letterSpacing.toFixed(1);
+  $('#paraRange').value = settings.paraSpacing; $('#paraVal').textContent = settings.paraSpacing.toFixed(1);
+  $('#wpmRange').value = settings.wpm; $('#wpmVal').textContent = Math.round(settings.wpm);
+  updateViewModeUI();
+  $('#tapLayoutSwitch').classList.toggle('on', settings.tapLayout === 'topBottom');
+  updateTapZoneLayout();
+
+  const c = settings.custom || {};
+  $('#customThemeGroup').style.display = settings.theme === 'custom' ? '' : 'none';
+  $('#customColorInput').value = c.color || '#1a1a1a';
+  const opacityVal = (c.opacity != null ? c.opacity : 0.35);
+  $('#customOpacityRange').value = opacityVal;
+  $('#customOpacityVal').textContent = Math.round(opacityVal*100)+'%';
+  $('#customTextColorInput').value = c.textColor || '#2a241c';
+  $('#customImagePreview').style.backgroundImage = c.image ? `url("${c.image}")` : 'none';
+  updateCustomThemeCSS();
+  renderSavedThemeSwatches();
+}
+refreshSettingsUI();
+
+/* ============================================================
+   TOC sheet
+   ============================================================ */
+function renderTOC(){
+  tocList.innerHTML = '';
+  (book.navToc||[]).forEach(entry=>{
+    const div = document.createElement('div');
+    div.className = 'toc-item'+((entry.index!=null && entry.index===book.currentIndex)?' current':'');
+    div.textContent = entry.label;
+    div.addEventListener('click', ()=>{
+      closeTOC();
+      book.rendition.display(entry.href);
+    });
+    tocList.appendChild(div);
+  });
+}
+function openTOC(){ tocSheet.classList.add('open'); scrim.classList.add('open'); }
+function closeTOC(){ tocSheet.classList.remove('open'); scrim.classList.remove('open'); }
+$('#tocBtn').addEventListener('click', ()=>{ renderTOC(); openTOC(); });
+$('#tocCloseBtn').addEventListener('click', closeTOC);
+
+/* ============================================================
+   Nav / progress persistence
+   ============================================================ */
+$('#backBtn').addEventListener('click', ()=>{
+  saveProgress();
+  if (book && book.trackerItem && book.trackerItem.source === 'book'){
+    // Flush immediately rather than waiting on the debounce, so closing the
+    // reader always reflects the true final position on the main tracker.
+    syncPercentToMainSiteNow(book.trackerItem.id, Math.round(currentPercent()*100));
+  }
+  if(book){
+    try{ if(book.rendition) book.rendition.destroy(); }catch(e){}
+    try{ book.epubBook.destroy(); }catch(e){}
+  }
+  book = null;
+  readerRatingRowEl.style.display = 'none';
+  showLibrary();
+});
+
+function saveProgress(){
+  if(!book) return;
+  const cfi = book.currentCfi || book.savedCfi || null;
+  const pct = currentPercent();
+  // Local mirror updates instantly (snappy resume even offline); the cloud write
+  // is debounced inside persistProgressCloud, same as Audiobooks' persistProgress.
+  persistProgressCloud(book.id, { cfi, percent: pct });
+  if (book.trackerItem && book.trackerItem.source === 'book'){
+    syncPercentToMainSite(book.trackerItem.id, Math.round(pct*100));
+  }
+}
+const saveProgressDebounced = debounce(saveProgress, 400);
+
+/* ============================================================
+   Tracker modals: move-to-reading / complete book
+   ============================================================ */
+const TM_FORMATS = ["Physical","Digital","Audio"];
+const TM_SOURCES = ["Purchased","Borrowed","Gift","Free"];
+const TM_LANGUAGES = ["English","Hebrew"];
+function tmSelectOptions(list, current){
+  return list.map(v => `<option value="${esc(v)}" ${v===current?'selected':''}>${esc(v)}</option>`).join('');
+}
+function starsPickerHTML(value, size){
+  size = size || 22;
+  value = Math.max(0, Math.min(5, Number(value)||0));
+  let out = `<span class="mini-stars editable" style="font-size:${size}px">`;
+  for (let n=1;n<=5;n++){
+    const frac = Math.max(0, Math.min(1, value-(n-1)));
+    out += `<span class="star-slot">
+      <span class="star-base">★</span>
+      <span class="star-fill" style="width:${Math.round(frac*100)}%">★</span>
+      <span class="star-hit star-hit-q1" data-action="pick-complete-rating" data-val="${n-0.75}"></span>
+      <span class="star-hit star-hit-q2" data-action="pick-complete-rating" data-val="${n-0.5}"></span>
+      <span class="star-hit star-hit-q3" data-action="pick-complete-rating" data-val="${n-0.25}"></span>
+      <span class="star-hit star-hit-q4" data-action="pick-complete-rating" data-val="${n}"></span>
+    </span>`;
+  }
+  return out + `</span>`;
+}
+
+// Mirrors index.html's own moveWishFormHTML()/Audiobooks' move-wish modal — same
+// fields, same defaults — except Format defaults to Digital instead of Physical,
+// since a book opened from here is (presumably) about to be read as an ebook.
+function renderMoveWishModal(wishId){
+  const w = tstate.wishlist.find(x => x.id === wishId);
+  if (!w) return '';
+  return `<div class="tm-overlay" data-action="modal-backdrop">
+    <div class="tm-card">
+      <div class="tm-head">
+        <h3>Move to Currently Reading</h3>
+        <button class="tm-close" data-action="close-tracker-modal">×</button>
+      </div>
+      <div class="tm-body">
+        <div style="font-size:12.5px;color:var(--sub);margin-bottom:16px;line-height:1.5;">
+          Moving <strong style="color:var(--text);">${esc(w.title)}</strong> to Currently Reading. A few more details:
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+          <label class="tm-field"><div class="lbl">Source</div><select id="mw-source" class="tm-input">${tmSelectOptions(TM_SOURCES,'Purchased')}</select></label>
+          <label class="tm-field"><div class="lbl">Format</div><select id="mw-format" class="tm-input">${tmSelectOptions(TM_FORMATS,'Digital')}</select></label>
+          <label class="tm-field"><div class="lbl">Language</div><select id="mw-language" class="tm-input">${tmSelectOptions(TM_LANGUAGES,'English')}</select></label>
+          <label class="tm-field"><div class="lbl">Recommended by</div><input id="mw-recby" class="tm-input" placeholder="Optional"></label>
+        </div>
+        <label class="tm-field" style="margin-bottom:4px;">
+          <div class="lbl">Notes / thoughts</div>
+          <textarea id="mw-notes" class="tm-input" placeholder="Quotes, annotations, anything to remember" style="min-height:70px;resize:vertical;font-family:inherit;"></textarea>
+        </label>
+        <div class="tm-actions">
+          <button class="tm-cancel" data-action="close-tracker-modal">Cancel</button>
+          <button class="tm-confirm" data-action="confirm-move-wish" data-id="${esc(w.id)}">Add to Currently Reading</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+function openMoveWishModal(wishId){
+  const w = tstate.wishlist.find(x => x.id === wishId);
+  if (!w) return;
+  tstate.modal = { kind:'move-wish', id: wishId };
+  renderTrackerModal();
+}
+// Mirrors index.html's completeMoveWish() / Audiobooks' confirmMoveWish() field-for-
+// field: same new-book shape and defaults, and the same two writes (books AND
+// wishlist) to BOOKS_DOC — the very doc the tracker itself reads and writes — so a
+// book moved from here shows up on the tracker's Currently Reading list exactly as
+// if "Read" had been clicked there.
+function confirmMoveWish(wishId){
+  const w = tstate.wishlist.find(x => x.id === wishId);
+  if (!w) return;
+  const source = (document.getElementById('mw-source')||{}).value || 'Purchased';
+  const format = (document.getElementById('mw-format')||{}).value || 'Digital';
+  const language = (document.getElementById('mw-language')||{}).value || 'English';
+  const recommendedBy = ((document.getElementById('mw-recby')||{}).value || '').trim();
+  const notes = ((document.getElementById('mw-notes')||{}).value || '').trim();
+  const todayISO = new Date().toISOString().slice(0,10);
+  const addDaysISO = (iso, days) => { const d = new Date((iso||todayISO)+'T00:00:00'); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); };
+  const newBook = {
+    id: Date.now().toString(36)+Math.random().toString(36).slice(2,8),
+    title: w.title, author: w.author, genre: w.genre||'', subGenre: w.subGenre||'',
+    format, source, status: 'reading', priority: 'Interested', rating: 0, dateFinished: '',
+    language, pagesHours: w.pagesHours||'', review: '', notes, recommendedBy, coverUrl: w.coverUrl||'',
+    seriesName: w.seriesName||'', seriesNumber: w.seriesNumber||'', rereads: [],
+    isExample: false, progressPercent: 0, progressMode: 'percent', progressPage: '',
+    dueDate: source === 'Borrowed' ? addDaysISO(todayISO, 14) : '',
+  };
+  const newWishlist = tstate.wishlist.filter(x => x.id !== wishId);
+  tstate.wishlist = newWishlist;
+  if (format !== 'Audio') tstate.books = [...tstate.books, newBook]; // optimistic — this view only shows non-Audio books
+  tstate.modal = null;
+  renderGallery();
+
+  BOOKS_DOC.get({ source: 'server' }).then(snap => {
+    const data = snap.exists ? snap.data() : {};
+    const fullBooks = Array.isArray(data.books) ? data.books : [];
+    const mergedFullBooks = [...fullBooks, newBook];
+    tstate.allBooks = mergedFullBooks;
+    return BOOKS_DOC.set({ books: mergedFullBooks, wishlist: newWishlist }, { merge: true });
+  }).then(() => toast(`${w.title} moved to Currently Reading.`))
+    .catch(err => { console.error('Failed to move wishlist item:', err); toast('Could not sync — try again.'); });
+}
+
+// Mirrors the tracker's own "Complete book" modal (date finished + required
+// rating) and Audiobooks' saveCompleteBook() exactly: same fields, same
+// required-rating check, same write straight to BOOKS_DOC.
+function renderCompleteModal(itemId){
+  const item = findTrackerItem(itemId);
+  if (!item) return '';
+  const raw = item.raw || {};
+  const draft = tstate.modal.draft || (tstate.modal.draft = {
+    dateFinished: new Date().toISOString().slice(0,10),
+    rating: Number(raw.rating)||0,
+  });
+  return `<div class="tm-overlay" data-action="modal-backdrop">
+    <div class="tm-card" style="width:380px;">
+      <div class="tm-head">
+        <h3>Complete book</h3>
+        <button class="tm-close" data-action="close-tracker-modal">×</button>
+      </div>
+      <div class="tm-body">
+        <div class="lbl" style="margin-bottom:6px;">Date finished</div>
+        <input type="date" id="complete-date-input" class="tm-input" value="${esc(draft.dateFinished)}" style="margin-bottom:16px;">
+        <div class="lbl" style="margin-bottom:8px;">Rating <span style="color:#b0563f;">*</span></div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+          ${starsPickerHTML(draft.rating)}
+          <span style="font-size:12.5px;color:var(--sub);">${draft.rating ? String(draft.rating) : 'Tap to rate'}</span>
+        </div>
+        <div class="tm-actions">
+          <button class="tm-cancel" data-action="close-tracker-modal">Cancel</button>
+          <button class="tm-confirm" data-action="save-complete-book" data-id="${esc(item.id)}">Complete Book</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+function openCompleteModal(itemId){
+  const item = findTrackerItem(itemId);
+  if (!item) return;
+  tstate.modal = { kind:'complete', id: itemId, draft: {
+    dateFinished: new Date().toISOString().slice(0,10),
+    rating: Number((item.raw||{}).rating) || 0,
+  }};
+  renderTrackerModal();
+}
+function saveCompleteBook(itemId){
+  const draft = (tstate.modal && tstate.modal.kind === 'complete' && tstate.modal.draft) || {};
+  const dateInput = document.getElementById('complete-date-input');
+  const dateFinished = dateInput ? dateInput.value : (draft.dateFinished || new Date().toISOString().slice(0,10));
+  const rating = Number(draft.rating) || 0;
+  if (rating <= 0){ toast('Add a rating before completing.'); return; }
+  const writePromise = saveBookPatch(itemId, {
+    status: 'done', dateFinished, rating, priority: '', dueDate: '',
+  });
+  tstate.modal = null;
+  renderGallery();
+  updateReaderRatingRow();
+  writePromise
+    .then(() => toast('Marked as complete.'))
+    .catch(err => { console.error('Failed to mark complete:', err); toast('Could not sync completion — try again.'); });
+}
+
+function renderTrackerModal(){
+  if (!trackerModalRootEl) return;
+  trackerModalRootEl.innerHTML = tstate.modal
+    ? (tstate.modal.kind === 'complete' ? renderCompleteModal(tstate.modal.id) : renderMoveWishModal(tstate.modal.id))
+    : '';
+}
+
+/* ---------------- Gallery + tracker-modal event delegation ---------------- */
+document.addEventListener('click', async (e)=>{
+  if (e.target.dataset && e.target.dataset.action === 'modal-backdrop'){
+    tstate.modal = null; renderTrackerModal(); return;
+  }
+  const t = e.target.closest('[data-action]');
+  if (!t) return;
+  const action = t.dataset.action;
+  const id = t.dataset.id;
+
+  if (action === 'noop') return;
+  if (action === 'open-book'){
+    const item = findTrackerItem(id);
+    if (item) await openTrackerBook(item);
+    return;
+  }
+  if (action === 'add-file'){
+    const item = findTrackerItem(id);
+    if (item) await addFileForItem(item);
+    return;
+  }
+  if (action === 'close-tracker-modal'){ tstate.modal = null; renderTrackerModal(); return; }
+  if (action === 'confirm-move-wish'){ return confirmMoveWish(id); }
+  if (action === 'save-complete-book'){ return saveCompleteBook(id); }
+  if (action === 'pick-complete-rating'){
+    if (tstate.modal && tstate.modal.kind === 'complete'){
+      tstate.modal.draft = tstate.modal.draft || {};
+      tstate.modal.draft.rating = parseFloat(t.dataset.val);
+      renderTrackerModal();
+    }
+    return;
+  }
+});
+
+// Tap-to-rate stars: on the gallery's feature cards and on the reader's own
+// rating row (both use starsEditableHTML's data-rating-for + quarter hit zones).
+document.addEventListener('click', (e)=>{
+  const hit = e.target.closest('.star-hit');
+  if (!hit) return;
+  const wrap = hit.closest('[data-rating-for]');
+  if (!wrap) return;
+  const slot = hit.closest('.star-slot');
+  const slots = Array.from(wrap.querySelectorAll('.star-slot'));
+  const n = slots.indexOf(slot) + 1;
+  const frac = hit.classList.contains('star-hit-q1') ? -0.75
+    : hit.classList.contains('star-hit-q2') ? -0.5
+    : hit.classList.contains('star-hit-q3') ? -0.25 : 0;
+  setRating(wrap.dataset.ratingFor, n + frac);
+});
+// Double-tap/double-click a rating to type an exact number instead of tapping stars.
+document.addEventListener('dblclick', (e)=>{
+  const wrap = e.target.closest('[data-rating-for]');
+  if (!wrap) return;
+  e.preventDefault();
+  const bookId = wrap.dataset.ratingFor;
+  const bk = tstate.books.find(b => b.id === bookId);
+  if (!bk) return;
+  showModal({
+    title: 'Rating (0–5)', showInput: true, inputValue: String(Number(bk.rating)||''),
+    confirmLabel: 'Save', cancelLabel: 'Cancel'
+  }).then(result => {
+    if (result === null) return;
+    const val = parseFloat(result);
+    if (!isNaN(val)) setRating(bookId, val);
+  });
+});
+
+/* ============================================================
+   Utils
+   ============================================================ */
+function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
+
+/* ============================================================
+   Init
+   ============================================================ */
+showLibrary();
+loadTrackerBooks();
+loadReadingProgress();
+booksReadyPromise.then(refreshMatches);
+
+})();
+</script>
+</body>
+</html>
