@@ -1422,9 +1422,72 @@ function createRendition(container, mode){
   return rendition;
 }
 
+function normText(s){ return (s||'').replace(/\s+/g,' ').trim(); }
+
+// Grabs a short snippet of the actual words at the top of whatever's on
+// screen right now, from the *currently mounted* rendition (call this before
+// tearing it down to switch modes). This is what we'll go looking for again
+// once the new mode is mounted, since it's the one thing that means the same
+// thing in both flow types — a CFI or percentage doesn't move the eye, words
+// do.
+function captureWordAnchor(){
+  if(!book || !book.rendition) return null;
+  try{
+    const contentsArr = book.rendition.getContents();
+    if(!contentsArr || !contentsArr.length) return null;
+    for(const contents of contentsArr){
+      const doc = contents.document;
+      if(!doc || !doc.body) continue;
+      const viewportH = (doc.defaultView && doc.defaultView.innerHeight) || 99999;
+      const blocks = doc.body.querySelectorAll('p, div, li, h1, h2, h3, h4, h5, h6, blockquote');
+      for(const el of blocks){
+        const text = normText(el.textContent);
+        if(text.length < 8) continue; // skip empty/decorative blocks
+        const rect = el.getBoundingClientRect();
+        if(rect.bottom > 0 && rect.top < viewportH){
+          return { text: text.split(' ').slice(0, 10).join(' ') };
+        }
+      }
+    }
+  }catch(e){}
+  return null;
+}
+
+// Searches the newly-mounted rendition's loaded content for a block of text
+// starting with (or containing) the captured snippet, and returns a CFI
+// pointing at the start of that block.
+function findAnchorCfiForText(contentsArr, snippet){
+  if(!snippet) return null;
+  for(const contents of contentsArr){
+    const doc = contents.document;
+    if(!doc || !doc.body) continue;
+    const blocks = doc.body.querySelectorAll('p, div, li, h1, h2, h3, h4, h5, h6, blockquote');
+    for(const el of blocks){
+      const text = normText(el.textContent);
+      if(text.startsWith(snippet) || text.includes(snippet)){
+        const walker = doc.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+        const firstTextNode = walker.nextNode();
+        if(firstTextNode){
+          try{
+            const range = doc.createRange();
+            range.setStart(firstTextNode, 0);
+            range.setEnd(firstTextNode, Math.min(1, firstTextNode.length));
+            const cfi = contents.cfiFromRange(range);
+            if(cfi) return cfi;
+          }catch(e){}
+        }
+      }
+    }
+  }
+  return null;
+}
+
 // startAtOverride lets a caller (e.g. the view-mode switch) land on a specific
 // cfi instead of the book's normal remembered position — see switchViewMode.
-function mountRendition(startAtOverride){
+// wordAnchor, if provided, is a snippet captured from the *previous* mode via
+// captureWordAnchor(); once the new mode's initial display settles, we search
+// its content for those words and snap onto them for a precise hand-off.
+function mountRendition(startAtOverride, wordAnchor){
   if(book.rendition){ try{ book.rendition.destroy(); }catch(e){} book.rendition = null; }
   scrollPane.style.display = settings.viewMode==='scroll' ? 'block':'none';
   pagePane.style.display = settings.viewMode==='page' ? 'block':'none';
@@ -1432,7 +1495,22 @@ function mountRendition(startAtOverride){
   containerEl.innerHTML = '';
   book.rendition = createRendition(containerEl, settings.viewMode);
   const startAt = startAtOverride || book.currentCfi || book.savedCfi || undefined;
-  book.rendition.display(startAt);
+  const displayPromise = book.rendition.display(startAt);
+  if(wordAnchor && wordAnchor.text){
+    displayPromise.then(()=>{
+      // Small delay so the manager (especially continuous/scrolled) finishes
+      // laying out before we go searching its content.
+      setTimeout(()=>{
+        if(!book.rendition) return;
+        try{
+          const contentsArr = book.rendition.getContents();
+          const refinedCfi = findAnchorCfiForText(contentsArr, wordAnchor.text);
+          if(refinedCfi) book.rendition.display(refinedCfi);
+        }catch(e){}
+      }, 60);
+    }).catch(()=>{});
+  }
+  return displayPromise;
 }
 
 function onRelocated(location){
@@ -1567,11 +1645,16 @@ $('#viewSeg').addEventListener('click', e=>{
   } else {
     anchor = book ? (book.currentCfi || book.savedCfi || undefined) : undefined;
   }
+  // Grab the actual words visible right now, before we tear this rendition
+  // down — this is the real anchor; the CFI/percentage above is just the
+  // coarse landing spot the new mode initially opens to while we search for
+  // these words in it.
+  const wordAnchor = captureWordAnchor();
   settings.viewMode = newMode;
   persistSettings();
   updateViewModeUI();
   if(!book) return;
-  mountRendition(anchor);
+  mountRendition(anchor, wordAnchor);
 });
 
 /* ============================================================
@@ -2290,4 +2373,5 @@ booksReadyPromise.then(refreshMatches);
 })();
 </script>
 </body>
+</html>
 </html>
