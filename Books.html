@@ -1454,9 +1454,9 @@ function captureWordAnchor(){
 }
 
 // Searches the newly-mounted rendition's loaded content for a block of text
-// starting with (or containing) the captured snippet, and returns a CFI
-// pointing at the start of that block.
-function findAnchorCfiForText(contentsArr, snippet){
+// starting with (or containing) the captured snippet. Returns the matching
+// {contents, el} pair, or null.
+function findAnchorElement(contentsArr, snippet){
   if(!snippet) return null;
   for(const contents of contentsArr){
     const doc = contents.document;
@@ -1465,21 +1465,42 @@ function findAnchorCfiForText(contentsArr, snippet){
     for(const el of blocks){
       const text = normText(el.textContent);
       if(text.startsWith(snippet) || text.includes(snippet)){
-        const walker = doc.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
-        const firstTextNode = walker.nextNode();
-        if(firstTextNode){
-          try{
-            const range = doc.createRange();
-            range.setStart(firstTextNode, 0);
-            range.setEnd(firstTextNode, Math.min(1, firstTextNode.length));
-            const cfi = contents.cfiFromRange(range);
-            if(cfi) return cfi;
-          }catch(e){}
-        }
+        return { contents, el };
       }
     }
   }
   return null;
+}
+
+function cfiForElementStart(contents, el){
+  try{
+    const walker = contents.document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+    const firstTextNode = walker.nextNode();
+    if(!firstTextNode) return null;
+    const range = contents.document.createRange();
+    range.setStart(firstTextNode, 0);
+    range.setEnd(firstTextNode, Math.min(1, firstTextNode.length));
+    return contents.cfiFromRange(range);
+  }catch(e){ return null; }
+}
+
+// In scroll mode, rendition.display(cfi) only guarantees the target is
+// *somewhere* on screen, not that it's at the top — so the matched line can
+// land mid-screen with a pile of earlier text stacked above it, which reads
+// as a jump even though the book position is right. This scrolls the actual
+// container directly so the matched element's top lines up with the
+// viewport's top, bypassing epub.js's scroll-positioning for this step.
+function scrollElementToTop(contents, el){
+  try{
+    const frameEl = contents.document.defaultView.frameElement;
+    if(!frameEl) return false;
+    const elRect = el.getBoundingClientRect();
+    const frameRect = frameEl.getBoundingClientRect();
+    const paneRect = scrollPane.getBoundingClientRect();
+    const targetTop = scrollPane.scrollTop + (frameRect.top - paneRect.top) + elRect.top;
+    scrollPane.scrollTop = Math.max(0, targetTop);
+    return true;
+  }catch(e){ return false; }
 }
 
 // startAtOverride lets a caller (e.g. the view-mode switch) land on a specific
@@ -1504,8 +1525,19 @@ function mountRendition(startAtOverride, wordAnchor){
         if(!book.rendition) return;
         try{
           const contentsArr = book.rendition.getContents();
-          const refinedCfi = findAnchorCfiForText(contentsArr, wordAnchor.text);
-          if(refinedCfi) book.rendition.display(refinedCfi);
+          const found = findAnchorElement(contentsArr, wordAnchor.text);
+          if(!found) return;
+          if(settings.viewMode==='scroll'){
+            // Scroll the container directly so the matched line sits at the
+            // top, instead of trusting display() to put it there.
+            if(!scrollElementToTop(found.contents, found.el)){
+              const cfi = cfiForElementStart(found.contents, found.el);
+              if(cfi) book.rendition.display(cfi);
+            }
+          } else {
+            const cfi = cfiForElementStart(found.contents, found.el);
+            if(cfi) book.rendition.display(cfi);
+          }
         }catch(e){}
       }, 60);
     }).catch(()=>{});
@@ -2373,5 +2405,4 @@ booksReadyPromise.then(refreshMatches);
 })();
 </script>
 </body>
-</html>
 </html>
