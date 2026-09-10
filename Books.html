@@ -147,9 +147,6 @@ body[data-theme="paper"] #app{
 .conn-line.warn{color:#b0563f;font-weight:600;}
 .conn-line .conn-btn{background:var(--accent);color:#fff;border:none;border-radius:7px;padding:4px 10px;font-size:10.5px;font-weight:700;cursor:pointer;}
 
-/* rating row shown under the reader top bar, for tracker-linked books */
-.reader-rating-row{display:flex;align-items:center;justify-content:center;gap:8px;padding:6px 0 2px;flex:0 0 auto;}
-
 /* ---------- toast ---------- */
 .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:var(--bg2);color:var(--text);padding:10px 18px;border-radius:14px;font-size:12.5px;font-weight:600;box-shadow:0 8px 24px var(--shadow);z-index:60;border:1px solid var(--border);max-width:min(92vw,420px);white-space:normal;word-break:break-word;text-align:center;line-height:1.4;}
 
@@ -183,7 +180,10 @@ body[data-theme="paper"] #app{
 }
 .icon-btn:active{background:var(--bg2);}
 .icon-btn svg{display:block;}
-.top-title{flex:1;min-width:0;font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;}
+.top-title-wrap{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:6px;overflow:hidden;}
+.top-title{min-width:0;font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.top-title-rating{flex:0 0 auto;display:inline-flex;}
+.top-title-rating .mini-stars{vertical-align:-2px;}
 
 .content-wrap{flex:1 1 auto;min-height:0;position:relative;overflow:hidden;}
 
@@ -331,12 +331,14 @@ input[type=color]{width:44px;height:34px;border:none;border-radius:8px;padding:0
   <div id="reader">
     <div class="top-bar">
       <button class="icon-btn" id="backBtn" title="Library">‹</button>
-      <div class="top-title" id="topTitle"></div>
+      <div class="top-title-wrap" id="topTitleWrap">
+        <div class="top-title" id="topTitle"></div>
+        <span class="top-title-rating" id="topTitleRating"></span>
+      </div>
       <button class="icon-btn" id="tocBtn" title="Chapters">☰</button>
       <button class="icon-btn" id="rulerBtn" title="Ruler">▤</button>
       <button class="icon-btn" id="settingsBtn" title="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
     </div>
-    <div class="reader-rating-row" id="readerRatingRow" style="display:none;"></div>
 
     <div class="content-wrap" id="contentWrap">
       <div id="scrollPane"></div>
@@ -887,7 +889,7 @@ const $ = sel => document.querySelector(sel);
 const libraryEl = $('#library'), readerEl = $('#reader');
 const galleryRootEl = $('#galleryRoot');
 const trackerModalRootEl = $('#trackerModalRoot');
-const readerRatingRowEl = $('#readerRatingRow');
+const topTitleRatingEl = $('#topTitleRating');
 const fileInput = $('#fileInput');
 const scrollPane = $('#scrollPane');
 const pagePane = $('#pagePane'), pageViewport = $('#pageViewport');
@@ -1185,7 +1187,7 @@ async function openTrackerBookFile(file, item){
       id: item.id, title: item.title || metadata.title || file.name, author: item.author || metadata.creator || '',
       dir, epubBook, rendition: null,
       navToc: buildNavToc(epubBook, navigation.toc),
-      currentCfi: null, currentHref: null, currentIndex: 0, currentDisplayed: null,
+      currentCfi: null, currentEndCfi: null, currentHref: null, currentIndex: 0, currentDisplayed: null,
       atStart:false, atEnd:false,
       savedCfi: null,
       wordCounts: null, locationsReady: false,
@@ -1221,18 +1223,17 @@ async function openTrackerBookFile(file, item){
   }
 }
 
-// Editable star rating shown under the reader's top bar, for the tracker book
-// currently open — mirrors Audiobooks' always-visible player rating row.
+// Editable star rating shown next to the book title in the reader's top bar,
+// for the tracker book currently open — mirrors Audiobooks' always-visible
+// player rating row, just relocated alongside the name instead of its own row.
 function updateReaderRatingRow(){
-  if (!readerRatingRowEl) return;
+  if (!topTitleRatingEl) return;
   if (!book || !book.trackerItem || book.trackerItem.source !== 'book'){
-    readerRatingRowEl.style.display = 'none';
-    readerRatingRowEl.innerHTML = '';
+    topTitleRatingEl.innerHTML = '';
     return;
   }
   const raw = tstate.books.find(b => b.id === book.trackerItem.id) || book.trackerItem.raw || {};
-  readerRatingRowEl.style.display = 'flex';
-  readerRatingRowEl.innerHTML = starsEditableHTML(book.trackerItem.id, Number(raw.rating)||0, 18);
+  topTitleRatingEl.innerHTML = starsEditableHTML(book.trackerItem.id, Number(raw.rating)||0, 13);
 }
 
 function detectDirection(metadata){
@@ -1421,14 +1422,16 @@ function createRendition(container, mode){
   return rendition;
 }
 
-function mountRendition(){
+// startAtOverride lets a caller (e.g. the view-mode switch) land on a specific
+// cfi instead of the book's normal remembered position — see switchViewMode.
+function mountRendition(startAtOverride){
   if(book.rendition){ try{ book.rendition.destroy(); }catch(e){} book.rendition = null; }
   scrollPane.style.display = settings.viewMode==='scroll' ? 'block':'none';
   pagePane.style.display = settings.viewMode==='page' ? 'block':'none';
   const containerEl = settings.viewMode==='scroll' ? scrollPane : pageViewport;
   containerEl.innerHTML = '';
   book.rendition = createRendition(containerEl, settings.viewMode);
-  const startAt = book.currentCfi || book.savedCfi || undefined;
+  const startAt = startAtOverride || book.currentCfi || book.savedCfi || undefined;
   book.rendition.display(startAt);
 }
 
@@ -1438,6 +1441,11 @@ function onRelocated(location){
   book.currentHref = location.start.href;
   book.currentIndex = location.start.index;
   book.currentDisplayed = location.start.displayed || null;
+  // The end of the currently visible range — roughly "the last word on screen".
+  // Used as the hand-off point when switching between scroll and page view, so
+  // the switch continues from what was last read rather than re-displaying
+  // from the top of the visible range (which reads as a jump backwards).
+  book.currentEndCfi = (location.end && location.end.cfi) || null;
   book.atStart = !!location.atStart;
   book.atEnd = !!location.atEnd;
   updateBottomBar();
@@ -1540,11 +1548,18 @@ function updateViewModeUI(){
 }
 $('#viewSeg').addEventListener('click', e=>{
   const btn = e.target.closest('button'); if(!btn) return;
-  settings.viewMode = btn.dataset.v;
+  const newMode = btn.dataset.v;
+  if(newMode === settings.viewMode) return;
+  // Anchor the switch on the last word currently visible on screen (the end
+  // of the visible range) rather than the first, so hopping between endless
+  // scroll and single page view continues from where reading left off
+  // instead of snapping back to whatever was at the top of the view.
+  const anchor = book ? (book.currentEndCfi || book.currentCfi || book.savedCfi || undefined) : undefined;
+  settings.viewMode = newMode;
   persistSettings();
   updateViewModeUI();
   if(!book) return;
-  mountRendition();
+  mountRendition(anchor);
 });
 
 /* ============================================================
@@ -1990,7 +2005,7 @@ $('#backBtn').addEventListener('click', ()=>{
     try{ book.epubBook.destroy(); }catch(e){}
   }
   book = null;
-  readerRatingRowEl.style.display = 'none';
+  topTitleRatingEl.innerHTML = '';
   showLibrary();
 });
 
