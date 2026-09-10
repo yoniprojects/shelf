@@ -1550,12 +1550,23 @@ $('#viewSeg').addEventListener('click', e=>{
   const btn = e.target.closest('button'); if(!btn) return;
   const newMode = btn.dataset.v;
   if(newMode === settings.viewMode) return;
-  // Anchor the switch on the *start* of the currently visible range. "Top of
-  // page" and "top of viewport" are close analogues of each other across
-  // modes, whereas "end of page" and "end of viewport" cover very different
-  // amounts of text (depends on font size / images / screen height), which
-  // was causing the jump-by-a-variable-amount bug when toggling modes.
-  const anchor = book ? (book.currentCfi || book.savedCfi || undefined) : undefined;
+  // Anchor the switch on the book's overall reading percentage rather than a
+  // raw CFI. A raw CFI is inherently viewport-shaped (it means "top of this
+  // particular page" or "top of this particular scroll screenful"), so
+  // handing it straight to the other mode's display() still let the jump
+  // size vary with font size / images / screen height. Percentage is
+  // mode-agnostic — it's the same "35% through the book" regardless of how
+  // that gets chunked into pages or scroll-screens — so converting through
+  // it gives a small, consistent handoff instead of one that drifts.
+  let anchor;
+  if(book && book.locationsReady && book.currentCfi){
+    try{
+      const pct = book.epubBook.locations.percentageFromCfi(book.currentCfi);
+      anchor = book.epubBook.locations.cfiFromPercentage(pct);
+    }catch(e){ anchor = book.currentCfi; }
+  } else {
+    anchor = book ? (book.currentCfi || book.savedCfi || undefined) : undefined;
+  }
   settings.viewMode = newMode;
   persistSettings();
   updateViewModeUI();
