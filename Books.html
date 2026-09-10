@@ -1424,12 +1424,71 @@ function createRendition(container, mode){
 
 function normText(s){ return (s||'').replace(/\s+/g,' ').trim(); }
 
-// Grabs a short snippet of the actual words at the top of whatever's on
-// screen right now, from the *currently mounted* rendition (call this before
-// tearing it down to switch modes). This is what we'll go looking for again
-// once the new mode is mounted, since it's the one thing that means the same
-// thing in both flow types — a CFI or percentage doesn't move the eye, words
-// do.
+// Collects the document's text nodes in order, skipping script/style/empty
+// ones — used to build a searchable, position-mapped version of the page.
+function getReadableTextNodes(doc){
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, {
+    acceptNode(n){
+      if(!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      const p = n.parentElement;
+      if(p && (p.tagName==='SCRIPT'||p.tagName==='STYLE')) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  const nodes = [];
+  let n;
+  while((n = walker.nextNode())) nodes.push(n);
+  return nodes;
+}
+
+// Concatenates those text nodes into one string, remembering which node each
+// character came from, so a match found in the combined string can be traced
+// back to an exact (node, offset) — not just "somewhere in this block".
+function buildCombinedText(nodes){
+  let text = '';
+  const starts = [];
+  for(const node of nodes){
+    starts.push({startIndex: text.length, node});
+    text += node.nodeValue;
+  }
+  return {text, starts};
+}
+
+function resolvePosition(starts, index){
+  for(let i=starts.length-1;i>=0;i--){
+    if(index >= starts[i].startIndex){
+      return {node: starts[i].node, offset: index - starts[i].startIndex};
+    }
+  }
+  return null;
+}
+
+// Collapses whitespace runs to single spaces while keeping a map back to the
+// original (unnormalized) string index for every character kept, so a match
+// against the normalized text can still be located precisely in the source.
+function normalizeWithMap(raw){
+  let out = '';
+  const idx = [];
+  let lastWasSpace = true;
+  for(let i=0;i<raw.length;i++){
+    const ch = raw[i];
+    if(/\s/.test(ch)){
+      if(!lastWasSpace){ out += ' '; idx.push(i); lastWasSpace = true; }
+    } else {
+      out += ch; idx.push(i); lastWasSpace = false;
+    }
+  }
+  if(out.endsWith(' ')){ out = out.slice(0,-1); idx.pop(); }
+  return {norm: out, idx};
+}
+
+// Grabs a short snippet starting at the exact character under the top-left
+// of the content area right now, from the *currently mounted* rendition
+// (call this before tearing it down to switch modes). Using point-based hit
+// testing (rather than "which block intersects the viewport") matters
+// because a single paragraph here often spans more than one screen — a
+// block-level check would grab words from the start of the paragraph, not
+// the words actually at the top of the visible screen.
 function captureWordAnchor(){
   if(!book || !book.rendition) return null;
   try{
@@ -1437,70 +1496,82 @@ function captureWordAnchor(){
     if(!contentsArr || !contentsArr.length) return null;
     for(const contents of contentsArr){
       const doc = contents.document;
-      if(!doc || !doc.body) continue;
-      const viewportH = (doc.defaultView && doc.defaultView.innerHeight) || 99999;
-      const blocks = doc.body.querySelectorAll('p, div, li, h1, h2, h3, h4, h5, h6, blockquote');
-      for(const el of blocks){
-        const text = normText(el.textContent);
-        if(text.length < 8) continue; // skip empty/decorative blocks
-        const rect = el.getBoundingClientRect();
-        if(rect.bottom > 0 && rect.top < viewportH){
-          return { text: text.split(' ').slice(0, 10).join(' ') };
+      if(!doc || !doc.body || !doc.caretRangeFromPoint) continue;
+      let range = null;
+      for(let y=6; y<=100 && !range; y+=6){
+        for(let x=6; x<=48 && !range; x+=14){
+          const r = doc.caretRangeFromPoint(x,y);
+          if(r && r.startContainer && r.startContainer.nodeType===3 &&
+             doc.body.contains(r.startContainer) && normText(r.startContainer.nodeValue).length){
+            range = r;
+          }
         }
       }
+      if(!range) continue;
+      const nodes = getReadableTextNodes(doc);
+      const combined = buildCombinedText(nodes);
+      let baseIndex = null;
+      for(const s of combined.starts){
+        if(s.node === range.startContainer){ baseIndex = s.startIndex + range.startOffset; break; }
+      }
+      if(baseIndex==null) continue;
+      let snippet = normText(combined.text.slice(baseIndex, baseIndex+90));
+      snippet = snippet.split(' ').slice(0,10).join(' ');
+      if(snippet.length >= 8) return { text: snippet };
     }
   }catch(e){}
   return null;
 }
 
-// Searches the newly-mounted rendition's loaded content for a block of text
-// starting with (or containing) the captured snippet. Returns the matching
-// {contents, el} pair, or null.
-function findAnchorElement(contentsArr, snippet){
+// Searches the newly-mounted rendition's content for the exact text position
+// where the snippet starts (not just which block contains it), and returns a
+// Range spanning it.
+function findAnchorRange(contentsArr, snippet){
   if(!snippet) return null;
   for(const contents of contentsArr){
     const doc = contents.document;
     if(!doc || !doc.body) continue;
-    const blocks = doc.body.querySelectorAll('p, div, li, h1, h2, h3, h4, h5, h6, blockquote');
-    for(const el of blocks){
-      const text = normText(el.textContent);
-      if(text.startsWith(snippet) || text.includes(snippet)){
-        return { contents, el };
-      }
-    }
+    const nodes = getReadableTextNodes(doc);
+    const combined = buildCombinedText(nodes);
+    const { norm, idx } = normalizeWithMap(combined.text);
+    const pos = norm.indexOf(snippet);
+    if(pos < 0) continue;
+    const rawStart = idx[pos];
+    const rawEnd = idx[Math.min(pos + snippet.length - 1, idx.length-1)];
+    const startPos = resolvePosition(combined.starts, rawStart);
+    const endPos = resolvePosition(combined.starts, rawEnd);
+    if(!startPos || !endPos) continue;
+    try{
+      const range = doc.createRange();
+      range.setStart(startPos.node, startPos.offset);
+      range.setEnd(endPos.node, Math.min(endPos.offset+1, endPos.node.nodeValue.length));
+      return { contents, range };
+    }catch(e){}
   }
   return null;
 }
 
-function cfiForElementStart(contents, el){
-  try{
-    const walker = contents.document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
-    const firstTextNode = walker.nextNode();
-    if(!firstTextNode) return null;
-    const range = contents.document.createRange();
-    range.setStart(firstTextNode, 0);
-    range.setEnd(firstTextNode, Math.min(1, firstTextNode.length));
-    return contents.cfiFromRange(range);
-  }catch(e){ return null; }
-}
-
 // In scroll mode, rendition.display(cfi) only guarantees the target is
-// *somewhere* on screen, not that it's at the top — so the matched line can
-// land mid-screen with a pile of earlier text stacked above it, which reads
-// as a jump even though the book position is right. This scrolls the actual
-// container directly so the matched element's top lines up with the
+// *somewhere* on screen, not that it's at the top. This scrolls the actual
+// container directly so the matched range's top lines up with the
 // viewport's top, bypassing epub.js's scroll-positioning for this step.
-function scrollElementToTop(contents, el){
+function scrollRangeToTop(contents, range){
   try{
     const frameEl = contents.document.defaultView.frameElement;
     if(!frameEl) return false;
-    const elRect = el.getBoundingClientRect();
+    const rects = range.getClientRects();
+    const rect = rects && rects.length ? rects[0] : range.getBoundingClientRect();
+    if(!rect) return false;
     const frameRect = frameEl.getBoundingClientRect();
     const paneRect = scrollPane.getBoundingClientRect();
-    const targetTop = scrollPane.scrollTop + (frameRect.top - paneRect.top) + elRect.top;
+    const targetTop = scrollPane.scrollTop + (frameRect.top - paneRect.top) + rect.top;
     scrollPane.scrollTop = Math.max(0, targetTop);
     return true;
   }catch(e){ return false; }
+}
+
+function cfiForRange(contents, range){
+  try{ return contents.cfiFromRange(range); }catch(e){ return null; }
 }
 
 // startAtOverride lets a caller (e.g. the view-mode switch) land on a specific
@@ -1525,17 +1596,15 @@ function mountRendition(startAtOverride, wordAnchor){
         if(!book.rendition) return;
         try{
           const contentsArr = book.rendition.getContents();
-          const found = findAnchorElement(contentsArr, wordAnchor.text);
+          const found = findAnchorRange(contentsArr, wordAnchor.text);
           if(!found) return;
           if(settings.viewMode==='scroll'){
-            // Scroll the container directly so the matched line sits at the
-            // top, instead of trusting display() to put it there.
-            if(!scrollElementToTop(found.contents, found.el)){
-              const cfi = cfiForElementStart(found.contents, found.el);
+            if(!scrollRangeToTop(found.contents, found.range)){
+              const cfi = cfiForRange(found.contents, found.range);
               if(cfi) book.rendition.display(cfi);
             }
           } else {
-            const cfi = cfiForElementStart(found.contents, found.el);
+            const cfi = cfiForRange(found.contents, found.range);
             if(cfi) book.rendition.display(cfi);
           }
         }catch(e){}
