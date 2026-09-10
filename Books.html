@@ -1550,11 +1550,12 @@ $('#viewSeg').addEventListener('click', e=>{
   const btn = e.target.closest('button'); if(!btn) return;
   const newMode = btn.dataset.v;
   if(newMode === settings.viewMode) return;
-  // Anchor the switch on the last word currently visible on screen (the end
-  // of the visible range) rather than the first, so hopping between endless
-  // scroll and single page view continues from where reading left off
-  // instead of snapping back to whatever was at the top of the view.
-  const anchor = book ? (book.currentEndCfi || book.currentCfi || book.savedCfi || undefined) : undefined;
+  // Anchor the switch on the *start* of the currently visible range. "Top of
+  // page" and "top of viewport" are close analogues of each other across
+  // modes, whereas "end of page" and "end of viewport" cover very different
+  // amounts of text (depends on font size / images / screen height), which
+  // was causing the jump-by-a-variable-amount bug when toggling modes.
+  const anchor = book ? (book.currentCfi || book.savedCfi || undefined) : undefined;
   settings.viewMode = newMode;
   persistSettings();
   updateViewModeUI();
