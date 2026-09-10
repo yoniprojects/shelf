@@ -1484,40 +1484,77 @@ function normalizeWithMap(raw){
 
 // Grabs a short snippet starting at the exact character under the top-left
 // of the content area right now, from the *currently mounted* rendition
-// (call this before tearing it down to switch modes). Using point-based hit
-// testing (rather than "which block intersects the viewport") matters
-// because a single paragraph here often spans more than one screen — a
-// block-level check would grab words from the start of the paragraph, not
-// the words actually at the top of the visible screen.
+// If the user has manually selected text, that's the most reliable possible
+// anchor — no guessing about which words are "at the top" or which iframe is
+// actually the one on screen, since a selection can only exist in the frame
+// the user is looking at. Prefer this whenever it's available.
+function captureSelectionAnchor(){
+  if(!book || !book.rendition) return null;
+  try{
+    const contentsArr = book.rendition.getContents();
+    for(const contents of contentsArr){
+      const doc = contents.document;
+      if(!doc || !doc.getSelection) continue;
+      const sel = doc.getSelection();
+      if(sel && sel.rangeCount>0 && !sel.isCollapsed){
+        const text = normText(sel.getRangeAt(0).toString());
+        if(text.length >= 3){
+          return { text: text.split(' ').slice(0,10).join(' ') };
+        }
+      }
+    }
+  }catch(e){}
+  return null;
+}
+
+// Fallback when nothing's selected: grabs a snippet starting at the exact
+// character under the top-left of the visible content area, from the
+// *currently mounted* rendition (call this before tearing it down to switch
+// modes). Two things matter here: (1) point-based hit testing rather than
+// "which block intersects the viewport", because a single paragraph here
+// often spans more than one screen — a block-level check would grab words
+// from the start of the paragraph, not the words actually at the top of the
+// visible screen; and (2) the continuous/scroll manager preloads neighboring
+// sections into extra offscreen iframes for smooth scrolling, so we have to
+// check which iframe's bounding box actually contains the point on screen
+// right now, rather than just trying contents in array order — otherwise
+// this can silently sample a buffered iframe that isn't what's visible.
 function captureWordAnchor(){
   if(!book || !book.rendition) return null;
   try{
     const contentsArr = book.rendition.getContents();
     if(!contentsArr || !contentsArr.length) return null;
-    for(const contents of contentsArr){
-      const doc = contents.document;
-      if(!doc || !doc.body || !doc.caretRangeFromPoint) continue;
-      let range = null;
-      for(let y=6; y<=100 && !range; y+=6){
-        for(let x=6; x<=48 && !range; x+=14){
-          const r = doc.caretRangeFromPoint(x,y);
-          if(r && r.startContainer && r.startContainer.nodeType===3 &&
-             doc.body.contains(r.startContainer) && normText(r.startContainer.nodeValue).length){
-            range = r;
+    const outerContainer = settings.viewMode==='scroll' ? scrollPane : pageViewport;
+    const containerRect = outerContainer.getBoundingClientRect();
+    for(let dy=6; dy<=100; dy+=6){
+      for(let dx=6; dx<=48; dx+=14){
+        const px = containerRect.left + dx;
+        const py = containerRect.top + dy;
+        for(const contents of contentsArr){
+          const doc = contents.document;
+          if(!doc || !doc.body || !doc.caretRangeFromPoint) continue;
+          const win = doc.defaultView;
+          const frameEl = win && win.frameElement;
+          if(!frameEl) continue;
+          const frameRect = frameEl.getBoundingClientRect();
+          // Skip iframes that aren't actually under this on-screen point —
+          // e.g. preloaded neighboring sections sitting off-screen.
+          if(px < frameRect.left || px >= frameRect.right || py < frameRect.top || py >= frameRect.bottom) continue;
+          const r = doc.caretRangeFromPoint(px - frameRect.left, py - frameRect.top);
+          if(!(r && r.startContainer && r.startContainer.nodeType===3 &&
+               doc.body.contains(r.startContainer) && normText(r.startContainer.nodeValue).length)) continue;
+          const nodes = getReadableTextNodes(doc);
+          const combined = buildCombinedText(nodes);
+          let baseIndex = null;
+          for(const s of combined.starts){
+            if(s.node === r.startContainer){ baseIndex = s.startIndex + r.startOffset; break; }
           }
+          if(baseIndex==null) continue;
+          let snippet = normText(combined.text.slice(baseIndex, baseIndex+90));
+          snippet = snippet.split(' ').slice(0,10).join(' ');
+          if(snippet.length >= 8) return { text: snippet };
         }
       }
-      if(!range) continue;
-      const nodes = getReadableTextNodes(doc);
-      const combined = buildCombinedText(nodes);
-      let baseIndex = null;
-      for(const s of combined.starts){
-        if(s.node === range.startContainer){ baseIndex = s.startIndex + range.startOffset; break; }
-      }
-      if(baseIndex==null) continue;
-      let snippet = normText(combined.text.slice(baseIndex, baseIndex+90));
-      snippet = snippet.split(' ').slice(0,10).join(' ');
-      if(snippet.length >= 8) return { text: snippet };
     }
   }catch(e){}
   return null;
@@ -1749,8 +1786,9 @@ $('#viewSeg').addEventListener('click', e=>{
   // Grab the actual words visible right now, before we tear this rendition
   // down — this is the real anchor; the CFI/percentage above is just the
   // coarse landing spot the new mode initially opens to while we search for
-  // these words in it.
-  const wordAnchor = captureWordAnchor();
+  // these words in it. A manual selection (if the user made one) is the most
+  // reliable version of this — prefer it over the auto-detected guess.
+  const wordAnchor = captureSelectionAnchor() || captureWordAnchor();
   settings.viewMode = newMode;
   persistSettings();
   updateViewModeUI();
