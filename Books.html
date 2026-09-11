@@ -296,6 +296,11 @@ input[type=color]{width:44px;height:34px;border:none;border-radius:8px;padding:0
 .switch.on{background:var(--accent);}
 .switch.on i{left:20px;background:#fff;}
 .small-btn{background:var(--bg2);border:none;color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600;}
+.small-btn:disabled{opacity:.5;cursor:default;}
+.search-result{padding:10px 12px;border-radius:9px;background:var(--bg2);cursor:pointer;margin-bottom:6px;}
+.search-result-chapter{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--sub);margin-bottom:3px;}
+.search-result-excerpt{font-size:14px;line-height:1.4;}
+.search-result-excerpt mark{background:var(--accent);color:#fff;border-radius:3px;padding:0 2px;}
 
 /* toc */
 #tocSheet{position:absolute;left:0;right:0;bottom:0;top:0;background:var(--bg);z-index:21;transform:translateX(-100%);transition:transform .25s ease;display:flex;flex-direction:column;}
@@ -373,6 +378,16 @@ input[type=color]{width:44px;height:34px;border:none;border-radius:8px;padding:0
   <div id="scrim"></div>
   <div id="settingsSheet">
     <div class="sheet-handle"></div>
+
+    <div class="setting-group">
+      <h4>Search this book</h4>
+      <div class="row" style="margin-bottom:8px;">
+        <input type="text" id="searchInput" class="modal-input" style="margin:0;flex:1;min-width:0;width:auto;" placeholder="Search for words or a phrase…" autocomplete="off" autocorrect="off" spellcheck="false">
+        <button class="small-btn" id="searchBtn" style="flex:0 0 auto;">Search</button>
+      </div>
+      <div id="searchStatus" style="font-size:12.5px;color:var(--sub);margin-bottom:6px;"></div>
+      <div id="searchResults"></div>
+    </div>
 
     <div class="setting-group">
       <h4>Theme</h4>
@@ -2225,6 +2240,113 @@ function openTOC(){ tocSheet.classList.add('open'); scrim.classList.add('open');
 function closeTOC(){ tocSheet.classList.remove('open'); scrim.classList.remove('open'); }
 $('#tocBtn').addEventListener('click', ()=>{ renderTOC(); openTOC(); });
 $('#tocCloseBtn').addEventListener('click', closeTOC);
+
+/* ============================================================
+   In-book search
+   ============================================================ */
+const searchInput = $('#searchInput'), searchBtn = $('#searchBtn'),
+      searchStatus = $('#searchStatus'), searchResultsEl = $('#searchResults');
+let searchToken = 0;
+
+// Walks book.navToc (already built in document order from the EPUB's nav)
+// to find the last chapter heading at or before this spine index — same
+// idea as a "current chapter" lookup, just keyed off an arbitrary result
+// instead of the reading position.
+function navLabelForIndex(index){
+  if(!book || !book.navToc || index==null) return '';
+  let best = '';
+  for(const entry of book.navToc){
+    if(entry.index!=null && entry.index<=index) best = (entry.label||'').trim();
+  }
+  return best;
+}
+
+// Loads each spine section in turn and uses epub.js's own Section.find
+// (case-insensitive substring match, returns {cfi, excerpt} pairs) — the
+// same load/unload loop computeWordCounts() already uses to walk the whole
+// book, so this carries no extra cost pattern beyond what's already proven
+// out here.
+async function runBookSearch(query){
+  const q = query.trim();
+  if(!book || !book.epubBook) return;
+  const myToken = ++searchToken;
+  if(!q){ searchStatus.textContent=''; searchResultsEl.innerHTML=''; return; }
+  searchBtn.disabled = true;
+  searchStatus.textContent = 'Searching…';
+  searchResultsEl.innerHTML = '';
+  const results = [];
+  for(const item of book.epubBook.spine.spineItems){
+    if(myToken !== searchToken) return; // a newer search superseded this one
+    try{
+      await item.load(book.epubBook.load.bind(book.epubBook));
+      (item.find(q)||[]).forEach(m=>{
+        results.push({ cfi: m.cfi, excerpt: normText(m.excerpt), index: item.index });
+      });
+      item.unload();
+    }catch(e){}
+  }
+  if(myToken !== searchToken) return;
+  searchBtn.disabled = false;
+  searchStatus.textContent = results.length ? `${results.length} match${results.length===1?'':'es'}` : 'No matches found.';
+  renderSearchResults(results, q);
+}
+
+function renderSearchResults(results, query){
+  searchResultsEl.innerHTML = '';
+  results.forEach(r=>{
+    const row = document.createElement('div');
+    row.className = 'search-result';
+    const chap = document.createElement('div');
+    chap.className = 'search-result-chapter';
+    chap.textContent = navLabelForIndex(r.index);
+    const excerpt = document.createElement('div');
+    excerpt.className = 'search-result-excerpt';
+    appendHighlighted(excerpt, r.excerpt, query);
+    row.appendChild(chap);
+    row.appendChild(excerpt);
+    row.addEventListener('click', ()=> goToSearchResult(r, query));
+    searchResultsEl.appendChild(row);
+  });
+}
+
+// Builds the excerpt as text nodes plus a single <mark> around the matched
+// term via DOM APIs rather than innerHTML — this text comes from the book
+// file itself, not something we should trust as markup.
+function appendHighlighted(container, excerpt, query){
+  container.innerHTML = '';
+  const idx = excerpt.toLowerCase().indexOf(query.toLowerCase());
+  if(idx < 0){ container.textContent = excerpt; return; }
+  container.appendChild(document.createTextNode(excerpt.slice(0, idx)));
+  const mark = document.createElement('mark');
+  mark.textContent = excerpt.slice(idx, idx+query.length);
+  container.appendChild(mark);
+  container.appendChild(document.createTextNode(excerpt.slice(idx+query.length)));
+}
+
+function goToSearchResult(result, query){
+  if(!book || !book.rendition || !result.cfi) return;
+  closeSettings();
+  book.rendition.display(result.cfi).then(()=>{
+    if(settings.viewMode!=='scroll' || !book.rendition) return;
+    // Same fine-tuning as a view-mode switch: display(cfi) only guarantees
+    // the target is *somewhere* on screen, so re-find the exact matched
+    // text (correct source casing, taken from the excerpt) and center it.
+    setTimeout(()=>{
+      try{
+        const contentsArr = book.rendition.getContents();
+        const idx = result.excerpt.toLowerCase().indexOf(query.toLowerCase());
+        const snippet = normText(idx>=0 ? result.excerpt.slice(idx, idx+query.length) : query);
+        const found = findAnchorRange(contentsArr, snippet);
+        if(found) scrollRangeToCenter(found.contents, found.range);
+      }catch(e){}
+    }, 60);
+  }).catch(()=>{});
+}
+
+searchBtn.addEventListener('click', ()=> runBookSearch(searchInput.value));
+searchInput.addEventListener('keydown', e=>{
+  if(e.key==='Enter'){ e.preventDefault(); runBookSearch(searchInput.value); }
+});
 
 /* ============================================================
    Nav / progress persistence
