@@ -1589,10 +1589,10 @@ function findAnchorRange(contentsArr, snippet){
 }
 
 // In scroll mode, rendition.display(cfi) only guarantees the target is
-// *somewhere* on screen, not that it's at the top. This scrolls the actual
-// container directly so the matched range's top lines up with the
-// viewport's top, bypassing epub.js's scroll-positioning for this step.
-function scrollRangeToTop(contents, range){
+// *somewhere* on screen, not that it's centered. This scrolls the actual
+// container directly so the matched range lands in the middle of the
+// viewport, bypassing epub.js's scroll-positioning for this step.
+function scrollRangeToCenter(contents, range){
   try{
     const frameEl = contents.document.defaultView.frameElement;
     if(!frameEl) return false;
@@ -1601,7 +1601,9 @@ function scrollRangeToTop(contents, range){
     if(!rect) return false;
     const frameRect = frameEl.getBoundingClientRect();
     const paneRect = scrollPane.getBoundingClientRect();
-    const targetTop = scrollPane.scrollTop + (frameRect.top - paneRect.top) + rect.top;
+    const rangeTop = scrollPane.scrollTop + (frameRect.top - paneRect.top) + rect.top;
+    const rangeHeight = rect.height || 0;
+    const targetTop = rangeTop - (paneRect.height / 2) + (rangeHeight / 2);
     scrollPane.scrollTop = Math.max(0, targetTop);
     return true;
   }catch(e){ return false; }
@@ -1636,7 +1638,7 @@ function mountRendition(startAtOverride, wordAnchor){
           const found = findAnchorRange(contentsArr, wordAnchor.text);
           if(!found) return;
           if(settings.viewMode==='scroll'){
-            if(!scrollRangeToTop(found.contents, found.range)){
+            if(!scrollRangeToCenter(found.contents, found.range)){
               const cfi = cfiForRange(found.contents, found.range);
               if(cfi) book.rendition.display(cfi);
             }
