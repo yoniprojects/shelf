@@ -35,10 +35,6 @@ body{
 }
 
 /* ---------- Themes ---------- */
-body[data-theme="light"]{
-  --bg:#F7F5F0; --bg2:#EFEDE6; --text:#242220; --sub:#6e6b63; --border:rgba(36,34,32,.12);
-  --accent:#8a5a3b; --ruler: rgba(230,190,60,.32); --shadow: rgba(0,0,0,.12);
-}
 body[data-theme="dark"]{
   --bg:#1E1C19; --bg2:#28251F; --text:#E9E3D6; --sub:#a89f8d; --border:rgba(233,227,214,.12);
   --accent:#d8a25a; --ruler: rgba(216,162,90,.22); --shadow: rgba(0,0,0,.4);
@@ -297,6 +293,11 @@ input[type=color]{width:44px;height:34px;border:none;border-radius:8px;padding:0
 .switch.on i{left:20px;background:#fff;}
 .small-btn{background:var(--bg2);border:none;color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600;}
 .small-btn:disabled{opacity:.5;cursor:default;}
+.small-btn.danger{color:#b0563f;}
+.goal-current{font-size:13px;color:var(--sub);margin-bottom:12px;line-height:1.5;}
+.goal-current strong{color:var(--text);}
+.goal-select{width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px;margin:0;}
+.goal-hint{font-size:11.5px;color:var(--sub);margin-top:6px;}
 .search-result{padding:10px 12px;border-radius:9px;background:var(--bg2);cursor:pointer;margin-bottom:6px;}
 .search-result-chapter{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--sub);margin-bottom:3px;}
 .search-result-excerpt{font-size:14px;line-height:1.4;}
@@ -318,7 +319,7 @@ input[type=color]{width:44px;height:34px;border:none;border-radius:8px;padding:0
 ::-webkit-scrollbar{width:0;height:0;}
 </style>
 </head>
-<body data-theme="light">
+<body data-theme="paper">
 <div id="app">
 
   <!-- LIBRARY (gallery pulled live from the Shelf & Spine tracker) -->
@@ -341,7 +342,7 @@ input[type=color]{width:44px;height:34px;border:none;border-radius:8px;padding:0
         <span class="top-title-rating" id="topTitleRating"></span>
       </div>
       <button class="icon-btn" id="tocBtn" title="Chapters">☰</button>
-      <button class="icon-btn" id="rulerBtn" title="Ruler">▤</button>
+      <button class="icon-btn" id="rulerBtn" title="Ruler"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0Z"></path><path d="m14.5 12.5 2-2"></path><path d="m11.5 9.5 2-2"></path><path d="m8.5 6.5 2-2"></path><path d="m17.5 15.5 2-2"></path></svg></button>
       <button class="icon-btn" id="settingsBtn" title="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
     </div>
 
@@ -392,9 +393,8 @@ input[type=color]{width:44px;height:34px;border:none;border-radius:8px;padding:0
     <div class="setting-group">
       <h4>Theme</h4>
       <div class="theme-swatches">
-        <div class="swatch" data-theme="light" style="background:#F7F5F0;color:#242220;">Light</div>
         <div class="swatch" data-theme="dark" style="background:#1E1C19;color:#E9E3D6;">Dark</div>
-        <div class="swatch" data-theme="paper" style="background:#E9E2D2;color:#2E2A20;">Stone</div>
+        <div class="swatch" data-theme="paper" style="background:#E9E2D2;color:#2E2A20;">Light</div>
         <div class="swatch" data-theme="custom" id="customSwatch" style="background:linear-gradient(135deg,#bbb,#777);color:#fff;">Custom</div>
       </div>
       <div class="theme-swatches" id="savedThemeSwatches" style="margin-top:10px;"></div>
@@ -471,6 +471,26 @@ input[type=color]{width:44px;height:34px;border:none;border-radius:8px;padding:0
     </div>
 
     <div class="setting-group">
+      <h4>Reading goal</h4>
+      <div class="goal-current" id="goalCurrent"></div>
+      <div class="seg" id="goalTypeSeg">
+        <button data-t="chapter">By chapter</button>
+        <button data-t="page">By page</button>
+      </div>
+      <div class="row" id="goalChapterRow" style="margin-top:12px;display:none;">
+        <select class="goal-select" id="goalChapterSelect"></select>
+      </div>
+      <div class="row" id="goalPageRow" style="margin-top:12px;display:none;flex-direction:column;align-items:stretch;">
+        <input type="number" class="modal-input" id="goalPageInput" style="margin:0;" min="1" step="1" placeholder="Target page">
+        <div class="goal-hint" id="goalPageHint"></div>
+      </div>
+      <div class="row" style="margin-top:12px;margin-bottom:0;">
+        <button class="small-btn" id="goalSaveBtn">Set goal</button>
+        <button class="small-btn danger" id="goalDeleteBtn" style="display:none;">Delete goal</button>
+      </div>
+    </div>
+
+    <div class="setting-group">
       <button class="small-btn" id="removeBookBtn">Unlink file from this device</button>
     </div>
   </div>
@@ -511,6 +531,7 @@ const LS_SETTINGS = 'reader.settings.v1';
 const LS_PROG = 'reader.progress.v2'; // bookId -> {cfi, percent, updatedAt} — local mirror of PROGRESS_DOC
 const LS_LOCATIONS = 'reader.locations.v1'; // bookId -> epub.js locations save() blob (device-local only, never synced)
 const LS_CUSTOM_THEMES = 'reader.customThemes.v1';
+const LS_GOALS = 'reader.goals.v1'; // bookId -> {type:'chapter'|'page', chapterIndex, chapterLabel, target}
 
 function loadJSON(key, fallback){
   try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
@@ -521,7 +542,7 @@ function saveJSON(key, val){
 }
 
 const DEFAULT_SETTINGS = {
-  theme:'light', font:'literata', fontSize:18, lineHeight:1.7, letterSpacing:0, paraSpacing:1,
+  theme:'paper', font:'literata', fontSize:18, lineHeight:1.7, letterSpacing:0, paraSpacing:1,
   viewMode:'page', percentVisible:true, statusMode:1, rulerOn:false, rulerPos:0.42, wpm:230, tapLayout:'sides',
   custom:{ image:null, color:'#1a1a1a', opacity:0.35, textColor:'#2a241c' },
   activeCustomThemeId:null
@@ -537,11 +558,14 @@ let settings = Object.assign({}, DEFAULT_SETTINGS, loadJSON(LS_SETTINGS, {}));
 let progressMap = loadJSON(LS_PROG, {}); // bookId -> {cfi, percent, updatedAt}
 let locationsMap = loadJSON(LS_LOCATIONS, {}); // bookId -> locations blob
 let customThemes = loadJSON(LS_CUSTOM_THEMES, []); // [{id,name,image,color,opacity,textColor}]
+let goalsMap = loadJSON(LS_GOALS, {}); // bookId -> goal object (see LS_GOALS comment) or absent if none set
 
 function persistSettings(){ saveJSON(LS_SETTINGS, settings); }
 function persistLocalProgress(){ saveJSON(LS_PROG, progressMap); }
 function persistLocations(){ saveJSON(LS_LOCATIONS, locationsMap); }
 function persistCustomThemes(){ saveJSON(LS_CUSTOM_THEMES, customThemes); }
+function persistGoals(){ saveJSON(LS_GOALS, goalsMap); }
+function currentGoal(){ return (book && goalsMap[book.id]) || null; }
 
 /* ============================================================
    FIREBASE — same Shelf & Spine project as index.html and audiobooks.html.
@@ -825,7 +849,6 @@ const FONTS = [
 function fontStack(id){ const f = FONTS.find(f=>f.id===id); return f ? f.stack : FONTS[0].stack; }
 
 const THEME_COLORS = {
-  light:{bg:'#F7F5F0', text:'#242220', accent:'#8a5a3b'},
   dark:{bg:'#1E1C19', text:'#E9E3D6', accent:'#d8a25a'},
   paper:{bg:'#E9E2D2', text:'#2E2A20', accent:'#5f6f4e'}
 };
@@ -859,7 +882,7 @@ function getThemeColors(){
     const c = settings.custom || {};
     return { bg: customBlendOverWhite(c), text: c.textColor || '#222222', accent: c.textColor || '#222222' };
   }
-  return THEME_COLORS[settings.theme] || THEME_COLORS.light;
+  return THEME_COLORS[settings.theme] || THEME_COLORS.paper;
 }
 // keeps #app (and, via CSS vars, all the chrome — library, settings sheet, bars)
 // in sync with the custom image/overlay/text color whenever they change
@@ -1817,8 +1840,9 @@ $('#viewSeg').addEventListener('click', e=>{
    Bottom bar: percent + status cycle
    ============================================================ */
 const STATUS_MODES = [
-  'none','pageInBook','pageInChapter','timeInBook','timeInChapter','flipsInBook','flipsInChapter'
+  'none','pageInBook','pageInChapter','timeInBook','timeInChapter','flipsInBook','flipsInChapter','goalTime','goalFlips'
 ];
+const GOAL_MODES = ['goalTime','goalFlips'];
 
 function currentPercent(){
   if(!book) return 0;
@@ -1831,6 +1855,41 @@ function currentPercent(){
     frac += (1/total) * ((book.currentDisplayed.page-1)/book.currentDisplayed.total);
   }
   return Math.max(0, Math.min(1, frac));
+}
+
+// Resolves the current reading goal (if any) to a fraction (0-1) of the way
+// through the book — a chapter goal is expressed as the fraction of total
+// words that precede that chapter's start; a page goal is expressed as the
+// fraction of total locations (epub.js's pseudo-page index) up to the target.
+// Returns null if there's no goal, or if the data needed to place it isn't
+// ready yet (word counts / locations are computed in the background).
+function goalTargetFraction(){
+  const goal = currentGoal();
+  if(!book || !goal) return null;
+  if(goal.type === 'chapter'){
+    if(book.wordCounts && book.wordCounts.counts && book.wordCounts.total){
+      const counts = book.wordCounts.counts;
+      let cum = 0;
+      for(let i=0;i<goal.chapterIndex && i<counts.length;i++) cum += counts[i];
+      return Math.max(0, Math.min(1, cum/book.wordCounts.total));
+    }
+    const total = (book.epubBook.spine && book.epubBook.spine.length) || 1;
+    return Math.max(0, Math.min(1, goal.chapterIndex/total));
+  }
+  if(goal.type === 'page'){
+    if(book.locationsReady && book.epubBook.locations.total){
+      return Math.max(0, Math.min(1, goal.target/book.epubBook.locations.total));
+    }
+    return null;
+  }
+  return null;
+}
+// Fraction of the book still left to read before the goal is hit. 0 (or less,
+// clamped to 0) once the goal has been reached or passed.
+function goalRemainingFraction(){
+  const tgt = goalTargetFraction();
+  if(tgt==null) return null;
+  return Math.max(0, tgt-currentPercent());
 }
 
 function wordsRemainingInChapter(){
@@ -1900,6 +1959,28 @@ function updateBottomBar(){
         text = (book.currentDisplayed.total-book.currentDisplayed.page)+' flips left in chapter';
       } else text = 'Switch to page view';
       break;
+    case 'goalTime': {
+      const goal = currentGoal();
+      if(!goal){ text=''; break; }
+      const rem = goalRemainingFraction();
+      if(rem==null){ text = 'Calculating…'; break; }
+      if(rem<=0){ text=''; break; } // goal reached — nothing to show
+      if(!book.wordCounts || !book.wordCounts.total){ text = 'Calculating…'; break; }
+      const t = fmtTime(rem * book.wordCounts.total);
+      text = t ? (t+' left to goal') : '';
+      break;
+    }
+    case 'goalFlips': {
+      const goal = currentGoal();
+      if(!goal){ text=''; break; }
+      const rem = goalRemainingFraction();
+      if(rem==null){ text = 'Calculating…'; break; }
+      if(rem<=0){ text=''; break; } // goal reached — nothing to show
+      if(!book.locationsReady || !book.epubBook.locations.total){ text = 'Calculating…'; break; }
+      const flips = Math.round(rem * book.epubBook.locations.total);
+      text = flips>0 ? (flips+' flips left to goal') : '';
+      break;
+    }
   }
   statusLeft.textContent = text;
 }
@@ -1910,7 +1991,13 @@ statusRight.addEventListener('click', ()=>{
   updateBottomBar();
 });
 statusLeft.addEventListener('click', ()=>{
-  settings.statusMode = (settings.statusMode+1) % STATUS_MODES.length;
+  let next = settings.statusMode;
+  for(let i=0;i<STATUS_MODES.length;i++){
+    next = (next+1) % STATUS_MODES.length;
+    if(GOAL_MODES.includes(STATUS_MODES[next]) && !currentGoal()) continue; // nothing to cycle to
+    break;
+  }
+  settings.statusMode = next;
   persistSettings();
   updateBottomBar();
 });
@@ -2003,7 +2090,7 @@ modalInput.addEventListener('keydown', e=>{
 /* ============================================================
    Settings sheet UI
    ============================================================ */
-function openSettings(){ settingsSheet.classList.add('open'); scrim.classList.add('open'); }
+function openSettings(){ settingsSheet.classList.add('open'); scrim.classList.add('open'); if(book) refreshGoalUI(); }
 function closeSettings(){ settingsSheet.classList.remove('open'); scrim.classList.remove('open'); }
 $('#settingsBtn').addEventListener('click', openSettings);
 scrim.addEventListener('click', ()=>{ closeSettings(); closeTOC(); });
@@ -2195,6 +2282,106 @@ $('#removeBookBtn').addEventListener('click', async ()=>{
   showLibrary();
 });
 
+/* ============================================================
+   Reading goal UI (in Settings)
+   ============================================================ */
+let goalFormType = 'chapter'; // which half of the (unsaved) goal form is showing
+
+function populateGoalChapterSelect(){
+  const sel = $('#goalChapterSelect');
+  sel.innerHTML = '';
+  if(!book) return;
+  const chapters = (book.navToc||[]).filter(c=>c.index!=null);
+  if(!chapters.length){
+    const opt = document.createElement('option');
+    opt.textContent = 'No chapters found';
+    opt.disabled = true;
+    sel.appendChild(opt);
+    return;
+  }
+  chapters.forEach(c=>{
+    const opt = document.createElement('option');
+    opt.value = c.index;
+    opt.textContent = c.label;
+    sel.appendChild(opt);
+  });
+}
+
+function setGoalFormType(type){
+  goalFormType = type;
+  document.querySelectorAll('#goalTypeSeg button').forEach(b=>b.classList.toggle('active', b.dataset.t===type));
+  $('#goalChapterRow').style.display = type==='chapter' ? '' : 'none';
+  $('#goalPageRow').style.display = type==='page' ? '' : 'none';
+}
+$('#goalTypeSeg').addEventListener('click', e=>{
+  const btn = e.target.closest('button[data-t]');
+  if(!btn) return;
+  setGoalFormType(btn.dataset.t);
+});
+
+function refreshGoalUI(){
+  if(!book) return;
+  populateGoalChapterSelect();
+  const goal = currentGoal();
+  const totalLocs = book.locationsReady ? book.epubBook.locations.total : null;
+  $('#goalPageHint').textContent = totalLocs ? ('out of '+totalLocs+' — same numbering as the page count shown while reading') : 'Calculating book length…';
+  if(goal){
+    setGoalFormType(goal.type);
+    if(goal.type==='chapter') $('#goalChapterSelect').value = String(goal.chapterIndex);
+    else $('#goalPageInput').value = goal.target;
+    const label = goal.type==='chapter' ? ('Chapter — "'+goal.chapterLabel+'"') : ('Page '+goal.target);
+    $('#goalCurrent').innerHTML = 'Current goal: <strong>'+esc(label)+'</strong>';
+    $('#goalSaveBtn').textContent = 'Update goal';
+    $('#goalDeleteBtn').style.display = '';
+  } else {
+    setGoalFormType(goalFormType);
+    $('#goalCurrent').textContent = 'No goal set for this book.';
+    $('#goalSaveBtn').textContent = 'Set goal';
+    $('#goalDeleteBtn').style.display = 'none';
+  }
+}
+
+$('#goalSaveBtn').addEventListener('click', ()=>{
+  if(!book) return;
+  if(goalFormType==='chapter'){
+    const sel = $('#goalChapterSelect');
+    if(!sel.value){ toast('Pick a chapter first.'); return; }
+    const idx = parseInt(sel.value, 10);
+    const chapter = (book.navToc||[]).find(c=>c.index===idx);
+    goalsMap[book.id] = { type:'chapter', chapterIndex: idx, chapterLabel: chapter ? chapter.label : ('Chapter '+(idx+1)) };
+  } else {
+    const val = parseInt($('#goalPageInput').value, 10);
+    if(!val || val<1){ toast('Enter a target page.'); return; }
+    goalsMap[book.id] = { type:'page', target: val };
+  }
+  persistGoals();
+  refreshGoalUI();
+  updateBottomBar();
+  toast('Reading goal saved.');
+});
+
+$('#goalDeleteBtn').addEventListener('click', async ()=>{
+  if(!book || !currentGoal()) return;
+  const ok = await showModal({
+    title: 'Delete goal?',
+    message: 'This removes the reading goal for "'+book.title+'".',
+    confirmLabel: 'Delete',
+    cancelLabel: 'Cancel'
+  });
+  if(!ok) return;
+  delete goalsMap[book.id];
+  persistGoals();
+  // if the toggle was sitting on a goal readout, move it back to something
+  // that still has content instead of showing a stale/blank label
+  if(GOAL_MODES.includes(STATUS_MODES[settings.statusMode])){
+    settings.statusMode = 0;
+    persistSettings();
+  }
+  refreshGoalUI();
+  updateBottomBar();
+  toast('Reading goal deleted.');
+});
+
 function refreshSettingsUI(){
   document.querySelectorAll('.swatch').forEach(sw=>sw.classList.toggle('active', sw.dataset.theme===settings.theme));
   document.querySelectorAll('.font-opt').forEach(f=>f.classList.toggle('active', f.dataset.id===settings.font));
@@ -2217,6 +2404,7 @@ function refreshSettingsUI(){
   $('#customImagePreview').style.backgroundImage = c.image ? `url("${c.image}")` : 'none';
   updateCustomThemeCSS();
   renderSavedThemeSwatches();
+  if(book) refreshGoalUI();
 }
 refreshSettingsUI();
 
@@ -2587,22 +2775,8 @@ document.addEventListener('click', async (e)=>{
   }
 });
 
-// Tap-to-rate stars: on the gallery's feature cards and on the reader's own
-// rating row (both use starsEditableHTML's data-rating-for + quarter hit zones).
-document.addEventListener('click', (e)=>{
-  const hit = e.target.closest('.star-hit');
-  if (!hit) return;
-  const wrap = hit.closest('[data-rating-for]');
-  if (!wrap) return;
-  const slot = hit.closest('.star-slot');
-  const slots = Array.from(wrap.querySelectorAll('.star-slot'));
-  const n = slots.indexOf(slot) + 1;
-  const frac = hit.classList.contains('star-hit-q1') ? -0.75
-    : hit.classList.contains('star-hit-q2') ? -0.5
-    : hit.classList.contains('star-hit-q3') ? -0.25 : 0;
-  setRating(wrap.dataset.ratingFor, n + frac);
-});
-// Double-tap/double-click a rating to type an exact number instead of tapping stars.
+// Rating is set only via double-tap/double-click (typed exact number) — see
+// below. Single taps on the stars no longer change the rating.
 document.addEventListener('dblclick', (e)=>{
   const wrap = e.target.closest('[data-rating-for]');
   if (!wrap) return;
