@@ -1930,7 +1930,7 @@ function updateBottomBar(){
     case 'pageInBook':
       if(book.locationsReady && book.currentCfi){
         const loc = book.epubBook.locations.locationFromCfi(book.currentCfi);
-        text = `Location ${loc+1} of ${book.epubBook.locations.total}`;
+        text = `Page ${loc+1} of ${book.epubBook.locations.total}`;
       } else text = 'Calculating…';
       break;
     case 'pageInChapter':
@@ -1951,7 +1951,7 @@ function updateBottomBar(){
     case 'flipsInBook':
       if(book.locationsReady && book.currentCfi){
         const loc = book.epubBook.locations.locationFromCfi(book.currentCfi);
-        text = (book.epubBook.locations.total-loc-1)+' locations left in book';
+        text = (book.epubBook.locations.total-loc-1)+' pages left in book';
       } else text = 'Calculating…';
       break;
     case 'flipsInChapter':
@@ -2449,13 +2449,65 @@ function navLabelForIndex(index){
   return best;
 }
 
-// Loads each spine section in turn and uses epub.js's own Section.find
-// (case-insensitive substring match, returns {cfi, excerpt} pairs) — the
-// same load/unload loop computeWordCounts() already uses to walk the whole
-// book, so this carries no extra cost pattern beyond what's already proven
-// out here.
+// Folds curly/smart quotes and dashes to their plain-ASCII equivalents.
+// Applied to both the query and the source text before comparing, since a
+// pasted passage almost always carries the book's typographic quotes/dashes
+// (’ “ ” – —) while a typed query usually has the plain keyboard versions —
+// a mismatch that would otherwise silently break the match. One-char-for-
+// one-char, so it never disturbs the position map built alongside it.
+function foldQuotes(s){
+  return s.replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+          .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
+          .replace(/[\u2013\u2014]/g, '-');
+}
+
+// Loads each spine section, then searches its FULL text as one continuous,
+// whitespace-normalized string rather than trusting epub.js's own find()/
+// search(). epub.js's find() only matches within a single text node, and
+// its search() only bridges a handful of *sequential* nodes — so a query
+// spanning an italicized word, a footnote link, or just a paragraph break
+// can fail even though the words are right there on the page. Worse, the
+// text it searches is the raw, un-normalized textContent: many EPUBs (esp.
+// ones converted from Gutenberg-style plain text) hard-wrap their source
+// markup, leaving literal newlines/indentation inside a paragraph that a
+// normally-spaced query will never match either. Building one normalized
+// string per section (via getReadableTextNodes/buildCombinedText/
+// normalizeWithMap, already used elsewhere for anchoring) and mapping a
+// match back to its exact (node, offset) sidesteps both problems.
+async function searchSection(item, qNorm){
+  const nodes = getReadableTextNodes(item.document);
+  if(!nodes.length) return [];
+  const {text, starts} = buildCombinedText(nodes);
+  const {norm, idx} = normalizeWithMap(text);
+  const hay = foldQuotes(norm).toLowerCase();
+  const matches = [];
+  let from = 0, pos;
+  while((pos = hay.indexOf(qNorm, from)) !== -1){
+    const startRaw = idx[pos];
+    const endRaw = idx[pos+qNorm.length-1] + 1;
+    const startPos = resolvePosition(starts, startRaw);
+    const endPos = resolvePosition(starts, endRaw-1);
+    if(startPos && endPos){
+      try{
+        const range = item.document.createRange();
+        range.setStart(startPos.node, startPos.offset);
+        range.setEnd(endPos.node, endPos.offset+1);
+        const cfi = item.cfiFromRange(range);
+        const excerptStart = Math.max(0, pos-75);
+        const excerptEnd = Math.min(norm.length, pos+qNorm.length+75);
+        let excerpt = norm.slice(excerptStart, excerptEnd);
+        if(excerptStart>0) excerpt = '…'+excerpt;
+        if(excerptEnd<norm.length) excerpt += '…';
+        matches.push({cfi, excerpt});
+      }catch(e){}
+    }
+    from = pos + qNorm.length;
+  }
+  return matches;
+}
+
 async function runBookSearch(query){
-  const q = query.trim();
+  const q = foldQuotes(normalizeWithMap(query.trim()).norm).toLowerCase();
   if(!book || !book.epubBook) return;
   const myToken = ++searchToken;
   if(!q){ searchStatus.textContent=''; searchResultsEl.innerHTML=''; return; }
@@ -2467,7 +2519,7 @@ async function runBookSearch(query){
     if(myToken !== searchToken) return; // a newer search superseded this one
     try{
       await item.load(book.epubBook.load.bind(book.epubBook));
-      (item.find(q)||[]).forEach(m=>{
+      (await searchSection(item, q)).forEach(m=>{
         results.push({ cfi: m.cfi, excerpt: normText(m.excerpt), index: item.index });
       });
       item.unload();
