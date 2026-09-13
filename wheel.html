@@ -428,6 +428,7 @@
         border-color: var(--accent-yellow);
         background: #fffdf2;
         padding-right: 34px;
+        cursor: pointer;
     }
 
     .pad-item-badge {
@@ -1005,14 +1006,14 @@
             </div>
 
             <div id="subgoal-portions-inputs" style="display: none;">
-                <textarea id="subgoal-textarea" style="display:none;"></textarea>
+                <textarea id="subgoal-textarea" placeholder="One sub-goal per line, e.g.&#10;Pack the bag&#10;Print the tickets&#10;Charge the camera"></textarea>
             </div>
 
             <div class="subgoal-actions">
                 <button type="button" onclick="requestCloseSubGoalEditor()" style="background-color: var(--danger-color); color: #6b2b2b;">Cancel</button>
                 <button type="button" onclick="handleAddSubGoals()" style="background-color: var(--accent-yellow); color: #5c572b;">Add</button>
             </div>
-            <button type="button" onclick="markEntireGoalComplete()" style="width: 100%; margin-top: 8px; background-color: var(--edit-color); color: #333e5c; padding: 10px; font-size: 13px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer;">✓ Mark Entire Goal Complete</button>
+            <button type="button" id="subgoal-mark-complete-btn" onclick="markEntireGoalComplete()" style="width: 100%; margin-top: 8px; background-color: var(--edit-color); color: #333e5c; padding: 10px; font-size: 13px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer;">✓ Mark Entire Goal Complete</button>
             <button type="button" onclick="clearSubGoalList()" style="background: none; border: none; color: #c97b7b; font-size: 12px; cursor: pointer; padding: 4px 0; text-decoration: underline;">Clear entire list</button>
         </div>
     </div>
@@ -1088,6 +1089,8 @@
         let editingSubGoalKey = null;
         let editingSubGoalBookTitle = '';
         let editingSubGoalParentLabel = '';
+        let editingSubGoalIsPad = false;
+        let editingSubGoalPadId = null;
         let currentWinnerSubGoal = null; // { key, id } for the "Mark Sub-Goal Done" button
 
         // Remembers whatever goal (or sub-goal) was most recently shown in the
@@ -1299,11 +1302,28 @@
         // goals.html moves on to a new milestone, that's treated as a new
         // goal with its own (empty) sub-goal list.
         function subGoalKey(book) {
+            // Pad items are keyed by their own stable id (not title/label,
+            // which they don't reliably have and could collide on if two
+            // items share the same text).
+            if (book.isPad) return `pad|||${book.id}`;
             return `${book.title || ''}|||${book.goalLabel || ''}`;
         }
 
         function getSubGoalEntry(book) {
             return subGoalsMap[subGoalKey(book)];
+        }
+
+        // Whether this book/item currently supports the sub-goal feature at
+        // all: real Goals-mode entries always do; pad items ("manually added
+        // goals") only once they actually have a sub-goal list defined for
+        // them, since otherwise they're just a plain wheel slice.
+        function bookHasSubGoalFeature(book) {
+            if (wheelMode === 'goals' && book.goalLabel) return true;
+            if (book.isPad) {
+                const entry = getSubGoalEntry(book);
+                return !!(entry && Array.isArray(entry.items) && entry.items.length > 0);
+            }
+            return false;
         }
 
         // Returns what should actually be shown on the wheel/list/winner
@@ -1312,12 +1332,13 @@
         function getEffectiveGoalDisplay(book) {
             const entry = getSubGoalEntry(book);
             const items = entry && Array.isArray(entry.items) ? entry.items : [];
+            const fallbackText = book.isPad ? 'All sub-goals done' : book.goalLabel;
             if (items.length === 0) {
-                return { text: book.goalLabel, isSubGoal: false };
+                return { text: fallbackText, isSubGoal: false };
             }
             const nextIndex = items.findIndex(i => !i.completed);
             if (nextIndex === -1) {
-                return { text: book.goalLabel, isSubGoal: false, allDone: true };
+                return { text: fallbackText, isSubGoal: false, allDone: true };
             }
             const next = items[nextIndex];
             return {
@@ -1330,21 +1351,28 @@
         }
 
         function openSubGoalEditor(book) {
-            if (wheelMode !== 'goals') return;
+            if (wheelMode !== 'goals' && !book.isPad) return;
             editingSubGoalKey = subGoalKey(book);
             editingSubGoalBookTitle = book.title || 'Untitled';
-            editingSubGoalParentLabel = book.goalLabel || '';
-            document.getElementById('subgoal-parent-label').textContent =
-                `${editingSubGoalBookTitle}: ${editingSubGoalParentLabel}`;
+            editingSubGoalParentLabel = book.isPad ? '' : (book.goalLabel || '');
+            editingSubGoalIsPad = !!book.isPad;
+            editingSubGoalPadId = book.isPad ? book.id : null;
+            document.getElementById('subgoal-parent-label').textContent = editingSubGoalIsPad
+                ? editingSubGoalBookTitle
+                : `${editingSubGoalBookTitle}: ${editingSubGoalParentLabel}`;
             document.getElementById('subgoal-textarea').value = '';
             document.getElementById('subgoal-range-parts').value = '';
             document.getElementById('subgoal-chapter-start').value = '';
             document.getElementById('subgoal-chapter-end').value = '';
             document.getElementById('subgoal-chapter-parts').value = '';
             updateSubGoalChapterPageCount();
-            subGoalDetected = parseGoalLabelForSplit(editingSubGoalParentLabel);
+            // Pad items have no "Page 12-16" style label to parse, so they
+            // always go straight to the free-text "one per line" mode.
+            subGoalDetected = editingSubGoalIsPad ? { type: 'portions' } : parseGoalLabelForSplit(editingSubGoalParentLabel);
             applySubGoalDetectedUI();
             renderSubGoalEditorBody();
+            const completeBtn = document.getElementById('subgoal-mark-complete-btn');
+            completeBtn.textContent = editingSubGoalIsPad ? '✕ Remove This Item From the Wheel' : '✓ Mark Entire Goal Complete';
             document.getElementById('subgoal-modal').classList.add('active');
         }
 
@@ -1429,6 +1457,9 @@
                 const span = subGoalDetected.to - subGoalDetected.from + 1;
                 infoEl.textContent = `Detected ${subGoalDetected.from}-${subGoalDetected.to}%. Just say how many pieces to split it into.`;
                 partsInput.max = String(span);
+            } else if (subGoalDetected.type === 'portions') {
+                portionsWrap.style.display = 'block';
+                infoEl.textContent = `Type each sub-goal on its own line, then hit Add.`;
             } else {
                 chapterWrap.style.display = 'flex';
                 infoEl.textContent = `Chapter goal — enter its start and end page, then how many pieces to split it into.`;
@@ -1455,6 +1486,8 @@
             if (subGoalDetected.type === 'page' || subGoalDetected.type === 'percent') {
                 const parts = document.getElementById('subgoal-range-parts').value.trim();
                 if (parts !== '') return true;
+            } else if (subGoalDetected.type === 'portions') {
+                if (document.getElementById('subgoal-textarea').value.trim() !== '') return true;
             } else {
                 const start = document.getElementById('subgoal-chapter-start').value.trim();
                 const end = document.getElementById('subgoal-chapter-end').value.trim();
@@ -1543,6 +1576,12 @@
                 return splitRangeIntoLabels(info.from, info.to, parts,
                     (s, e) => s === e ? `${s}%` : `${s}-${e}%`);
             }
+            if (info.type === 'portions') {
+                return document.getElementById('subgoal-textarea').value
+                    .split('\n')
+                    .map(line => line.trim())
+                    .filter(Boolean);
+            }
             // Chapter (numbered or named): split by the page range the user gave us.
             const start = parseInt(document.getElementById('subgoal-chapter-start').value, 10);
             const end = parseInt(document.getElementById('subgoal-chapter-end').value, 10);
@@ -1606,6 +1645,19 @@
         // since there's nothing left to hand out from the wheel.
         function markEntireGoalComplete() {
             if (!editingSubGoalKey) return;
+
+            // Pad items have no real milestone in goals.html to mark done —
+            // "complete" for a manually added goal just means taking it off
+            // the wheel entirely, sub-goals and all.
+            if (editingSubGoalIsPad) {
+                if (!confirm(`Remove "${editingSubGoalBookTitle}" from the wheel? This also clears its sub-goals.`)) return;
+                delete subGoalsMap[editingSubGoalKey];
+                saveSubGoalsToFirebase();
+                closeSubGoalEditor();
+                removePadItem(editingSubGoalPadId);
+                return;
+            }
+
             const viewDate = effectiveGoalsDate();
             const goal = goalsModeData.find(g => g.bookTitle === editingSubGoalBookTitle &&
                 (g.milestones || []).some(ms => ms.label === editingSubGoalParentLabel && ms.date === viewDate && !ms.completed));
@@ -1849,6 +1901,18 @@
                 if (book.isPad) {
                     card.classList.add('pad-item-card');
 
+                    let subGoalBadgeText = null;
+                    if (bookHasSubGoalFeature(book)) {
+                        const display = getEffectiveGoalDisplay(book);
+                        if (display.isSubGoal) {
+                            subGoalBadgeText = `Sub-goal ${display.position}`;
+                            card.classList.add('has-subgoals');
+                        } else if (display.allDone) {
+                            subGoalBadgeText = 'All sub-goals done 🎉';
+                            card.classList.add('has-subgoals');
+                        }
+                    }
+
                     const titleEl = document.createElement('div');
                     titleEl.className = 'book-item-title';
                     titleEl.textContent = book.title;
@@ -1856,8 +1920,18 @@
 
                     const badgeEl = document.createElement('div');
                     badgeEl.className = 'pad-item-badge';
-                    badgeEl.textContent = '📌 Just padding the wheel — not a book';
+                    badgeEl.textContent = '📌 Manually added goal';
                     card.appendChild(badgeEl);
+
+                    if (subGoalBadgeText) {
+                        const sgBadge = document.createElement('div');
+                        sgBadge.className = 'book-item-subgoal-badge';
+                        sgBadge.textContent = subGoalBadgeText;
+                        card.appendChild(sgBadge);
+                    }
+
+                    card.title = 'Click to add/manage sub-goals';
+                    card.addEventListener('click', () => openSubGoalEditor(book));
 
                     const removeBtn = document.createElement('button');
                     removeBtn.type = 'button';
@@ -1958,7 +2032,7 @@
                 ctx.fillStyle = '#444e37'; 
                 ctx.font = 'bold 11px sans-serif';
                 
-                let displayText = (wheelMode === 'goals' && book.goalLabel)
+                let displayText = bookHasSubGoalFeature(book)
                     ? `${book.title || 'Untitled'}: ${getEffectiveGoalDisplay(book).text}`
                     : book.isPad ? `📌 ${book.title}` : (book.title || 'Untitled');
                 if (displayText.length > 22) displayText = displayText.substring(0, 20) + '...';
@@ -2071,11 +2145,11 @@
 
         function showWinningBook(book) {
             document.getElementById('winner-title').innerText = book.title || 'Untitled';
-            document.getElementById('winner-author').innerText = book.isPad ? '📌 Not a book — just padding the wheel' : (book.author || 'Unknown Author');
+            document.getElementById('winner-author').innerText = book.isPad ? '📌 Manually added goal' : (book.author || 'Unknown Author');
             const goalEl = document.getElementById('winner-goal');
             const doneBtn = document.getElementById('winner-subgoal-done-btn');
             currentWinnerSubGoal = null;
-            if (wheelMode === 'goals' && book.goalLabel) {
+            if (bookHasSubGoalFeature(book)) {
                 const display = getEffectiveGoalDisplay(book);
                 goalEl.innerText = display.text;
                 goalEl.style.display = '';
