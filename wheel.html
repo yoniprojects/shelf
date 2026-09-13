@@ -1759,15 +1759,19 @@
             updateSpinButtonsForMode();
         }
 
-        // "Spin & Mark Done" only makes sense in Goals mode. When it's
-        // showing, the main spin button is shortened to just "Spin" (per the
-        // request that renaming only happen while the mark-done button is
-        // present); otherwise it keeps its original full label.
+        // "Spin & Mark Done" makes sense whenever there's something on the
+        // wheel right now that could need marking done: always true in
+        // Goals mode, and also true in Reading/TBR mode if a manually added
+        // item currently has sub-goals defined. When it's showing, the main
+        // spin button is shortened to just "Spin" (per the request that
+        // renaming only happen while the mark-done button is present);
+        // otherwise it keeps its original full label.
         function updateSpinButtonsForMode() {
-            const isGoals = wheelMode === 'goals';
-            document.getElementById('spin-mark-done-btn').style.display = isGoals ? '' : 'none';
+            const hasPadSubGoals = filteredBooks.some(b => b.isPad && bookHasSubGoalFeature(b));
+            const showMarkDone = wheelMode === 'goals' || hasPadSubGoals;
+            document.getElementById('spin-mark-done-btn').style.display = showMarkDone ? '' : 'none';
             updateSpinWheelBtnLabel();
-            if (!isGoals) lastSpunGoalForDone = null;
+            if (!showMarkDone) lastSpunGoalForDone = null;
         }
 
         // Shows/hides the "Move to Next Day" bar above the goals list. Only
@@ -1838,6 +1842,7 @@
 
             updateBooksListUI();
             drawWheel();
+            updateSpinButtonsForMode();
         }
 
         function addPadItem() {
@@ -2327,13 +2332,13 @@
             document.getElementById('spin-use-spin-btn').innerText = 'Spin & 1 down';
         }
 
-        // Single source of truth for the main spin button's label, since two
-        // independent things affect it: Goals mode (shortens it to "Spin",
-        // to go alongside "Spin & Mark Done") and the small wheel's spins
-        // count (switches it to "Spin Wheel" once there are spins banked).
-        // Goals mode takes priority whenever it's active.
+        // Single source of truth for the main spin button's label. Mirrors
+        // whatever updateSpinButtonsForMode() just decided about the
+        // "Spin & Mark Done" button (shortens to "Spin" while it's showing),
+        // otherwise falls back to the small wheel's spins count.
         function updateSpinWheelBtnLabel() {
-            const label = wheelMode === 'goals'
+            const markDoneShowing = document.getElementById('spin-mark-done-btn').style.display !== 'none';
+            const label = markDoneShowing
                 ? 'Spin'
                 : (currentSpins > 0 ? 'Spin Wheel' : 'Spin Wheel for Next Read!');
             document.getElementById('spin-wheel-btn').innerText = label;
