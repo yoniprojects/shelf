@@ -421,6 +421,36 @@
         width: fit-content;
     }
 
+    /* Custom "pad" items: user-typed, never synced from index.html's book
+       data, exist purely to fill a wheel slice with something non-book. */
+    .pad-item-card {
+        position: relative;
+        border-color: var(--accent-yellow);
+        background: #fffdf2;
+        padding-right: 34px;
+    }
+
+    .pad-item-badge {
+        font-size: 11px;
+        color: var(--text-muted);
+    }
+
+    .pad-item-remove {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: none;
+        box-shadow: none;
+        border: none;
+        color: var(--text-muted);
+        font-size: 13px;
+        font-weight: bold;
+        padding: 2px 6px;
+        line-height: 1;
+        cursor: pointer;
+    }
+    .pad-item-remove:hover { color: #c97b7b; transform: none; opacity: 1; }
+
     .empty-state {
         color: var(--text-muted);
         font-size: 14px;
@@ -912,6 +942,16 @@
                 </div>
             </div>
             
+            <!-- Add-your-own item: never comes from index.html's synced book
+                 data, exists purely to pad the wheel with something else you
+                 want mixed in (chores, errands, etc.) alongside your reading. -->
+            <div id="pad-item-row" style="display:flex; gap:8px; width:100%; margin-bottom:14px;">
+                <input type="text" id="pad-item-input" placeholder="Add a non-book item…" maxlength="60"
+                    style="flex:1; min-width:0; box-sizing:border-box; padding:10px 12px; border:1px solid var(--border-color); border-radius:10px; font-size:13px; font-family:inherit;"
+                    onkeydown="if(event.key==='Enter'){ event.preventDefault(); addPadItem(); }">
+                <button type="button" onclick="addPadItem()" style="padding:10px 16px; font-size:13px; margin-top:0; flex-shrink:0;">Add</button>
+            </div>
+
             <div id="goals-next-day-bar" style="display:none;"></div>
 
             <div id="books-container" class="books-list">
@@ -1030,6 +1070,13 @@
         let readingBooks = [];
         let tbrBooks = [];
         let goalsModeData = [];
+
+        // Custom "pad" items: user-typed slices that never come from
+        // index.html's synced book data. Lives on WHEEL_DOC only (like
+        // subGoals/goalsViewDate below), so it stays out of SHARED_DOC
+        // entirely but still syncs across the user's own devices.
+        // Shape: [{ id, text }]
+        let customPadItems = [];
 
         // Sub-goals: a Goals-mode-only breakdown of a single goal (e.g. a
         // milestone like "Chapter 9") into a sequential list of smaller
@@ -1730,8 +1777,40 @@
                 return !deselectedGenres.has(genreVal) && !deselectedFormats.has(formatVal);
             });
 
+            // Pad items are appended after filtering, in every mode — they
+            // have no genre/format, so genre/format filters never touch
+            // them, and switching Reading/Goals/TBR never hides them either.
+            customPadItems.forEach(item => {
+                filteredBooks.push({ id: item.id, title: item.text, isPad: true });
+            });
+
             updateBooksListUI();
             drawWheel();
+        }
+
+        function addPadItem() {
+            const input = document.getElementById('pad-item-input');
+            const text = input.value.trim();
+            if (!text) return;
+            customPadItems.push({ id: 'pad-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7), text });
+            input.value = '';
+            saveCustomPadItemsToFirebase();
+            applyFilters();
+        }
+
+        function removePadItem(id) {
+            customPadItems = customPadItems.filter(item => item.id !== id);
+            saveCustomPadItemsToFirebase();
+            applyFilters();
+        }
+
+        function saveCustomPadItemsToFirebase() {
+            WHEEL_DOC.set({ customPadItems }, { merge: true })
+                .then(() => setSyncStatus('synced'))
+                .catch(err => {
+                    console.error("Pad items save failed", err);
+                    setSyncStatus('offline');
+                });
         }
 
         function updateBooksListUI() {
@@ -1766,6 +1845,31 @@
             filteredBooks.forEach(book => {
                 const card = document.createElement('div');
                 card.className = 'book-item-card';
+
+                if (book.isPad) {
+                    card.classList.add('pad-item-card');
+
+                    const titleEl = document.createElement('div');
+                    titleEl.className = 'book-item-title';
+                    titleEl.textContent = book.title;
+                    card.appendChild(titleEl);
+
+                    const badgeEl = document.createElement('div');
+                    badgeEl.className = 'pad-item-badge';
+                    badgeEl.textContent = '📌 Just padding the wheel — not a book';
+                    card.appendChild(badgeEl);
+
+                    const removeBtn = document.createElement('button');
+                    removeBtn.type = 'button';
+                    removeBtn.className = 'pad-item-remove';
+                    removeBtn.textContent = '✕';
+                    removeBtn.title = 'Remove this item';
+                    removeBtn.addEventListener('click', (e) => { e.stopPropagation(); removePadItem(book.id); });
+                    card.appendChild(removeBtn);
+
+                    container.appendChild(card);
+                    return;
+                }
 
                 let titleText = book.title || 'Untitled';
                 let subGoalBadgeText = null;
@@ -1856,7 +1960,7 @@
                 
                 let displayText = (wheelMode === 'goals' && book.goalLabel)
                     ? `${book.title || 'Untitled'}: ${getEffectiveGoalDisplay(book).text}`
-                    : (book.title || 'Untitled');
+                    : book.isPad ? `📌 ${book.title}` : (book.title || 'Untitled');
                 if (displayText.length > 22) displayText = displayText.substring(0, 20) + '...';
                 ctx.fillText(displayText, radius - 15, 4);
                 ctx.restore();
@@ -1967,7 +2071,7 @@
 
         function showWinningBook(book) {
             document.getElementById('winner-title').innerText = book.title || 'Untitled';
-            document.getElementById('winner-author').innerText = book.author || 'Unknown Author';
+            document.getElementById('winner-author').innerText = book.isPad ? '📌 Not a book — just padding the wheel' : (book.author || 'Unknown Author');
             const goalEl = document.getElementById('winner-goal');
             const doneBtn = document.getElementById('winner-subgoal-done-btn');
             currentWinnerSubGoal = null;
@@ -2256,10 +2360,14 @@
                 // pick up a device-to-device change (e.g. advanced on phone).
                 goalsViewDateOverride = typeof data.goalsViewDate === 'string' ? data.goalsViewDate : null;
 
-                if (wheelMode === 'goals') {
-                    allBooks = computeAllBooksForMode('goals');
-                    applyFilters();
-                }
+                // Custom pad items — also wheel-only, same reason: pick up a
+                // device-to-device add/remove (e.g. added on phone). Unlike
+                // sub-goals/goalsViewDate these apply in every mode, not just
+                // Goals, so refresh regardless of wheelMode.
+                customPadItems = Array.isArray(data.customPadItems) ? data.customPadItems : [];
+
+                allBooks = computeAllBooksForMode(wheelMode);
+                applyFilters();
                 if (document.getElementById('subgoal-modal').classList.contains('active')) {
                     renderSubGoalEditorBody();
                 }
