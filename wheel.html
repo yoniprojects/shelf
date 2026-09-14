@@ -923,10 +923,12 @@
 
         <!-- Right Panel: Books on Wheel with Genre Filter -->
         <div class="panel" style="align-items: flex-start;">
-            <div class="panel-title" style="display:flex; align-items:center; justify-content:center; gap:8px; position:relative;">
-                <span id="books-count-title">Books on Wheel (0)</span>
-                <button type="button" id="wheel-settings-btn" onclick="toggleWheelSettingsPanel()" title="Wheel settings"
-                    style="position:absolute; right:0; top:50%; transform:translateY(-50%); background:none; border:none; box-shadow:none; font-size:16px; line-height:1; padding:2px 6px; margin:0; cursor:pointer; color:var(--text-muted); opacity:0.7;">⚙️</button>
+            <div class="panel-title">
+                <div style="position:relative; display:flex; align-items:center; justify-content:center;">
+                    <span id="books-count-title">Books on Wheel (0)</span>
+                    <button type="button" id="wheel-settings-btn" onclick="toggleWheelSettingsPanel()" title="Wheel settings"
+                        style="position:absolute; right:0; top:50%; transform:translateY(-50%); display:inline-flex; align-items:center; justify-content:center; height:1em; background:none; border:none; box-shadow:none; font-size:15px; line-height:1; padding:0; margin:0; cursor:pointer; color:var(--text-muted); opacity:0.75;">⚙︎</button>
+                </div>
             </div>
             <div id="goals-viewing-date-label" style="display:none;"></div>
 
