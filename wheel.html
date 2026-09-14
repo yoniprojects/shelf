@@ -923,7 +923,11 @@
 
         <!-- Right Panel: Books on Wheel with Genre Filter -->
         <div class="panel" style="align-items: flex-start;">
-            <div class="panel-title" id="books-count-title">Books on Wheel (0)</div>
+            <div class="panel-title" style="display:flex; align-items:center; justify-content:center; gap:8px; position:relative;">
+                <span id="books-count-title">Books on Wheel (0)</span>
+                <button type="button" id="wheel-settings-btn" onclick="toggleWheelSettingsPanel()" title="Wheel settings"
+                    style="position:absolute; right:0; top:50%; transform:translateY(-50%); background:none; border:none; box-shadow:none; font-size:16px; line-height:1; padding:2px 6px; margin:0; cursor:pointer; color:var(--text-muted); opacity:0.7;">⚙️</button>
+            </div>
             <div id="goals-viewing-date-label" style="display:none;"></div>
 
             <div class="mode-toggle" id="wheel-mode-toggle">
@@ -932,25 +936,41 @@
                 <button type="button" id="mode-tbr-btn" onclick="setWheelMode('tbr')">TBR</button>
             </div>
 
-            <div class="filters-row">
-                <div class="select-filter" id="filters-filter">
-                    <label class="select-filter-label">Filters</label>
-                    <button type="button" class="select-filter-trigger" onclick="toggleSelectFilter('filters')">
-                        <span id="filters-filter-summary">All Filters</span>
-                        <span class="select-filter-arrow">▾</span>
-                    </button>
-                    <div id="filter-combined-options" class="select-filter-panel"></div>
+            <!-- Filters, the pad-item adder, and the two spin-behavior
+                 toggles all live tucked behind the ⚙️ button above so the
+                 list of books isn't crowded out by controls by default. -->
+            <div id="wheel-settings-panel" style="display:none; width:100%;">
+                <div class="filters-row">
+                    <div class="select-filter" id="filters-filter">
+                        <label class="select-filter-label">Filters</label>
+                        <button type="button" class="select-filter-trigger" onclick="toggleSelectFilter('filters')">
+                            <span id="filters-filter-summary">All Filters</span>
+                            <span class="select-filter-arrow">▾</span>
+                        </button>
+                        <div id="filter-combined-options" class="select-filter-panel"></div>
+                    </div>
                 </div>
-            </div>
-            
-            <!-- Add-your-own item: never comes from index.html's synced book
-                 data, exists purely to pad the wheel with something else you
-                 want mixed in (chores, errands, etc.) alongside your reading. -->
-            <div id="pad-item-row" style="display:flex; gap:8px; width:100%; margin-bottom:14px;">
-                <input type="text" id="pad-item-input" placeholder="Add a non-book item…" maxlength="60"
-                    style="flex:1; min-width:0; box-sizing:border-box; padding:10px 12px; border:1px solid var(--border-color); border-radius:10px; font-size:13px; font-family:inherit;"
-                    onkeydown="if(event.key==='Enter'){ event.preventDefault(); addPadItem(); }">
-                <button type="button" onclick="addPadItem()" style="padding:10px 16px; font-size:13px; margin-top:0; flex-shrink:0;">Add</button>
+
+                <!-- Add-your-own item: never comes from index.html's synced book
+                     data, exists purely to pad the wheel with something else you
+                     want mixed in (chores, errands, etc.) alongside your reading. -->
+                <div id="pad-item-row" style="display:flex; flex-wrap:wrap; gap:8px; width:100%; margin-bottom:8px;">
+                    <input type="text" id="pad-item-input" placeholder="Add a non-book item…" maxlength="60"
+                        style="flex:1; min-width:140px; box-sizing:border-box; padding:10px 12px; border:1px solid var(--border-color); border-radius:10px; font-size:13px; font-family:inherit;"
+                        onkeydown="if(event.key==='Enter'){ event.preventDefault(); addPadItem(); }">
+                    <button type="button" onclick="addPadItem()" style="padding:10px 16px; font-size:13px; margin-top:0; flex-shrink:0;">Add</button>
+                </div>
+
+                <div id="wheel-toggles-row" style="display:flex; flex-wrap:wrap; column-gap:14px; row-gap:4px; width:100%; margin-bottom:14px;">
+                    <label style="display:flex; align-items:center; gap:6px; font-size:12px; color: var(--text-muted); cursor:pointer;">
+                        <input type="checkbox" id="no-repeat-toggle" onchange="onNoRepeatToggleChange(event)">
+                        Don't repeat the last pick
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px; font-size:12px; color: var(--text-muted); cursor:pointer;">
+                        <input type="checkbox" id="weighted-subgoals-toggle" onchange="onWeightedSubGoalsToggleChange(event)">
+                        Size goals by sub-goal count
+                    </label>
+                </div>
             </div>
 
             <div id="goals-next-day-bar" style="display:none;"></div>
@@ -1104,6 +1124,26 @@
         let wheelMode = ['reading', 'tbr', 'goals'].includes(localStorage.getItem('shelf:wheelMode'))
             ? localStorage.getItem('shelf:wheelMode')
             : 'reading';
+
+        // Two spin-behavior toggles, both per-device (localStorage) rather
+        // than synced — they feel more like a personal spin-style
+        // preference than shared wheel data.
+        //
+        // "Don't repeat the last pick": the previous winner is excluded
+        // from the very next spin's odds (not drawn out of the wheel, just
+        // given 0 chance), unless it's the only thing left, in which case a
+        // repeat is unavoidable and allowed.
+        let noRepeatSpins = localStorage.getItem('shelf:noRepeatSpins') === 'true';
+        // Tracks the last winner's identity (see spinIdentity()) so the next
+        // spin knows what to exclude. Session-only — intentionally not
+        // persisted, so it doesn't carry across days/reloads.
+        let lastWinnerIdentity = null;
+
+        // "Size goals by sub-goal count": when on, any item with an active
+        // sub-goal list takes up wheel space (and win odds) proportional to
+        // its number of *remaining* (not-completed) sub-goals, instead of
+        // an equal share like everything else.
+        let weightBySubGoals = localStorage.getItem('shelf:weightBySubGoals') === 'true';
 
         // Tracks which checkbox-filter values are unchecked. Empty set = everything shown.
         let deselectedGenres = new Set();
@@ -1324,6 +1364,80 @@
                 return !!(entry && Array.isArray(entry.items) && entry.items.length > 0);
             }
             return false;
+        }
+
+        // Same identity scheme sub-goals are keyed by — reused here to
+        // detect "this is the same item that just won" for the no-repeat
+        // toggle, so a real goal, a pad item, and a plain book all get a
+        // stable, collision-free identity.
+        function spinIdentity(book) {
+            return subGoalKey(book);
+        }
+
+        function onNoRepeatToggleChange(e) {
+            noRepeatSpins = e.target.checked;
+            localStorage.setItem('shelf:noRepeatSpins', String(noRepeatSpins));
+        }
+
+        function onWeightedSubGoalsToggleChange(e) {
+            weightBySubGoals = e.target.checked;
+            localStorage.setItem('shelf:weightBySubGoals', String(weightBySubGoals));
+            drawWheel();
+        }
+
+        function toggleWheelSettingsPanel() {
+            const panel = document.getElementById('wheel-settings-panel');
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        }
+
+        // Returns each currently-visible item's wheel slice: which item it
+        // is, the raw weight it was given, and its angular start/span in
+        // degrees. Shared by drawWheel() (so the pie matches) and
+        // performSpin() (so the physics land on the same slice it drew) —
+        // one source of truth so they can never drift apart.
+        //
+        // When "Size goals by sub-goal count" is off, every item gets an
+        // equal share (weight 1) — today's behavior. When it's on, any item
+        // with an active sub-goal list gets one share per remaining
+        // (not-completed) sub-goal instead, so e.g. a goal with 5 remaining
+        // sub-goals takes up 5x the space/odds of a plain item; a goal
+        // whose sub-goals are all completed gets 0 (no space, no odds)
+        // until it's removed or given new sub-goals.
+        function computeWheelSlices() {
+            let weights = filteredBooks.map(book => {
+                if (!weightBySubGoals || !bookHasSubGoalFeature(book)) return 1;
+                const entry = getSubGoalEntry(book);
+                const items = entry && Array.isArray(entry.items) ? entry.items : [];
+                return items.filter(i => !i.completed).length;
+            });
+            let total = weights.reduce((a, b) => a + b, 0);
+            if (total <= 0) {
+                // Degenerate case — e.g. everything left on the wheel has 0
+                // sub-goals remaining. Fall back to equal shares rather
+                // than leaving the wheel with nothing to draw or pick.
+                weights = filteredBooks.map(() => 1);
+                total = weights.length;
+            }
+            let cursor = 0;
+            return filteredBooks.map((book, index) => {
+                const span = (weights[index] / total) * 360;
+                const slice = { book, index, weight: weights[index], startAngle: cursor, span };
+                cursor += span;
+                return slice;
+            });
+        }
+
+        // Weighted random pick from a set of slices (a subset of the full
+        // wheel's slices, e.g. with the last winner excluded).
+        function pickFromWeightedSlices(slices) {
+            const total = slices.reduce((sum, s) => sum + s.weight, 0);
+            if (total <= 0) return slices[Math.floor(Math.random() * slices.length)];
+            let r = Math.random() * total;
+            for (const s of slices) {
+                if (r < s.weight) return s;
+                r -= s.weight;
+            }
+            return slices[slices.length - 1]; // floating-point fallback
         }
 
         // Returns what should actually be shown on the wheel/list/winner
@@ -1708,7 +1822,12 @@
                     setSyncStatus('offline');
                     retrySubGoalsSaveWhenOnline();
                 });
-            if (wheelMode === 'goals') applyFilters();
+            // Sub-goal counts can affect a manually added item's wheel
+            // weight/badge in *any* mode (not just Goals), so always
+            // refresh right away instead of waiting on the Firestore round
+            // trip — that's what makes adding/deleting/completing a
+            // sub-goal resize the wheel instantly.
+            applyFilters();
         }
 
         // Called from the "✓ Mark Sub-Goal Done" button on the winner modal.
@@ -2016,27 +2135,31 @@
                 return;
             }
 
-            const sliceAngle = (2 * Math.PI) / filteredBooks.length;
             const pastelColors = ['#e2f0cb', '#bffcc6', '#fff9a6', '#ffc6ff', '#c7ceea', '#ffb7b2', '#ffdac1'];
-            
-            filteredBooks.forEach((book, index) => {
-                const startAngle = index * sliceAngle;
-                ctx.beginPath(); 
-                ctx.moveTo(cx, cy); 
-                ctx.arc(cx, cy, radius, startAngle, startAngle + sliceAngle);
-                ctx.fillStyle = pastelColors[index % pastelColors.length]; 
-                ctx.fill(); 
+            const slices = computeWheelSlices();
+
+            slices.forEach(({ book, index, startAngle, span }) => {
+                const startRad = startAngle * Math.PI / 180;
+                const spanRad = span * Math.PI / 180;
+
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.arc(cx, cy, radius, startRad, startRad + spanRad);
+                ctx.fillStyle = pastelColors[index % pastelColors.length];
+                ctx.fill();
                 ctx.strokeStyle = '#ffffff';
                 ctx.lineWidth = 2;
                 ctx.stroke();
 
-                ctx.save(); 
-                ctx.translate(cx, cy); 
-                ctx.rotate(startAngle + sliceAngle / 2);
-                ctx.textAlign = 'right'; 
-                ctx.fillStyle = '#444e37'; 
+                if (span < 0.5) return; // sliver too thin to label (e.g. a fully-completed weighted goal)
+
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate(startRad + spanRad / 2);
+                ctx.textAlign = 'right';
+                ctx.fillStyle = '#444e37';
                 ctx.font = 'bold 11px sans-serif';
-                
+
                 let displayText = bookHasSubGoalFeature(book)
                     ? `${book.title || 'Untitled'}: ${getEffectiveGoalDisplay(book).text}`
                     : book.isPad ? `📌 ${book.title}` : (book.title || 'Untitled');
@@ -2051,15 +2174,29 @@
         // animation finishes (isSpinning is already reset by then).
         function performSpin(onWinner) {
             if (filteredBooks.length === 0 || isSpinning) return false;
+
+            const slices = computeWheelSlices();
+
+            // "Don't repeat the last pick": try excluding the previous
+            // winner's slice from the pool entirely. If that leaves nothing
+            // with any chance left (e.g. it's the only thing on the wheel,
+            // or weighting has zeroed out everything else), fall back to
+            // the full set — a repeat beats refusing to spin.
+            let pickPool = slices;
+            if (noRepeatSpins && lastWinnerIdentity !== null) {
+                const withoutLast = slices.filter(s => spinIdentity(s.book) !== lastWinnerIdentity);
+                if (withoutLast.reduce((sum, s) => sum + s.weight, 0) > 0) {
+                    pickPool = withoutLast;
+                }
+            }
+
             isSpinning = true;
 
-            const n = filteredBooks.length;
-            const sliceAngle = 360 / n;
-            
-            const winningIndex = Math.floor(Math.random() * n);
-            const targetSliceCenter = (winningIndex * sliceAngle) + (sliceAngle / 2);
+            const winningSlice = pickFromWeightedSlices(pickPool);
+            const winningIndex = winningSlice.index;
+            const targetSliceCenter = winningSlice.startAngle + winningSlice.span / 2;
             const extraSpins = 360 * 5;
-            
+
             const desiredStopAngle = 270 - targetSliceCenter;
             const normalizedCurrent = currentRotation % 360;
             let delta = desiredStopAngle - normalizedCurrent;
@@ -2069,6 +2206,7 @@
             document.getElementById('wheel').style.transform = `rotate(${currentRotation}deg)`;
 
             const winningBook = filteredBooks[winningIndex];
+            lastWinnerIdentity = spinIdentity(winningBook);
             setTimeout(() => {
                 isSpinning = false;
                 onWinner(winningBook);
@@ -2561,6 +2699,8 @@
             document.getElementById('mode-reading-btn').classList.toggle('active', wheelMode === 'reading');
             document.getElementById('mode-goals-btn').classList.toggle('active', wheelMode === 'goals');
             document.getElementById('mode-tbr-btn').classList.toggle('active', wheelMode === 'tbr');
+            document.getElementById('no-repeat-toggle').checked = noRepeatSpins;
+            document.getElementById('weighted-subgoals-toggle').checked = weightBySubGoals;
             updateFilterOptions();
             applyFilters();
             updateSpinButtonsForMode();
