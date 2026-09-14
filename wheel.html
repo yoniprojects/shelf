@@ -2196,10 +2196,19 @@
 
             const winningSlice = pickFromWeightedSlices(pickPool);
             const winningIndex = winningSlice.index;
-            const targetSliceCenter = winningSlice.startAngle + winningSlice.span / 2;
+
+            // Land at a randomized point within the slice rather than always
+            // dead-center, so the stop looks natural. Keep a small margin
+            // from each edge so the pointer never looks like it's touching
+            // a boundary; fall back to the exact center for slices too thin
+            // for a meaningful margin.
+            const edgeMargin = Math.min(winningSlice.span * 0.2, 6);
+            const targetPointInSlice = (winningSlice.span > edgeMargin * 2)
+                ? winningSlice.startAngle + edgeMargin + Math.random() * (winningSlice.span - edgeMargin * 2)
+                : winningSlice.startAngle + winningSlice.span / 2;
             const extraSpins = 360 * 5;
 
-            const desiredStopAngle = 270 - targetSliceCenter;
+            const desiredStopAngle = 270 - targetPointInSlice;
             const normalizedCurrent = currentRotation % 360;
             let delta = desiredStopAngle - normalizedCurrent;
             while (delta < 0) delta += 360;
