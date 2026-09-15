@@ -942,6 +942,11 @@
                  toggles all live tucked behind the ⚙️ button above so the
                  list of books isn't crowded out by controls by default. -->
             <div id="wheel-settings-panel" style="display:none; width:100%;">
+                <div id="goals-date-picker-row" style="display:none; align-items:center; gap:8px; width:100%; margin-bottom:14px;">
+                    <label for="goals-date-picker" style="font-size:11px; font-weight:700; letter-spacing:0.8px; color:var(--text-muted); text-transform:uppercase; white-space:nowrap;">Viewing date</label>
+                    <input type="date" id="goals-date-picker" onchange="onGoalsDatePickerChange(event)"
+                        style="flex:1; box-sizing:border-box; padding:8px 10px; border:1px solid var(--border-color); border-radius:8px; font-size:13px; font-family:inherit; color:#1a1a1a; background-color:#ffffff;">
+                </div>
                 <div class="filters-row">
                     <div class="select-filter" id="filters-filter">
                         <label class="select-filter-label">Filters</label>
@@ -1311,6 +1316,7 @@
             saveGoalsViewDateToFirebase();
             allBooks = computeAllBooksForMode('goals');
             applyFilters();
+            updateGoalsDatePickerVisibility();
         }
 
         function computeGoalsBooks() {
@@ -1390,6 +1396,43 @@
         function toggleWheelSettingsPanel() {
             const panel = document.getElementById('wheel-settings-panel');
             panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        }
+
+        // Keeps the settings-panel date picker in sync with goals-mode state:
+        // hidden outside Goals mode, and otherwise showing whatever date is
+        // currently in view (today, or a future date picked here / reached
+        // via "Move to Next Day"). Only future dates are selectable, same
+        // "never behind, only ever look ahead" rule effectiveGoalsDate()
+        // already enforces, so the picker can't produce a state that
+        // silently gets ignored.
+        function updateGoalsDatePickerVisibility() {
+            const row = document.getElementById('goals-date-picker-row');
+            const input = document.getElementById('goals-date-picker');
+            if (wheelMode !== 'goals') {
+                row.style.display = 'none';
+                return;
+            }
+            row.style.display = 'flex';
+            const todayStr = todayLocalDateStr();
+            input.min = todayStr;
+            input.value = effectiveGoalsDate();
+        }
+
+        // Fires when the user picks a date in the settings-panel date
+        // picker. Picking today clears the override (falls back to tracking
+        // the real calendar date automatically); picking a future date sets
+        // it, same as "Move to Next Day" does. A past date shouldn't be
+        // reachable (min= guards the native picker), but if it happens
+        // anyway it's treated as "today" rather than silently ignored.
+        function onGoalsDatePickerChange(event) {
+            const todayStr = todayLocalDateStr();
+            const picked = event.target.value;
+            if (!picked) return;
+            goalsViewDateOverride = picked > todayStr ? picked : null;
+            saveGoalsViewDateToFirebase();
+            allBooks = computeAllBooksForMode('goals');
+            applyFilters();
+            updateGoalsDatePickerVisibility();
         }
 
         // Returns each currently-visible item's wheel slice: which item it
@@ -1878,6 +1921,7 @@
             updateFilterOptions();
             applyFilters();
             updateSpinButtonsForMode();
+            updateGoalsDatePickerVisibility();
         }
 
         // "Spin & Mark Done" makes sense whenever there's something on the
@@ -2587,6 +2631,7 @@
                 // "Move to next day" override — also wheel-only, same reason:
                 // pick up a device-to-device change (e.g. advanced on phone).
                 goalsViewDateOverride = typeof data.goalsViewDate === 'string' ? data.goalsViewDate : null;
+                updateGoalsDatePickerVisibility();
 
                 // Custom pad items — also wheel-only, same reason: pick up a
                 // device-to-device add/remove (e.g. added on phone). Unlike
@@ -2715,6 +2760,7 @@
             updateFilterOptions();
             applyFilters();
             updateSpinButtonsForMode();
+            updateGoalsDatePickerVisibility();
             drawSmallWheel();
 
             // Show the last known spin count right away instead of leaving
