@@ -977,6 +977,10 @@
                         <input type="checkbox" id="weighted-subgoals-toggle" onchange="onWeightedSubGoalsToggleChange(event)">
                         Size goals by sub-goal count
                     </label>
+                    <label id="include-past-goals-label" style="display:none; align-items:center; gap:6px; font-size:12px; color: var(--text-muted); cursor:pointer;">
+                        <input type="checkbox" id="include-past-goals-toggle" onchange="onIncludePastGoalsToggleChange(event)">
+                        Include unfinished past goals
+                    </label>
                 </div>
             </div>
 
@@ -1116,6 +1120,9 @@
         let editingSubGoalKey = null;
         let editingSubGoalBookTitle = '';
         let editingSubGoalParentLabel = '';
+        // Date of the milestone being edited (differs from the viewed date
+        // when it's an unfinished past goal); null = use the viewed date.
+        let editingSubGoalGoalDate = null;
         let editingSubGoalIsPad = false;
         let editingSubGoalPadId = null;
         let currentWinnerSubGoal = null; // { key, id } for the "Mark Sub-Goal Done" button
@@ -1151,6 +1158,13 @@
         // its number of *remaining* (not-completed) sub-goals, instead of
         // an equal share like everything else.
         let weightBySubGoals = localStorage.getItem('shelf:weightBySubGoals') === 'true';
+
+        // "Include unfinished past goals" (Goals mode only): when on, the
+        // wheel holds every not-yet-completed milestone dated on or before
+        // the day being viewed (i.e. today, unless you've picked another
+        // date), not just the ones dated exactly that day. Each such
+        // milestone is its own slice.
+        let includePastGoals = localStorage.getItem('shelf:includePastGoals') === 'true';
 
         // Tracks which checkbox-filter values are unchecked. Empty set = everything shown.
         let deselectedGenres = new Set();
@@ -1275,15 +1289,41 @@
         // calendar date.
         let goalsViewDateOverride = null;
 
-        // Real calendar date always wins once it catches up to (or passes)
-        // the override, so this can't get stuck showing a stale future date
-        // forever — it only ever lets you look *ahead*, never behind.
+        // The calendar day the override was chosen on. Lets a *past* pick
+        // ("let me look back at the 18th") last for the rest of the day it
+        // was made on and then quietly revert to today, instead of being
+        // stuck on an old date forever.
+        let goalsViewDateSetOn = null;
+
+        // Which date's milestones Goals mode is showing.
+        //  - Future override: holds until the real calendar catches up to
+        //    it, then falls back to tracking today (so it can't get stuck
+        //    showing a stale date).
+        //  - Past override: holds only on the day it was picked, then
+        //    reverts to today.
+        //  - No override: today.
         function effectiveGoalsDate() {
             const todayStr = todayLocalDateStr();
-            if (goalsViewDateOverride && goalsViewDateOverride > todayStr) {
+            if (!goalsViewDateOverride) return todayStr;
+            if (goalsViewDateOverride > todayStr) return goalsViewDateOverride;
+            if (goalsViewDateOverride < todayStr && goalsViewDateSetOn === todayStr) {
                 return goalsViewDateOverride;
             }
             return todayStr;
+        }
+
+        // Single place that changes which date is being viewed. Picking
+        // today clears the override so the view goes back to tracking the
+        // real calendar date automatically.
+        function setGoalsViewDate(dateStr) {
+            const todayStr = todayLocalDateStr();
+            if (!dateStr || dateStr === todayStr) {
+                goalsViewDateOverride = null;
+                goalsViewDateSetOn = null;
+            } else {
+                goalsViewDateOverride = dateStr;
+                goalsViewDateSetOn = todayStr;
+            }
         }
 
         // Earliest date after `afterDate` that still has an incomplete
@@ -1298,7 +1338,7 @@
         }
 
         function saveGoalsViewDateToFirebase() {
-            WHEEL_DOC.set({ goalsViewDate: goalsViewDateOverride }, { merge: true })
+            WHEEL_DOC.set({ goalsViewDate: goalsViewDateOverride, goalsViewDateSetOn: goalsViewDateSetOn }, { merge: true })
                 .then(() => setSyncStatus('synced'))
                 .catch(err => {
                     console.error("Goals view-date save failed", err);
@@ -1312,7 +1352,7 @@
         function advanceGoalsDay() {
             const next = findNextGoalsDate(effectiveGoalsDate());
             if (!next) return;
-            goalsViewDateOverride = next;
+            setGoalsViewDate(next);
             saveGoalsViewDateToFirebase();
             allBooks = computeAllBooksForMode('goals');
             applyFilters();
@@ -1324,13 +1364,32 @@
             const result = [];
             readingBooks.forEach(book => {
                 const matchingGoals = goalsModeData.filter(g => g.bookTitle === book.title);
+
+                if (includePastGoals) {
+                    // Every unfinished milestone up to and including the
+                    // viewed date, oldest first. De-duplicated by label so
+                    // a rescheduled milestone doesn't take two slices (and
+                    // so sub-goal keys, which are title + label, can't
+                    // collide).
+                    const byLabel = new Map();
+                    matchingGoals.forEach(goal => (goal.milestones || []).forEach(ms => {
+                        if (ms.completed || !ms.date || ms.date > viewDate) return;
+                        const existing = byLabel.get(ms.label);
+                        if (!existing || ms.date < existing.date) byLabel.set(ms.label, ms);
+                    }));
+                    Array.from(byLabel.values())
+                        .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+                        .forEach(ms => result.push({ ...book, goalLabel: ms.label, goalDate: ms.date }));
+                    return;
+                }
+
                 let todayMilestone = null;
                 for (const goal of matchingGoals) {
                     const found = (goal.milestones || []).find(ms => ms.date === viewDate && !ms.completed);
                     if (found) { todayMilestone = found; break; }
                 }
                 if (todayMilestone) {
-                    result.push({ ...book, goalLabel: todayMilestone.label });
+                    result.push({ ...book, goalLabel: todayMilestone.label, goalDate: viewDate });
                 }
             });
             return result;
@@ -1387,6 +1446,15 @@
             localStorage.setItem('shelf:noRepeatSpins', String(noRepeatSpins));
         }
 
+        function onIncludePastGoalsToggleChange(e) {
+            includePastGoals = e.target.checked;
+            localStorage.setItem('shelf:includePastGoals', String(includePastGoals));
+            if (wheelMode === 'goals') {
+                allBooks = computeAllBooksForMode('goals');
+                applyFilters();
+            }
+        }
+
         function onWeightedSubGoalsToggleChange(e) {
             weightBySubGoals = e.target.checked;
             localStorage.setItem('shelf:weightBySubGoals', String(weightBySubGoals));
@@ -1400,35 +1468,30 @@
 
         // Keeps the settings-panel date picker in sync with goals-mode state:
         // hidden outside Goals mode, and otherwise showing whatever date is
-        // currently in view (today, or a future date picked here / reached
-        // via "Move to Next Day"). Only future dates are selectable, same
-        // "never behind, only ever look ahead" rule effectiveGoalsDate()
-        // already enforces, so the picker can't produce a state that
-        // silently gets ignored.
+        // currently in view (today, or any past/future date picked here or
+        // reached via "Move to Next Day"). Any date is selectable.
         function updateGoalsDatePickerVisibility() {
             const row = document.getElementById('goals-date-picker-row');
             const input = document.getElementById('goals-date-picker');
+            const pastLabel = document.getElementById('include-past-goals-label');
+            if (pastLabel) pastLabel.style.display = wheelMode === 'goals' ? 'flex' : 'none';
             if (wheelMode !== 'goals') {
                 row.style.display = 'none';
                 return;
             }
             row.style.display = 'flex';
-            const todayStr = todayLocalDateStr();
-            input.min = todayStr;
+            input.removeAttribute('min');
             input.value = effectiveGoalsDate();
         }
 
         // Fires when the user picks a date in the settings-panel date
         // picker. Picking today clears the override (falls back to tracking
-        // the real calendar date automatically); picking a future date sets
-        // it, same as "Move to Next Day" does. A past date shouldn't be
-        // reachable (min= guards the native picker), but if it happens
-        // anyway it's treated as "today" rather than silently ignored.
+        // the real calendar date automatically); any other date, past or
+        // future, becomes the day being viewed.
         function onGoalsDatePickerChange(event) {
-            const todayStr = todayLocalDateStr();
             const picked = event.target.value;
             if (!picked) return;
-            goalsViewDateOverride = picked > todayStr ? picked : null;
+            setGoalsViewDate(picked);
             saveGoalsViewDateToFirebase();
             allBooks = computeAllBooksForMode('goals');
             applyFilters();
@@ -1514,6 +1577,7 @@
             editingSubGoalKey = subGoalKey(book);
             editingSubGoalBookTitle = book.title || 'Untitled';
             editingSubGoalParentLabel = book.isPad ? '' : (book.goalLabel || '');
+            editingSubGoalGoalDate = book.isPad ? null : (book.goalDate || null);
             editingSubGoalIsPad = !!book.isPad;
             editingSubGoalPadId = book.isPad ? book.id : null;
             document.getElementById('subgoal-parent-label').textContent = editingSubGoalIsPad
@@ -1817,7 +1881,7 @@
                 return;
             }
 
-            const viewDate = effectiveGoalsDate();
+            const viewDate = editingSubGoalGoalDate || effectiveGoalsDate();
             const goal = goalsModeData.find(g => g.bookTitle === editingSubGoalBookTitle &&
                 (g.milestones || []).some(ms => ms.label === editingSubGoalParentLabel && ms.date === viewDate && !ms.completed));
             if (!goal) {
@@ -2058,7 +2122,7 @@
 
             if (filteredBooks.length === 0) {
                 container.innerHTML = wheelMode === 'goals'
-                    ? `<div class="empty-state">No goal milestones scheduled for ${effectiveGoalsDate() === todayLocalDateStr() ? 'today' : 'this day'}.</div>`
+                    ? `<div class="empty-state">${includePastGoals ? 'No unfinished goals up to' : 'No goal milestones scheduled for'} ${effectiveGoalsDate() === todayLocalDateStr() ? 'today' : 'this day'}.</div>`
                     : `<div class="empty-state">No books match your current filters.</div>`;
                 return;
             }
@@ -2144,6 +2208,16 @@
                     badgeEl.className = 'book-item-subgoal-badge';
                     badgeEl.textContent = subGoalBadgeText;
                     card.appendChild(badgeEl);
+                }
+
+                // Unfinished goal from an earlier day (only possible with
+                // "Include unfinished past goals" on).
+                if (wheelMode === 'goals' && book.goalDate && book.goalDate < effectiveGoalsDate()) {
+                    const dueEl = document.createElement('div');
+                    dueEl.className = 'book-item-author';
+                    dueEl.style.fontStyle = 'italic';
+                    dueEl.textContent = `⏪ From ${formatShortDate(book.goalDate)}`;
+                    card.appendChild(dueEl);
                 }
 
                 // Goals mode only: click a goal to split it into a
@@ -2319,7 +2393,7 @@
 
             // Plain goal (no sub-goals defined) — mark the underlying
             // milestone complete, same as markEntireGoalComplete().
-            const viewDate = effectiveGoalsDate();
+            const viewDate = book.goalDate || effectiveGoalsDate();
             const goal = goalsModeData.find(g => g.bookTitle === book.title &&
                 (g.milestones || []).some(ms => ms.label === book.goalLabel && ms.date === viewDate && !ms.completed));
             if (!goal) return;
@@ -2631,6 +2705,7 @@
                 // "Move to next day" override — also wheel-only, same reason:
                 // pick up a device-to-device change (e.g. advanced on phone).
                 goalsViewDateOverride = typeof data.goalsViewDate === 'string' ? data.goalsViewDate : null;
+                goalsViewDateSetOn = typeof data.goalsViewDateSetOn === 'string' ? data.goalsViewDateSetOn : null;
                 updateGoalsDatePickerVisibility();
 
                 // Custom pad items — also wheel-only, same reason: pick up a
@@ -2757,6 +2832,7 @@
             document.getElementById('mode-tbr-btn').classList.toggle('active', wheelMode === 'tbr');
             document.getElementById('no-repeat-toggle').checked = noRepeatSpins;
             document.getElementById('weighted-subgoals-toggle').checked = weightBySubGoals;
+            document.getElementById('include-past-goals-toggle').checked = includePastGoals;
             updateFilterOptions();
             applyFilters();
             updateSpinButtonsForMode();
