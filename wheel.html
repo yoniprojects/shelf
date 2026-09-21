@@ -1120,9 +1120,7 @@
         let editingSubGoalKey = null;
         let editingSubGoalBookTitle = '';
         let editingSubGoalParentLabel = '';
-        // The real milestone(s) behind the goal being edited — more than
-        // one when "Include unfinished past goals" has bunched several
-        // together into a single wheel item.
+        // The real milestone behind the goal being edited, as a one-item list.
         let editingSubGoalMilestones = [];
         let editingSubGoalIsPad = false;
         let editingSubGoalPadId = null;
@@ -1161,10 +1159,10 @@
         let weightBySubGoals = localStorage.getItem('shelf:weightBySubGoals') === 'true';
 
         // "Include unfinished past goals" (Goals mode only): when on, the
-        // wheel holds every not-yet-completed milestone dated on or before
+        // each book's oldest not-yet-completed milestone dated on or before
         // the day being viewed (i.e. today, unless you've picked another
-        // date), not just the ones dated exactly that day. Each such
-        // milestone is its own slice.
+        // date) goes on the wheel, not just ones dated exactly that day.
+        // Still one slice per book; finishing it brings up the next one.
         let includePastGoals = localStorage.getItem('shelf:includePastGoals') === 'true';
 
         // Tracks which checkbox-filter values are unchecked. Empty set = everything shown.
@@ -1360,25 +1358,9 @@
             updateGoalsDatePickerVisibility();
         }
 
-        // Combines several consecutive milestones for one book into a single
-        // label. Page and percentage ranges merge into one range (so the
-        // sub-goal splitter still understands them); chapter/free-text
-        // labels become "first – last".
-        function mergeGoalLabels(milestones) {
-            if (milestones.length === 1) return milestones[0].label;
-            const parsed = milestones.map(m => parseGoalLabelForSplit(m.label));
-            if (parsed.every(pr => pr.type === 'page')) {
-                return `Page ${Math.min(...parsed.map(pr => pr.from))}-${Math.max(...parsed.map(pr => pr.to))}`;
-            }
-            if (parsed.every(pr => pr.type === 'percent')) {
-                return `Percentage ${Math.min(...parsed.map(pr => pr.from))}-${Math.max(...parsed.map(pr => pr.to))}%`;
-            }
-            return `${milestones[0].label} – ${milestones[milestones.length - 1].label}`;
-        }
-
-        // The real milestone(s) a wheel item stands for: the bunched list
-        // when "Include unfinished past goals" is on, otherwise just the
-        // one for the day being viewed.
+        // The real milestone a wheel item stands for (as a one-item list):
+        // the oldest unfinished one when "Include unfinished past goals" is
+        // on, otherwise the one for the day being viewed.
         function getGoalMilestones(book) {
             if (Array.isArray(book.goalMilestones) && book.goalMilestones.length > 0) return book.goalMilestones;
             return [{ label: book.goalLabel, date: effectiveGoalsDate() }];
@@ -1405,25 +1387,20 @@
                 const matchingGoals = goalsModeData.filter(g => g.bookTitle === book.title);
 
                 if (includePastGoals) {
-                    // Every unfinished milestone up to and including the
-                    // viewed date, oldest first, bunched into ONE wheel item
-                    // per book (same as the normal daily view, where a book
-                    // only ever takes one slice). De-duplicated by label so a
-                    // rescheduled milestone isn't counted twice.
-                    const byLabel = new Map();
+                    // One wheel item per book (same as the normal daily view),
+                    // showing that book's OLDEST unfinished goal up to and
+                    // including the viewed date. Finishing it surfaces the next
+                    // one for the same book. Ties on date keep goals.html order.
+                    let oldest = null;
                     matchingGoals.forEach(goal => (goal.milestones || []).forEach(ms => {
                         if (ms.completed || !ms.date || ms.date > viewDate) return;
-                        const existing = byLabel.get(ms.label);
-                        if (!existing || ms.date < existing.date) byLabel.set(ms.label, ms);
+                        if (!oldest || ms.date < oldest.date) oldest = ms;
                     }));
-                    const milestones = Array.from(byLabel.values())
-                        .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
-                        .map(ms => ({ label: ms.label, date: ms.date }));
-                    if (milestones.length > 0) {
+                    if (oldest) {
                         result.push({
                             ...book,
-                            goalLabel: mergeGoalLabels(milestones),
-                            goalMilestones: milestones
+                            goalLabel: oldest.label,
+                            goalMilestones: [{ label: oldest.label, date: oldest.date }]
                         });
                     }
                     return;
@@ -1933,8 +1910,7 @@
                 closeSubGoalEditor();
                 return;
             }
-            const bunchNote = openMilestones.length > 1 ? ` (${openMilestones.length} bunched goals)` : '';
-            if (!confirm(`Mark "${editingSubGoalParentLabel}"${bunchNote} as complete? This will also mark it done in goals.html.`)) return;
+            if (!confirm(`Mark "${editingSubGoalParentLabel}" as complete? This will also mark it done in goals.html.`)) return;
 
             openMilestones.forEach(ms => { ms.completed = true; });
 
@@ -2254,18 +2230,14 @@
                     card.appendChild(badgeEl);
                 }
 
-                // Bunched-in goals from earlier days (only possible with
+                // Goal carried over from an earlier day (only possible with
                 // "Include unfinished past goals" on).
-                if (wheelMode === 'goals' && Array.isArray(book.goalMilestones)) {
-                    const viewDateForTag = effectiveGoalsDate();
-                    const earlier = book.goalMilestones.filter(m => m.date < viewDateForTag);
-                    if (earlier.length > 0) {
-                        const dueEl = document.createElement('div');
-                        dueEl.className = 'book-item-author';
-                        dueEl.style.fontStyle = 'italic';
-                        dueEl.textContent = `⏪ Includes ${earlier.length} earlier goal${earlier.length === 1 ? '' : 's'} (since ${formatShortDate(earlier[0].date)})`;
-                        card.appendChild(dueEl);
-                    }
+                if (wheelMode === 'goals' && Array.isArray(book.goalMilestones) && book.goalMilestones[0].date < effectiveGoalsDate()) {
+                    const dueEl = document.createElement('div');
+                    dueEl.className = 'book-item-author';
+                    dueEl.style.fontStyle = 'italic';
+                    dueEl.textContent = `⏪ From ${formatShortDate(book.goalMilestones[0].date)}`;
+                    card.appendChild(dueEl);
                 }
 
                 // Goals mode only: click a goal to split it into a
