@@ -1536,9 +1536,13 @@
         // until it's removed or given new sub-goals.
         function computeWheelSlices() {
             let weights = filteredBooks.map(book => {
-                if (!weightBySubGoals || !bookHasSubGoalFeature(book)) return 1;
+                if (!weightBySubGoals) return 1;
                 const entry = getSubGoalEntry(book);
                 const items = entry && Array.isArray(entry.items) ? entry.items : [];
+                // No sub-goals defined for this item at all -> treat the whole
+                // goal as equal to 1 sub-goal, same as everything else, rather
+                // than falling through to 0 remaining and vanishing.
+                if (items.length === 0) return 1;
                 return items.filter(i => !i.completed).length;
             });
             let total = weights.reduce((a, b) => a + b, 0);
