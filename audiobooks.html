@@ -362,7 +362,7 @@ async function idbDeleteBlob(key){
 ================================================================== */
 const SPINE_COLORS = ["#4A7A4C","#C08A4E","#7FB59A","#C29A2E","#8A9C5E","#B5794A","#5E8F87","#A0703F","#6E8A4E","#9C8248"];
 const AUDIO_EXTS = ["mp3","m4a","m4b","aac","flac","ogg","oga","opus","wav"];
-const SPEED_STEPS = [0.75,1,1.1,1.25,1.5,1.75,2,2.25,2.5,2.75,3];
+const SPEED_STEPS = [0.75,1,1.1,1.25,1.5,1.75,2,2.25,2.5,2.75,3,3.25,3.5,3.75,4,4.25,4.5,4.75,5];
 
 function esc(s){ return (s==null?"":String(s)).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function hashStr(s){ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h; }
