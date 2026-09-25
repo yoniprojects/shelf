@@ -791,6 +791,7 @@ function maybeOpenPendingWish(){
     setVal('f-series-name', pre.seriesName);
     setVal('f-series-number', pre.seriesNumber);
     if (pre.coverUrl) setVal('f-cover-url', pre.coverUrl);
+    setVal('wf-description', pre.description);
   } catch (e) {
     console.error('Failed to open pending Goodreads wishlist add:', e);
   }
