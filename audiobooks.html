@@ -1289,7 +1289,7 @@ let player = {
   isPlaying: false,
   seeking: false,
   scrubMode: 'book',     // 'book' | 'chapter' — which range the scrubber/time labels reflect
-  sleepTimer: null,      // {mode:'book'|'speed'|'chapter', ...} — see setSleepTimer* below
+  sleepTimer: null,      // {mode:'book'|'percent'|'speed'|'chapter', ...} — see setSleepTimer* below
 };
 
 function entryStartOffset(idx){
@@ -1665,10 +1665,14 @@ function saveProgressNow(){
 
 /* ==================================================================
    SLEEP TIMER ("listen for X minutes…")
-   Three independent stopping conditions:
+   Four independent stopping conditions:
    - 'book':    stop once X minutes of book CONTENT have played, no
                 matter the playback speed (checked against cumulativeSec,
                 which already tracks file position, not wall-clock time).
+   - 'percent': stop based on percentage of the whole book, in two flavors
+                (both converted to a target position when the timer starts):
+                  kind 'more' — listen another X% from here (30% + 5% → 35%)
+                  kind 'goal' — stop when the book reaches X% (at 3%, goal 5% → 5%)
    - 'speed':   stop once X real minutes of listening have elapsed —
                 a classic wall-clock sleep timer. How much of the book
                 that covers depends on the current speed.
@@ -1691,6 +1695,10 @@ function sleepTimerLabel(){
   if (!t) return '';
   if (t.mode === 'book'){
     return `${fmtHMS(Math.max(0, t.targetCumulativeSec - cumulativeSec()))} of book left`;
+  }
+  if (t.mode === 'percent'){
+    const goalPct = Math.round(t.targetCumulativeSec / (player.totalSec || 1) * 1000) / 10;
+    return `Until ${goalPct}% · ${fmtHMS(Math.max(0, t.targetCumulativeSec - cumulativeSec()))} left`;
   }
   if (t.mode === 'speed'){
     return `${fmtHMS(Math.max(0, (t.endsAtMs - Date.now())/1000))} left`;
@@ -1715,7 +1723,7 @@ function fireSleepTimer(){
 function checkSleepTimer(){
   const t = player.sleepTimer;
   if (!t) return;
-  if (t.mode === 'book' && cumulativeSec() >= t.targetCumulativeSec) fireSleepTimer();
+  if ((t.mode === 'book' || t.mode === 'percent') && cumulativeSec() >= t.targetCumulativeSec) fireSleepTimer();
   else if (t.mode === 'chapter' && currentChapterIndex() >= t.targetChapterIdx) fireSleepTimer();
   // 'speed' mode fires on its own via setTimeout, independent of playback state.
 }
@@ -1725,6 +1733,33 @@ function setSleepTimerBook(minutes){
   startSleepBadgeInterval();
   state.modal = null;
   toast(`Sleep timer set — ${minutes}m of book left to play.`);
+  render();
+}
+function currentPercent(){
+  return player.totalSec ? cumulativeSec() / player.totalSec * 100 : 0;
+}
+// kind 'more': listen another `pct`% from here. kind 'goal': stop at `pct`% overall.
+function setSleepTimerPercent(kind, pct){
+  if (!player.totalSec) return;
+  const curPct = currentPercent();
+  let targetPct;
+  if (kind === 'goal'){
+    if (pct <= curPct){
+      toast(`You're already at ${Math.floor(curPct)}% — pick a goal above that.`);
+      return;
+    }
+    targetPct = pct;
+  } else {
+    targetPct = curPct + pct;
+  }
+  targetPct = Math.min(100, targetPct);
+  clearSleepTimer();
+  const targetCumulativeSec = player.totalSec * targetPct / 100;
+  player.sleepTimer = { mode:'percent', kind, pct, targetCumulativeSec };
+  startSleepBadgeInterval();
+  state.modal = null;
+  const shown = Math.round(targetPct*10)/10;
+  toast(kind === 'goal' ? `Sleep timer set — stops at ${shown}% of the book.` : `Sleep timer set — ${pct}% more (stops at ${shown}%).`);
   render();
 }
 function setSleepTimerSpeed(minutes){
@@ -2201,6 +2236,22 @@ function renderSleepModal(){
           <button class="btn btn-accent btn-sm" data-action="set-sleep-book" style="margin-left:auto;">Start</button>
         </div>
 
+        ${player.totalSec ? `<div class="divider-label">By percentage — listen another</div>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 10px;line-height:1.45;">Stops after this much more of the whole book plays. You're at ${Math.floor(currentPercent())}% now.</p>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:18px;">
+          <input type="number" id="sleep-percent-more-input" min="1" max="100" step="1" value="${getSleepDefault('percentMore', 5)}" style="width:64px;border:1.5px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;background:var(--panel-2);color:var(--ink);outline:none;">
+          <span style="font-size:12.5px;color:var(--muted);">% more</span>
+          <button class="btn btn-accent btn-sm" data-action="set-sleep-percent-more" style="margin-left:auto;">Start</button>
+        </div>
+
+        <div class="divider-label">By percentage — goal</div>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 10px;line-height:1.45;">Stops when the book reaches this percentage overall.</p>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:18px;">
+          <input type="number" id="sleep-percent-goal-input" min="1" max="100" step="1" value="${getSleepDefault('percentGoal', 10)}" style="width:64px;border:1.5px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;background:var(--panel-2);color:var(--ink);outline:none;">
+          <span style="font-size:12.5px;color:var(--muted);">% of book</span>
+          <button class="btn btn-accent btn-sm" data-action="set-sleep-percent-goal" style="margin-left:auto;">Start</button>
+        </div>` : ''}
+
         <div class="divider-label">By speed <span style="color:var(--muted-dim);font-weight:600;text-transform:none;">(real listening time)</span></div>
         <p style="font-size:12px;color:var(--muted);margin:0 0 10px;line-height:1.45;">Stops after this many real minutes of listening — at ${player.rate.toFixed(2)}x that covers more of the book than the same time at 1x.</p>
         <div style="display:flex;gap:8px;align-items:center;${hasChapters?'margin-bottom:18px;':''}">
@@ -2451,6 +2502,17 @@ document.addEventListener('click', async (e) => {
     const el = document.getElementById('sleep-book-input');
     const v = el ? parseFloat(el.value) : NaN;
     if (v > 0){ setSleepDefault('book', v); setSleepTimerBook(v); }
+    return;
+  }
+  if (action === 'set-sleep-percent-more' || action === 'set-sleep-percent-goal'){
+    const isGoal = action === 'set-sleep-percent-goal';
+    const el = document.getElementById(isGoal ? 'sleep-percent-goal-input' : 'sleep-percent-more-input');
+    const v = Math.round(el ? parseFloat(el.value) : NaN);
+    if (v > 0 && v <= 100){
+      if (!isGoal) setSleepDefault('percentMore', v);
+      else if (v > currentPercent()) setSleepDefault('percentGoal', v);
+      setSleepTimerPercent(isGoal ? 'goal' : 'more', v);
+    }
     return;
   }
   if (action === 'set-sleep-speed'){
