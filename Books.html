@@ -476,6 +476,7 @@ input[type=color]{width:44px;height:34px;border:none;border-radius:8px;padding:0
       <div class="seg" id="goalTypeSeg">
         <button data-t="chapter">By chapter</button>
         <button data-t="page">By page</button>
+        <button data-t="percent">By %</button>
       </div>
       <div class="row" id="goalChapterRow" style="margin-top:12px;display:none;">
         <select class="goal-select" id="goalChapterSelect"></select>
@@ -483,6 +484,10 @@ input[type=color]{width:44px;height:34px;border:none;border-radius:8px;padding:0
       <div class="row" id="goalPageRow" style="margin-top:12px;display:none;flex-direction:column;align-items:stretch;">
         <input type="number" class="modal-input" id="goalPageInput" style="margin:0;" min="1" step="1" placeholder="Target page">
         <div class="goal-hint" id="goalPageHint"></div>
+      </div>
+      <div class="row" id="goalPercentRow" style="margin-top:12px;display:none;flex-direction:column;align-items:stretch;">
+        <input type="number" class="modal-input" id="goalPercentInput" style="margin:0;" min="1" max="100" step="1" placeholder="Target % of the book">
+        <div class="goal-hint">Percentage of the whole book (1–100)</div>
       </div>
       <div class="row" style="margin-top:12px;margin-bottom:0;">
         <button class="small-btn" id="goalSaveBtn">Set goal</button>
@@ -1876,6 +1881,9 @@ function goalTargetFraction(){
     const total = (book.epubBook.spine && book.epubBook.spine.length) || 1;
     return Math.max(0, Math.min(1, goal.chapterIndex/total));
   }
+  if(goal.type === 'percent'){
+    return Math.max(0, Math.min(1, goal.target/100));
+  }
   if(goal.type === 'page'){
     if(book.locationsReady && book.epubBook.locations.total){
       return Math.max(0, Math.min(1, goal.target/book.epubBook.locations.total));
@@ -2312,6 +2320,7 @@ function setGoalFormType(type){
   document.querySelectorAll('#goalTypeSeg button').forEach(b=>b.classList.toggle('active', b.dataset.t===type));
   $('#goalChapterRow').style.display = type==='chapter' ? '' : 'none';
   $('#goalPageRow').style.display = type==='page' ? '' : 'none';
+  $('#goalPercentRow').style.display = type==='percent' ? '' : 'none';
 }
 $('#goalTypeSeg').addEventListener('click', e=>{
   const btn = e.target.closest('button[data-t]');
@@ -2328,8 +2337,9 @@ function refreshGoalUI(){
   if(goal){
     setGoalFormType(goal.type);
     if(goal.type==='chapter') $('#goalChapterSelect').value = String(goal.chapterIndex);
+    else if(goal.type==='percent') $('#goalPercentInput').value = goal.target;
     else $('#goalPageInput').value = goal.target;
-    const label = goal.type==='chapter' ? ('Chapter — "'+goal.chapterLabel+'"') : ('Page '+goal.target);
+    const label = goal.type==='chapter' ? ('Chapter — "'+goal.chapterLabel+'"') : goal.type==='percent' ? (goal.target+'% of the book') : ('Page '+goal.target);
     $('#goalCurrent').innerHTML = 'Current goal: <strong>'+esc(label)+'</strong>';
     $('#goalSaveBtn').textContent = 'Update goal';
     $('#goalDeleteBtn').style.display = '';
@@ -2349,6 +2359,10 @@ $('#goalSaveBtn').addEventListener('click', ()=>{
     const idx = parseInt(sel.value, 10);
     const chapter = (book.navToc||[]).find(c=>c.index===idx);
     goalsMap[book.id] = { type:'chapter', chapterIndex: idx, chapterLabel: chapter ? chapter.label : ('Chapter '+(idx+1)) };
+  } else if(goalFormType==='percent'){
+    const val = parseFloat($('#goalPercentInput').value);
+    if(!val || val<=0 || val>100){ toast('Enter a percentage between 1 and 100.'); return; }
+    goalsMap[book.id] = { type:'percent', target: Math.round(val*10)/10 };
   } else {
     const val = parseInt($('#goalPageInput').value, 10);
     if(!val || val<1){ toast('Enter a target page.'); return; }
