@@ -317,6 +317,40 @@ input[type=color]{width:44px;height:34px;border:none;border-radius:8px;padding:0
 .hint-btn{background:var(--accent);color:#fff;border:none;padding:10px 18px;border-radius:9px;font-weight:600;cursor:pointer;font-size:14px;}
 
 ::-webkit-scrollbar{width:0;height:0;}
+
+/* ---------- quotes: highlight mode + save bar ---------- */
+.icon-btn.active{color:var(--accent);background:var(--bg2);}
+body.quote-mode .tap-zone{pointer-events:none !important;}
+#quoteBar{
+  position:absolute;left:50%;bottom:calc(62px + env(safe-area-inset-bottom, 0px));
+  transform:translate(-50%,16px);z-index:15;
+  display:flex;align-items:center;gap:8px;
+  background:var(--bg2);color:var(--text);border:1px solid var(--border);
+  border-radius:14px;padding:8px 8px 8px 14px;box-shadow:0 8px 24px var(--shadow);
+  opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;max-width:94%;
+  -webkit-user-select:none;user-select:none;
+}
+#quoteBar.show{opacity:1;pointer-events:auto;transform:translate(-50%,0);}
+#quoteBar .qb-page{font-size:12px;color:var(--sub);font-weight:600;white-space:nowrap;}
+#quoteBar button{border:none;cursor:pointer;font-weight:700;font-size:13px;border-radius:9px;padding:9px 14px;}
+#quoteBar .qb-save{background:var(--accent);color:#fff;}
+#quoteBar .qb-x{background:transparent;color:var(--sub);padding:9px 10px;}
+/* Small bar shown when you tap an already-saved (highlighted) quote */
+#quoteDeleteBar{
+  position:absolute;left:50%;bottom:calc(62px + env(safe-area-inset-bottom, 0px));
+  transform:translate(-50%,16px);z-index:15;
+  display:flex;align-items:center;gap:8px;
+  background:var(--bg2);color:var(--text);border:1px solid var(--border);
+  border-radius:14px;padding:8px 8px 8px 14px;box-shadow:0 8px 24px var(--shadow);
+  opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;max-width:94%;
+  -webkit-user-select:none;user-select:none;
+}
+#quoteDeleteBar.show{opacity:1;pointer-events:auto;transform:translate(-50%,0);}
+#quoteDeleteBar .qd-text{font-size:12px;color:var(--sub);font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46vw;}
+#quoteDeleteBar button{border:none;cursor:pointer;border-radius:9px;display:flex;align-items:center;justify-content:center;}
+#quoteDeleteBar .qd-trash{background:transparent;color:#c0562b;padding:9px 10px;}
+#quoteDeleteBar .qd-trash:active{background:rgba(192,86,43,.15);}
+#quoteDeleteBar .qd-x{background:transparent;color:var(--sub);padding:9px 10px;font-weight:700;font-size:13px;}
 </style>
 </head>
 <body data-theme="paper">
@@ -343,6 +377,7 @@ input[type=color]{width:44px;height:34px;border:none;border-radius:8px;padding:0
       </div>
       <button class="icon-btn" id="tocBtn" title="Chapters">☰</button>
       <button class="icon-btn" id="rulerBtn" title="Ruler"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0Z"></path><path d="m14.5 12.5 2-2"></path><path d="m11.5 9.5 2-2"></path><path d="m8.5 6.5 2-2"></path><path d="m17.5 15.5 2-2"></path></svg></button>
+      <button class="icon-btn" id="quoteModeBtn" title="Highlight quotes"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h9l3-3"></path><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"></path></svg></button>
       <button class="icon-btn" id="settingsBtn" title="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
     </div>
 
@@ -500,6 +535,20 @@ input[type=color]{width:44px;height:34px;border:none;border-radius:8px;padding:0
     </div>
   </div>
 
+  <!-- Quote save bar (appears when text is selected in the reader) -->
+  <div id="quoteBar">
+    <span class="qb-page" id="quoteBarPage"></span>
+    <button class="qb-save" id="quoteSaveBtn">Save quote</button>
+    <button class="qb-x" id="quoteCancelBtn" title="Cancel">✕</button>
+  </div>
+
+  <!-- Quote delete bar (appears when you tap a saved, highlighted quote) -->
+  <div id="quoteDeleteBar">
+    <span class="qd-text" id="quoteDeleteText"></span>
+    <button class="qd-trash" id="quoteDeleteBtn" title="Delete this quote" aria-label="Delete this quote"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
+    <button class="qd-x" id="quoteDeleteCancelBtn" title="Close">✕</button>
+  </div>
+
   <!-- TOC -->
   <div id="tocSheet">
     <div class="toc-header">
@@ -536,6 +585,7 @@ const LS_SETTINGS = 'reader.settings.v1';
 const LS_PROG = 'reader.progress.v2'; // bookId -> {cfi, percent, updatedAt} — local mirror of PROGRESS_DOC
 const LS_LOCATIONS = 'reader.locations.v1'; // bookId -> epub.js locations save() blob (device-local only, never synced)
 const LS_CUSTOM_THEMES = 'reader.customThemes.v1';
+const LS_PRINTPAGES = 'reader.printPages.v1'; // bookId -> {pages:[[cfi,label],...]} | {none:true} (device-local cache of a book's built-in printed page numbers)
 const LS_GOALS = 'reader.goals.v1'; // bookId -> {type:'chapter'|'page', chapterIndex, chapterLabel, target}
 
 function loadJSON(key, fallback){
@@ -562,12 +612,15 @@ let settings = Object.assign({}, DEFAULT_SETTINGS, loadJSON(LS_SETTINGS, {}));
 // every Firestore read.
 let progressMap = loadJSON(LS_PROG, {}); // bookId -> {cfi, percent, updatedAt}
 let locationsMap = loadJSON(LS_LOCATIONS, {}); // bookId -> locations blob
+let printPagesMap = loadJSON(LS_PRINTPAGES, {});
 let customThemes = loadJSON(LS_CUSTOM_THEMES, []); // [{id,name,image,color,opacity,textColor}]
+let quotesMap = {}; // bookId -> [{id,text,cfiRange,page,total,createdAt}] — mirrors PROGRESS_DOC.quotes (synced; the tracker's book details page reads it too)
 let goalsMap = loadJSON(LS_GOALS, {}); // bookId -> goal object (see LS_GOALS comment) or absent if none set
 
 function persistSettings(){ saveJSON(LS_SETTINGS, settings); }
 function persistLocalProgress(){ saveJSON(LS_PROG, progressMap); }
 function persistLocations(){ saveJSON(LS_LOCATIONS, locationsMap); }
+function persistPrintPages(){ try{ saveJSON(LS_PRINTPAGES, printPagesMap); }catch(e){} }
 function persistCustomThemes(){ saveJSON(LS_CUSTOM_THEMES, customThemes); }
 function persistGoals(){ saveJSON(LS_GOALS, goalsMap); }
 function currentGoal(){ return (book && goalsMap[book.id]) || null; }
@@ -682,6 +735,8 @@ function loadReadingProgress(){
   PROGRESS_DOC.onSnapshot((snap) => {
     const data = snap.exists ? snap.data() : {};
     tstate.progress = (data && typeof data.progress === 'object' && data.progress) || {};
+    quotesMap = (data && data.quotes && typeof data.quotes === 'object') ? data.quotes : {};
+    if (typeof syncHighlights === 'function') { try{ syncHighlights(); }catch(e){} }
     // Merge into the local mirror: whichever side has the newer updatedAt wins,
     // same stale-snapshot guard idea used for progressPercent above.
     Object.keys(tstate.progress).forEach(bookId => {
@@ -956,7 +1011,8 @@ book = {
   epubBook: epub.js Book instance, rendition: epub.js Rendition instance,
   navToc: [{label, href, index}],
   currentCfi, currentHref, currentIndex, currentDisplayed:{page,total}, atStart, atEnd,
-  savedCfi, wordCounts:{counts:[...], total}, locationsReady
+  savedCfi, wordCounts:{counts:[...], total}, locationsReady,
+  printPages: [{cfi,label}] sorted in book order, or null if the EPUB has no built-in page numbers; printState: 'loading'|'ready'; printTotal
 }
 */
 
@@ -1233,7 +1289,7 @@ async function openTrackerBookFile(file, item){
       currentCfi: null, currentEndCfi: null, currentHref: null, currentIndex: 0, currentDisplayed: null,
       atStart:false, atEnd:false,
       savedCfi: null,
-      wordCounts: null, locationsReady: false,
+      wordCounts: null, locationsReady: false, printPages: null, printState: 'loading', printTotal: null,
       trackerItem: item, // the tracker book/wishlist item this reader session is linked to
     };
     const prog = progressMap[item.id];
@@ -1247,6 +1303,27 @@ async function openTrackerBookFile(file, item){
 
     // background: word counts (for time estimates) + locations (for percent/page-of-book)
     computeWordCounts(epubBook).then(res=>{ if(book && book.epubBook===epubBook){ book.wordCounts = res; updateBottomBar(); } }).catch(()=>{});
+    // built-in printed page numbers (EPUB page-list / page-break markers), if the file has them
+    const cachedPrint = printPagesMap[item.id];
+    (cachedPrint
+        ? Promise.resolve(cachedPrint.none ? null : (cachedPrint.pages||[]).map(([cfi,label])=>({cfi,label})))
+        : buildPrintPages(epubBook).then(res=>{
+            printPagesMap[item.id] = res ? { pages: res.map(x=>[x.cfi,x.label]) } : { none:true };
+            persistPrintPages();
+            return res;
+          }))
+      .catch(()=>null)
+      .then(res=>{
+        if(!book || book.epubBook!==epubBook) return;
+        book.printPages = (res && res.length) ? res : null;
+        book.printTotal = null;
+        if(book.printPages){
+          const nums = book.printPages.map(x=>x.label).filter(l=>/^\d+$/.test(l)).map(l=>parseInt(l,10));
+          if(nums.length) book.printTotal = Math.max.apply(null, nums);
+        }
+        book.printState = 'ready';
+        updateBottomBar();
+      });
     const savedLocs = locationsMap[item.id];
     (savedLocs ? Promise.resolve(epubBook.locations.load(savedLocs)) : epubBook.locations.generate(1600))
       .then(()=>{
@@ -1376,6 +1453,161 @@ function blobToDataUrl(blob){
 /* ============================================================
    Word counts (background, powers the time-remaining status modes)
    ============================================================ */
+/* ============================================================
+   Printed page numbers. Many EPUBs carry the page numbers of a specific print
+   edition (a nav "page-list", an NCX <pageList>, or inline page-break markers).
+   When a book has them they are the default; otherwise the reader's own numbering
+   (the book cut into ~1600-character chunks) is used.
+   ============================================================ */
+function _joinPath(dir, rel){
+  const out = [];
+  (dir + rel).split('/').forEach(seg=>{
+    if(seg==='' || seg==='.') return;
+    if(seg==='..') out.pop(); else out.push(seg);
+  });
+  return out.join('/');
+}
+function _dirOf(path){ const i = path.lastIndexOf('/'); return i<0 ? '' : path.slice(0,i+1); }
+function _epubType(el){
+  for(const a of Array.from(el.attributes)){
+    if(a.localName==='type' && (a.prefix==='epub' || a.name==='epub:type')) return a.value;
+  }
+  return '';
+}
+function _hasToken(str, tok){ return (' '+str+' ').indexOf(' '+tok+' ')>=0 || str.split(/\s+/).indexOf(tok)>=0; }
+function _findSpineItem(epubBook, path){
+  const tries = [path];
+  try{ tries.push(decodeURIComponent(path)); }catch(e){}
+  for(const t of tries){
+    let it = null;
+    try{ it = epubBook.spine.get(t); }catch(e){}
+    if(it) return it;
+  }
+  return null;
+}
+async function _readPageListEntries(epubBook){
+  const pk = epubBook.packaging || {};
+  let entries = [];
+  if(pk.navPath){
+    try{
+      const doc = await epubBook.load(pk.navPath);
+      const base = _dirOf(pk.navPath);
+      Array.from(doc.getElementsByTagName('nav')).forEach(nav=>{
+        if(!_hasToken(_epubType(nav), 'page-list')) return;
+        Array.from(nav.getElementsByTagName('a')).forEach(a=>{
+          const href = a.getAttribute('href'), label = (a.textContent||'').trim();
+          if(href && label) entries.push({ base, href, label });
+        });
+      });
+    }catch(e){}
+  }
+  if(!entries.length && pk.ncxPath){
+    try{
+      const doc = await epubBook.load(pk.ncxPath);
+      const base = _dirOf(pk.ncxPath);
+      Array.from(doc.getElementsByTagName('pageTarget')).forEach(t=>{
+        const c = t.getElementsByTagName('content')[0];
+        const lab = t.getElementsByTagName('text')[0];
+        const href = c && c.getAttribute('src');
+        const label = ((lab && lab.textContent) || t.getAttribute('value') || '').trim();
+        if(href && label) entries.push({ base, href, label });
+      });
+    }catch(e){}
+  }
+  return entries;
+}
+// Returns [{cfi,label}] in book order, or null when the book has no (usable) printed page numbers.
+async function buildPrintPages(epubBook){
+  const cfiTool = new ePub.CFI();
+  let found = [];
+  // 1) declared page list (nav / NCX) -> locate each target in its chapter file
+  const entries = await _readPageListEntries(epubBook);
+  if(entries.length){
+    const bySection = new Map();
+    entries.forEach(e=>{
+      const hash = e.href.indexOf('#');
+      const file = hash<0 ? e.href : e.href.slice(0,hash);
+      const frag = hash<0 ? '' : e.href.slice(hash+1);
+      const it = _findSpineItem(epubBook, _joinPath(e.base, file));
+      if(!it) return;
+      if(!bySection.has(it)) bySection.set(it, []);
+      bySection.get(it).push({ frag, label:e.label });
+    });
+    for(const [it, list] of bySection){
+      let doc = null;
+      try{ doc = await epubBook.load(it.href); }catch(e){ continue; }
+      if(!doc) continue;
+      list.forEach(x=>{
+        try{
+          let el = null;
+          if(x.frag){
+            let f = x.frag; try{ f = decodeURIComponent(f); }catch(e){}
+            el = doc.getElementById(f) || doc.querySelector('[id="'+f.replace(/"/g,'\\"')+'"]');
+            if(!el) return;
+          } else {
+            el = doc.body || doc.documentElement;
+          }
+          found.push({ cfi: new ePub.CFI(el, it.cfiBase).toString(), label:x.label });
+        }catch(e){}
+      });
+    }
+  }
+  // 2) no declared list: look for inline page-break markers in every chapter
+  if(found.length < 5){
+    found = [];
+    for(const it of epubBook.spine.spineItems){
+      let doc = null;
+      try{ doc = await epubBook.load(it.href); }catch(e){ continue; }
+      if(!doc) continue;
+      Array.from(doc.getElementsByTagName('*')).forEach(el=>{
+        try{
+          const isBreak = el.getAttribute('role')==='doc-pagebreak' || _hasToken(_epubType(el), 'pagebreak');
+          if(!isBreak) return;
+          const label = (el.getAttribute('aria-label') || el.getAttribute('title') || el.textContent || '').trim();
+          if(!label) return;
+          found.push({ cfi: new ePub.CFI(el, it.cfiBase).toString(), label });
+        }catch(e){}
+      });
+    }
+  }
+  if(found.length < 5) return null;
+  found.sort((a,b)=>{ try{ return cfiTool.compare(a.cfi, b.cfi); }catch(e){ return 0; } });
+  return found;
+}
+
+// The page a position (CFI) falls on. Printed numbering when the book has it,
+// the reader's own count otherwise. null while still being worked out.
+//   {label, total, print:boolean, front:boolean}
+function pageInfoAt(cfi){
+  if(!book || !cfi) return null;
+  if(book.printState==='loading') return null;
+  if(book.printPages){
+    const pages = book.printPages;
+    const cmp = new ePub.CFI();
+    let lo = 0, hi = pages.length-1, idx = -1;
+    while(lo<=hi){
+      const mid = (lo+hi)>>1;
+      let c = 1;
+      try{ c = cmp.compare(pages[mid].cfi, cfi); }catch(e){}
+      if(c<=0){ idx = mid; lo = mid+1; } else hi = mid-1;
+    }
+    if(idx<0) return { label:null, total:book.printTotal, print:true, front:true };
+    return { label:pages[idx].label, total:book.printTotal, print:true, front:false };
+  }
+  if(!book.locationsReady) return null;
+  try{
+    const loc = book.epubBook.locations.locationFromCfi(cfi);
+    if(loc==null || loc<0) return null;
+    return { label:loc+1, total:book.epubBook.locations.total, print:false, front:false };
+  }catch(e){ return null; }
+}
+function pageInfoText(info){
+  if(!info) return null;
+  if(info.front) return 'Front matter';
+  const numeric = /^\d+$/.test(String(info.label));
+  return 'Page '+info.label+((info.total && numeric) ? (' of '+info.total) : '');
+}
+
 async function computeWordCounts(epubBook){
   const counts = [];
   let total = 0;
@@ -1461,7 +1693,11 @@ function createRendition(container, mode){
   const rendition = book.epubBook.renderTo(container, opts);
   rendition.hooks.content.register(injectDynamicStyle);
   rendition.hooks.content.register(attachContentTouch);
+  rendition.hooks.content.register(attachQuoteSelection);
   rendition.on('relocated', onRelocated);
+  rendition.on('selected', onQuoteSelected);
+  appliedHighlights = {};
+  setTimeout(syncHighlights, 0);
   return rendition;
 }
 
@@ -1709,6 +1945,7 @@ function onRelocated(location){
   book.currentEndCfi = (location.end && location.end.cfi) || null;
   book.atStart = !!location.atStart;
   book.atEnd = !!location.atEnd;
+  hideQuoteBar();
   updateBottomBar();
   saveProgressDebounced();
   if(tocSheet.classList.contains('open')) renderTOC();
@@ -1781,6 +2018,8 @@ function onContentTouchStart(e){
 }
 function onContentTouchEnd(e){
   if(touchStartX===null || settings.viewMode!=='page' || !book || !book.rendition) { touchStartX=null; return; }
+  // Dragging a text-selection handle looks like a horizontal swipe — don't turn the page for it.
+  if(hasActiveSelection()){ touchStartX=null; return; }
   const dx = e.changedTouches[0].clientX - touchStartX;
   const dy = e.changedTouches[0].clientY - (touchStartY||0);
   touchStartX = null;
@@ -1884,6 +2123,15 @@ function goalTargetFraction(){
   if(goal.type === 'percent'){
     return Math.max(0, Math.min(1, goal.target/100));
   }
+  if(goal.type === 'page' && goal.numbering === 'print'){
+    // goal was set using the book's printed page numbers
+    if(!book.printPages || !book.locationsReady) return null;
+    const nums = book.printPages.filter(x=>/^\d+$/.test(x.label));
+    if(!nums.length) return null;
+    const hit = nums.find(x=>parseInt(x.label,10) >= goal.target);
+    if(!hit) return 1;
+    try{ return Math.max(0, Math.min(1, book.epubBook.locations.percentageFromCfi(hit.cfi))); }catch(e){ return null; }
+  }
   if(goal.type === 'page'){
     if(book.locationsReady && book.epubBook.locations.total){
       return Math.max(0, Math.min(1, goal.target/book.epubBook.locations.total));
@@ -1891,6 +2139,20 @@ function goalTargetFraction(){
     return null;
   }
   return null;
+}
+// Words that fit on one screen right now, measured from the current chapter's
+// word count and how many screens the reader splits it into (page view only).
+// The last good measurement is kept so scroll mode / image-only chapters still work.
+function wordsPerFlip(){
+  if(!book) return null;
+  try{
+    const d = book.currentDisplayed;
+    if(settings.viewMode==='page' && d && d.total>1 && book.wordCounts){
+      const words = book.wordCounts.counts[book.currentIndex||0] || 0;
+      if(words >= 150) book.wordsPerFlip = words / d.total;
+    }
+  }catch(e){}
+  return book.wordsPerFlip || null;
 }
 // Fraction of the book still left to read before the goal is hit. 0 (or less,
 // clamped to 0) once the goal has been reached or passed.
@@ -1936,10 +2198,7 @@ function updateBottomBar(){
   switch(mode){
     case 'none': text=''; break;
     case 'pageInBook':
-      if(book.locationsReady && book.currentCfi){
-        const loc = book.epubBook.locations.locationFromCfi(book.currentCfi);
-        text = `Page ${loc+1} of ${book.epubBook.locations.total}`;
-      } else text = 'Calculating…';
+      text = pageInfoText(pageInfoAt(book.currentCfi)) || 'Calculating…';
       break;
     case 'pageInChapter':
       if(settings.viewMode==='page' && book.currentDisplayed){
@@ -1957,10 +2216,17 @@ function updateBottomBar(){
       break;
     }
     case 'flipsInBook':
-      if(book.locationsReady && book.currentCfi){
-        const loc = book.epubBook.locations.locationFromCfi(book.currentCfi);
-        text = (book.epubBook.locations.total-loc-1)+' pages left in book';
-      } else text = 'Calculating…';
+      {
+        const info = pageInfoAt(book.currentCfi);
+        if(info && info.print && info.total && /^\d+$/.test(String(info.label))){
+          text = Math.max(0, info.total-parseInt(info.label,10))+' pages left in book';
+        } else if(book.printState==='ready' && !book.printPages && book.locationsReady && book.currentCfi){
+          const loc = book.epubBook.locations.locationFromCfi(book.currentCfi);
+          text = (book.epubBook.locations.total-loc-1)+' pages left in book';
+        } else if(info && info.print){
+          text = ''; // front matter / non-numeric page: nothing sensible to count
+        } else text = 'Calculating…';
+      }
       break;
     case 'flipsInChapter':
       if(settings.viewMode==='page' && book.currentDisplayed){
@@ -1985,7 +2251,16 @@ function updateBottomBar(){
       if(rem==null){ text = 'Calculating…'; break; }
       if(rem<=0){ text=''; break; } // goal reached — nothing to show
       if(!book.locationsReady || !book.epubBook.locations.total){ text = 'Calculating…'; break; }
-      const flips = Math.round(rem * book.epubBook.locations.total);
+      // A "flip" is one real screen of text, not one epub.js location (~1600 chars),
+      // so measure words per screen from the chapter being read and divide the words
+      // still to read by that. Falls back to the location count if unmeasurable.
+      const wpf = wordsPerFlip();
+      let flips;
+      if(wpf && book.wordCounts && book.wordCounts.total){
+        flips = Math.ceil((rem * book.wordCounts.total) / wpf);
+      } else {
+        flips = Math.round(rem * book.epubBook.locations.total);
+      }
       text = flips>0 ? (flips+' flips left to goal') : '';
       break;
     }
@@ -2333,7 +2608,9 @@ function refreshGoalUI(){
   populateGoalChapterSelect();
   const goal = currentGoal();
   const totalLocs = book.locationsReady ? book.epubBook.locations.total : null;
-  $('#goalPageHint').textContent = totalLocs ? ('out of '+totalLocs+' — same numbering as the page count shown while reading') : 'Calculating book length…';
+  if(book.printPages && book.printTotal) $('#goalPageHint').textContent = 'out of '+book.printTotal+' — the printed page numbers built into this book';
+  else if(book.printState==='loading') $('#goalPageHint').textContent = 'Calculating book length…';
+  else $('#goalPageHint').textContent = totalLocs ? ('out of '+totalLocs+' — same numbering as the page count shown while reading') : 'Calculating book length…';
   if(goal){
     setGoalFormType(goal.type);
     if(goal.type==='chapter') $('#goalChapterSelect').value = String(goal.chapterIndex);
@@ -2366,7 +2643,8 @@ $('#goalSaveBtn').addEventListener('click', ()=>{
   } else {
     const val = parseInt($('#goalPageInput').value, 10);
     if(!val || val<1){ toast('Enter a target page.'); return; }
-    goalsMap[book.id] = { type:'page', target: val };
+    if(book.printState==='loading'){ toast('Page numbers are still being calculated — try again in a moment.', 3200); return; }
+    goalsMap[book.id] = { type:'page', target: val, numbering: book.printPages ? 'print' : 'reader' };
   }
   persistGoals();
   refreshGoalUI();
@@ -2432,14 +2710,74 @@ function renderTOC(){
     div.className = 'toc-item'+((entry.index!=null && entry.index===book.currentIndex)?' current':'');
     div.textContent = entry.label;
     div.addEventListener('click', ()=>{
-      closeTOC();
-      book.rendition.display(entry.href);
+      closeTOC(true);          // close instantly, no slide-out delay
+      goToChapter(entry);
     });
     tocList.appendChild(div);
   });
 }
 function openTOC(){ tocSheet.classList.add('open'); scrim.classList.add('open'); }
-function closeTOC(){ tocSheet.classList.remove('open'); scrim.classList.remove('open'); }
+function closeTOC(instant){
+  if(instant){
+    tocSheet.style.transition = 'none'; scrim.style.transition = 'none';
+    tocSheet.classList.remove('open'); scrim.classList.remove('open');
+    void tocSheet.offsetWidth; // flush so the no-animation close applies
+    tocSheet.style.transition = ''; scrim.style.transition = '';
+  } else {
+    tocSheet.classList.remove('open'); scrim.classList.remove('open');
+  }
+}
+// Find the book section a TOC entry points at. Nav hrefs are relative to the nav
+// file and don't always match the spine's paths exactly, so try several ways.
+function resolveTocTarget(entry){
+  const raw = String(entry.href||'');
+  const hi = raw.indexOf('#');
+  const file = hi<0 ? raw : raw.slice(0,hi);
+  const frag = hi<0 ? '' : raw.slice(hi);
+  const spine = book.epubBook.spine;
+  let item = null;
+  if(entry.index!=null){ try{ item = spine.get(entry.index); }catch(e){} }
+  if(!item) item = _findSpineItem(book.epubBook, file);
+  if(!item){
+    const clean = t=>{ try{ t = decodeURIComponent(t); }catch(e){} return t.replace(/^(\.\.?\/)+/,''); };
+    const f = clean(file);
+    item = spine.spineItems.find(it=>{ const h = clean(it.href||''); return h===f || h.endsWith('/'+f) || f.endsWith('/'+h); }) || null;
+  }
+  return item ? { item, frag } : null;
+}
+// Jump straight to a chapter, then verify we actually got there; if not, retry
+// by spine position. In scroll mode also snap the chapter's top to the screen top.
+function goToChapter(entry){
+  if(!book || !book.rendition) return;
+  const rendition = book.rendition;
+  const target = resolveTocTarget(entry);
+  if(!target){ toast('Couldn\u2019t find that chapter in the book.'); return; }
+  const { item, frag } = target;
+  const snap = ()=>{
+    if(settings.viewMode!=='scroll' || frag || book.rendition!==rendition) return;
+    try{
+      const contents = rendition.getContents().find(c=> c.sectionIndex===item.index);
+      const frameEl = contents && contents.document.defaultView.frameElement;
+      if(!frameEl) return;
+      const frameRect = frameEl.getBoundingClientRect();
+      const paneRect = scrollPane.getBoundingClientRect();
+      scrollPane.scrollTop = Math.max(0, scrollPane.scrollTop + (frameRect.top - paneRect.top));
+    }catch(e){}
+  };
+  const arrived = ()=> book.rendition===rendition && book.currentIndex===item.index;
+  rendition.display(item.href + frag).then(()=>{
+    snap(); setTimeout(snap, 60);
+    setTimeout(()=>{
+      if(arrived() || book.rendition!==rendition) return;
+      rendition.display(item.index).then(()=>{ snap(); setTimeout(snap,60); }).catch(err=>{
+        toast('Couldn\u2019t open that chapter.'); console.error('TOC jump failed', err);
+      });
+    }, 350);
+  }).catch(err=>{
+    console.error('TOC display failed', err);
+    rendition.display(item.index).then(()=>{ snap(); setTimeout(snap,60); }).catch(()=> toast('Couldn\u2019t open that chapter.'));
+  });
+}
 $('#tocBtn').addEventListener('click', ()=>{ renderTOC(); openTOC(); });
 $('#tocCloseBtn').addEventListener('click', closeTOC);
 
@@ -2603,6 +2941,193 @@ searchInput.addEventListener('keydown', e=>{
 });
 
 /* ============================================================
+   Quotes: select text in the reader -> "Save quote" -> stored with its page number.
+   Saved to PROGRESS_DOC.quotes[bookId] (an array) via arrayUnion/arrayRemove, so
+   two devices adding quotes at the same time never overwrite each other. The
+   main tracker (index.html) reads the same field to show a Quotes section on
+   each book. "Page" is the same number the status bar shows as "Page X of Y".
+   ============================================================ */
+let pendingQuote = null;        // {text, cfiRange, page, total}
+let quoteBarInteracting = false;
+let quoteBarHideTimer = null;
+let appliedHighlights = {};     // quote id -> cfiRange currently drawn in this rendition
+const quoteBarEl = $('#quoteBar'), quoteBarPageEl = $('#quoteBarPage');
+const quoteDelBarEl = $('#quoteDeleteBar'), quoteDelTextEl = $('#quoteDeleteText');
+let quoteDelId = null;          // id of the saved quote the delete bar is currently showing
+let quoteDelTimer = null;
+
+function setQuoteMode(on){
+  document.body.classList.toggle('quote-mode', !!on);
+  $('#quoteModeBtn').classList.toggle('active', !!on);
+}
+$('#quoteModeBtn').addEventListener('click', ()=>{
+  const on = !document.body.classList.contains('quote-mode');
+  setQuoteMode(on);
+  if(on) toast('Highlight mode on — press and hold text to select it. Swipe to turn pages.', 3600);
+  else hideQuoteBar();
+});
+
+function hasActiveSelection(){
+  try{
+    if(!book || !book.rendition) return false;
+    return book.rendition.getContents().some(c=>{
+      const sel = c.document && c.document.getSelection && c.document.getSelection();
+      return sel && sel.rangeCount>0 && !sel.isCollapsed && sel.toString().trim().length>0;
+    });
+  }catch(e){ return false; }
+}
+function clearContentSelections(){
+  try{ book.rendition.getContents().forEach(c=>{ const sel = c.document.getSelection(); if(sel) sel.removeAllRanges(); }); }catch(e){}
+}
+
+function hideQuoteBar(){
+  pendingQuote = null;
+  quoteBarEl.classList.remove('show');
+  hideQuoteDeleteBar();
+}
+function hideQuoteDeleteBar(){
+  quoteDelId = null;
+  clearTimeout(quoteDelTimer);
+  quoteDelBarEl.classList.remove('show');
+}
+// Tapping a saved quote's highlight opens a small bar with a trash button.
+function showQuoteDeleteBar(quoteId){
+  if(!book) return;
+  const q = (quotesMap[book.id] || []).find(x => x && x.id === quoteId);
+  if(!q) return;
+  quoteDelId = quoteId;
+  const label = q.front ? 'Front matter' : (q.page!=null ? 'Page '+q.page : 'Saved quote');
+  const excerpt = (q.text || '').replace(/\s+/g,' ').trim();
+  quoteDelTextEl.textContent = label + (excerpt ? ' · “' + (excerpt.length > 32 ? excerpt.slice(0,32)+'…' : excerpt) + '”' : '');
+  quoteBarEl.classList.remove('show');   // don't show both bars at once
+  quoteDelBarEl.classList.add('show');
+  clearTimeout(quoteDelTimer);
+  quoteDelTimer = setTimeout(hideQuoteDeleteBar, 10000);
+}
+$('#quoteDeleteCancelBtn').addEventListener('click', hideQuoteDeleteBar);
+$('#quoteDeleteBtn').addEventListener('click', ()=>{
+  if(!book || !quoteDelId) return;
+  const list = quotesMap[book.id] || [];
+  const q = list.find(x => x && x.id === quoteDelId);
+  hideQuoteDeleteBar();
+  if(!q) return;
+  quotesMap[book.id] = list.filter(x => x !== q);
+  // arrayRemove only takes out this exact quote, so quotes saved on another device are untouched.
+  PROGRESS_DOC.set({ quotes: { [book.id]: firebase.firestore.FieldValue.arrayRemove(q) } }, { merge:true })
+    .catch(err => { console.error('Failed to delete quote:', err); toast('Could not sync the deletion — check your connection.'); });
+  syncHighlights();
+  toast('Quote deleted');
+});
+
+
+// Which "page" a range starts on, using the same location index as the status bar.
+function quoteStartCfi(contents, range){
+  try{
+    const startRange = range.cloneRange(); startRange.collapse(true);
+    return contents.cfiFromRange(startRange);
+  }catch(e){ return null; }
+}
+
+function onQuoteSelected(cfiRange, contents){
+  if(!book) return;
+  try{
+    let range = null;
+    try{ range = contents.range(cfiRange); }catch(e){}
+    if(!range){
+      const sel = contents.document.getSelection();
+      if(sel && sel.rangeCount) range = sel.getRangeAt(0);
+    }
+    if(!range) return;
+    const text = normText(range.toString());
+    if(text.length < 3) return;
+    const startCfi = quoteStartCfi(contents, range);
+    pendingQuote = { text, cfiRange, startCfi };
+    hideQuoteDeleteBar();
+    quoteBarPageEl.textContent = pageInfoText(pageInfoAt(startCfi)) || 'Page…';
+    clearTimeout(quoteBarHideTimer);
+    quoteBarEl.classList.add('show');
+  }catch(e){ console.warn('quote selection failed', e); }
+}
+
+// Hides the bar once the selection is cleared (tap elsewhere), with a short
+// grace period so tapping the bar's own buttons — which can clear the selection
+// on some mobile browsers — still registers.
+function attachQuoteSelection(contents){
+  if(!contents || !contents.document) return;
+  contents.document.addEventListener('selectionchange', ()=>{
+    clearTimeout(quoteBarHideTimer);
+    quoteBarHideTimer = setTimeout(()=>{
+      if(quoteBarInteracting) return;
+      if(!hasActiveSelection()) hideQuoteBar();
+    }, 450);
+  });
+}
+['pointerdown','touchstart','mousedown'].forEach(ev=>{
+  quoteBarEl.addEventListener(ev, e=>{
+    quoteBarInteracting = true;
+    clearTimeout(quoteBarHideTimer);
+    if(ev==='mousedown') e.preventDefault(); // keeps the selection alive on desktop
+    setTimeout(()=>{ quoteBarInteracting = false; }, 1200);
+  }, {passive: ev!=='mousedown'});
+});
+$('#quoteCancelBtn').addEventListener('click', ()=>{ clearContentSelections(); hideQuoteBar(); });
+
+function newQuoteId(){ return 'q'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+
+$('#quoteSaveBtn').addEventListener('click', ()=>{
+  if(!pendingQuote || !book) return;
+  const info = pageInfoAt(pendingQuote.startCfi);
+  if(!info){
+    toast('Page numbers are still being calculated — give it a moment, then save again.', 3200);
+    return;
+  }
+  let pos = null;
+  try{ if(book.locationsReady) pos = book.epubBook.locations.percentageFromCfi(pendingQuote.startCfi); }catch(e){}
+  const list = quotesMap[book.id] || [];
+  if(list.some(x => x.cfiRange === pendingQuote.cfiRange)){
+    toast('That quote is already saved.');
+    clearContentSelections(); hideQuoteBar();
+    return;
+  }
+  const text = pendingQuote.text.length > 3000 ? pendingQuote.text.slice(0,3000)+'…' : pendingQuote.text;
+  // page = the book's printed page label when it has one (e.g. "42", "xii"), else the reader's own page number.
+  // pos = 0-1 position in the book, used to keep quotes in reading order.
+  const q = { id:newQuoteId(), text, cfiRange:pendingQuote.cfiRange, page:(info.front ? null : info.label), total:(info.total || null),
+              front:!!info.front, print:!!info.print, pos, createdAt:Date.now() };
+  quotesMap[book.id] = [...list, q];
+  PROGRESS_DOC.set({ quotes: { [book.id]: firebase.firestore.FieldValue.arrayUnion(q) } }, { merge:true })
+    .catch(err => { console.error('Failed to save quote:', err); toast('Could not sync the quote — check your connection.'); });
+  clearContentSelections();
+  hideQuoteBar();
+  syncHighlights();
+  toast(q.page!=null ? ('Quote saved · page '+q.page) : 'Quote saved');
+});
+
+// Draws a soft highlight over every saved quote for the open book (and removes
+// ones that were deleted elsewhere, e.g. from the tracker's book page).
+function syncHighlights(){
+  if(!book || !book.rendition) return;
+  const r = book.rendition;
+  const wanted = {};
+  (quotesMap[book.id] || []).forEach(q => { if(q && q.id && q.cfiRange) wanted[q.id] = q.cfiRange; });
+  if(quoteDelId && !wanted[quoteDelId]) hideQuoteDeleteBar();
+  Object.keys(appliedHighlights).forEach(id=>{
+    if(!wanted[id]){
+      try{ r.annotations.remove(appliedHighlights[id], 'highlight'); }catch(e){}
+      delete appliedHighlights[id];
+    }
+  });
+  Object.keys(wanted).forEach(id=>{
+    if(appliedHighlights[id]) return;
+    try{
+      r.annotations.highlight(wanted[id], { quoteId:id }, ()=>{ showQuoteDeleteBar(id); }, 'quote-hl',
+        { 'fill':'#e0b13c', 'fill-opacity':'0.32', 'mix-blend-mode':'normal' });
+      appliedHighlights[id] = wanted[id];
+    }catch(e){}
+  });
+}
+
+/* ============================================================
    Nav / progress persistence
    ============================================================ */
 $('#backBtn').addEventListener('click', ()=>{
@@ -2617,6 +3142,8 @@ $('#backBtn').addEventListener('click', ()=>{
     try{ book.epubBook.destroy(); }catch(e){}
   }
   book = null;
+  hideQuoteBar();
+  setQuoteMode(false);
   topTitleRatingEl.innerHTML = '';
   showLibrary();
 });
