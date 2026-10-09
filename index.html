@@ -154,6 +154,14 @@
   .stat-card{background:#fff;border-radius:12px;padding:16px 18px;box-shadow:0 2px 8px rgba(47,63,42,.10);min-width:120px;}
   .stat-card .num{font-family:'Anton',sans-serif;font-size:30px;color:var(--oxblood);}
   .stat-card .label{font-size:11.5px;color:var(--muted);font-weight:600;letter-spacing:.3px;margin-top:2px;}
+  .quote-list{display:flex;flex-direction:column;gap:10px;}
+  .quote-card{border-left:3px solid var(--gold);background:rgba(255,255,255,.55);border-radius:0 10px 10px 0;padding:10px 12px 9px;}
+  .quote-text{font-size:13.5px;line-height:1.55;font-style:italic;white-space:pre-wrap;}
+  .quote-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px;font-size:11.5px;color:var(--muted);font-weight:600;}
+  .quote-empty{font-size:12.5px;color:var(--muted);line-height:1.5;}
+  .quote-trash{background:transparent;border:none;color:#A2572B;cursor:pointer;padding:5px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;line-height:0;}
+  .quote-trash:hover{background:rgba(162,87,43,.12);}
+  .quote-trash svg{display:block;}
   .section-label{font-size:11.5px;font-weight:700;color:var(--muted);letter-spacing:.4px;margin-bottom:10px;text-transform:uppercase;}
   .cover{border-radius:8px;display:flex;align-items:center;justify-content:center;padding:12px;box-shadow:0 6px 16px rgba(0,0,0,.16);position:relative;overflow:hidden;}
   .cover span{color:#fff;font-family:'Fraunces',serif;font-weight:600;font-size:15px;text-align:center;text-shadow:0 2px 4px rgba(0,0,0,.3);letter-spacing:.2px;position:relative;z-index:1;}
@@ -611,6 +619,7 @@ let state = {
   books: [],
   wishlist: [],
   goals: {},
+  quotes: {}, // bookId -> [{id,text,page,total,cfiRange,createdAt}] — saved from the Books reader
   loaded: false,
   modal: null,
   profiles: [],
@@ -830,6 +839,64 @@ async function loadData(){
   // relevant to old profiles that never migrated, and if it does copy
   // anything over, the listener above picks the change up automatically.
   migrateLegacyLibraryIfNeeded().catch(err => console.error('Legacy library migration failed:', err));
+}
+
+// Quotes are saved from the Books reader into the "books-app" collection (the
+// reader's own document, same profile id). This only ever READS it — deleting a
+// quote below uses arrayRemove so it can't disturb anything else in that doc.
+const QUOTES_DOC = db.collection("books-app").doc(getCurrentUserId());
+function loadQuotes(){
+  QUOTES_DOC.onSnapshot((snap) => {
+    const data = snap.exists ? snap.data() : {};
+    state.quotes = (data && data.quotes && typeof data.quotes === "object") ? data.quotes : {};
+    // Quotes now live in the Edit Book form. Refresh just that section in place
+    // (re-rendering the whole form would wipe anything typed but not yet saved).
+    refreshQuotesBox();
+  }, (err) => console.error("Quotes sync error:", err));
+}
+function quotesForBook(bookId){
+  const list = Array.isArray(state.quotes[bookId]) ? state.quotes[bookId].slice() : [];
+  return list.sort((a,b)=>{
+    // reading order: by position in the book when known, else by page, else by when it was saved
+    if(typeof a.pos==="number" && typeof b.pos==="number" && a.pos!==b.pos) return a.pos - b.pos;
+    const pa = parseFloat(a.page), pb = parseFloat(b.page);
+    if(!isNaN(pa) && !isNaN(pb) && pa!==pb) return pa - pb;
+    return (a.createdAt||0) - (b.createdAt||0);
+  });
+}
+function deleteQuote(bookId, quoteId){
+  const q = (state.quotes[bookId]||[]).find(x => x.id === quoteId);
+  if(!q) return;
+  if(!confirm("Delete this quote?")) return;
+  state.quotes[bookId] = state.quotes[bookId].filter(x => x.id !== quoteId);
+  refreshQuotesBox();
+  QUOTES_DOC.set({ quotes: { [bookId]: firebase.firestore.FieldValue.arrayRemove(q) } }, { merge: true })
+    .catch(err => console.error("Failed to delete quote:", err));
+}
+const TRASH_ICON = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>`;
+function quotesBoxInnerHTML(bookId){
+  const quotes = quotesForBook(bookId);
+  return `
+    <div class="section-label" style="margin-bottom:6px;">Quotes${quotes.length?` · ${quotes.length}`:""}</div>
+    ${quotes.length ? `<div class="quote-list">${quotes.map(q=>`
+      <div class="quote-card">
+        <div class="quote-text" dir="auto">${esc(q.text)}</div>
+        <div class="quote-meta">
+          <span>${q.front ? "Front matter" : q.page!=null ? `Page ${esc(q.page)}${(q.total && /^\d+$/.test(String(q.page)))?` of ${esc(q.total)}`:""}` : "Page unknown"}</span>
+          <button type="button" class="quote-trash" data-action="delete-quote" data-book="${esc(bookId)}" data-id="${esc(q.id)}" title="Delete quote" aria-label="Delete quote">${TRASH_ICON}</button>
+        </div>
+      </div>`).join("")}</div>`
+    : `<div class="quote-empty">No quotes yet. In the Books reader, turn on the highlighter in the top bar, select a passage, and tap “Save quote” — it will show up here with its page number.</div>`}`;
+}
+// Quotes section for the Edit Book form (sits right under Notes / thoughts).
+function quotesSectionHTML(book){
+  return `<div class="field" id="quotes-box" data-book="${esc(book.id)}">${quotesBoxInnerHTML(book.id)}</div>`;
+}
+// Redraws only the quotes section, if the Edit Book form is currently open.
+function refreshQuotesBox(){
+  const box = document.getElementById("quotes-box");
+  if(!box) return;
+  box.innerHTML = quotesBoxInnerHTML(box.getAttribute("data-book"));
 }
 
 function persistBooks(){
@@ -2373,6 +2440,7 @@ function bookFormHTML(book){
     <label class="field">Rating<span style="display:flex;align-items:center;gap:10px;">${starsHTML(b.rating, true, "f-rating", 22)}<input type="number" class="input" id="f-rating-num" min="0" max="5" step="0.25" value="${b.rating||""}" placeholder="0-5" style="width:80px;" /></span><input type="hidden" id="f-rating" value="${b.rating}" /></label>
     <label class="field">Brief review<textarea class="input" id="f-review" placeholder="What did you think?">${esc(b.review)}</textarea></label>
     <label class="field">Notes / thoughts<textarea class="input" id="f-notes" placeholder="Quotes, annotations, anything to remember">${esc(b.notes)}</textarea></label>
+    ${book ? quotesSectionHTML(book) : ""}
     <label class="field">Recommended by<input class="input" id="f-recby" value="${esc(b.recommendedBy)}" placeholder="Optional" /></label>
     ${book ? `
     <label class="field">Rereads
@@ -2394,6 +2462,7 @@ function bookFormHTML(book){
 }
 function bookDetailHTML(book){
   return `
+    <div>
     <div class="book-detail-grid" style="display:grid;grid-template-columns:180px 1fr;gap:22px;">
       <div>${coverHTML(book,250)}</div>
       <div>
@@ -2415,6 +2484,7 @@ function bookDetailHTML(book){
           ${book.status==='reading' ? `<button class="btn btn-subtle" data-action="move-to-wishlist" data-id="${book.id}">↩ Move to Wishlist</button>` : ""}
         </div>
       </div>
+    </div>
     </div>
   `;
 }
@@ -3311,6 +3381,7 @@ document.addEventListener("click", (e)=>{
   else if(action==="save-progress"){ saveProgressFromForm(); }
   else if(action==="edit-book"){ state.modal = {type:"book-form", payload: findBook(id)}; renderModal(); }
   else if(action==="open-book"){ state.modal = {type:"book-detail", payload: findBook(id)}; renderModal(); }
+  else if(action==="delete-quote"){ deleteQuote(el.getAttribute("data-book"), id); }
   else if(action==="edit-from-detail"){ state.modal = {type:"book-form", payload: findBook(id)}; renderModal(); }
   else if(action==="copy-to-other"){ copyBookToOtherWishlist(id); }
   else if(action==="delete-book"){ deleteBook(id); }
@@ -3705,6 +3776,7 @@ window.addEventListener("resize", ()=>{
 
 /* ---------------- init ---------------- */
 loadData();
+loadQuotes();
 loadProfiles();
 </script>
 </body>
