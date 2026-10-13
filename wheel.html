@@ -1022,12 +1022,21 @@
             </div>
 
             <div id="subgoal-chapter-inputs" class="subgoal-split-inputs" style="flex-direction: column; align-items: stretch; gap: 10px;">
-                <div style="display: flex; gap: 10px;">
+                <div class="subgoal-mode-toggle">
+                    <button type="button" id="subgoal-unit-pages-btn" class="subgoal-mode-btn active" onclick="setSubGoalChapterUnit('pages')">Pages</button>
+                    <button type="button" id="subgoal-unit-flips-btn" class="subgoal-mode-btn" onclick="setSubGoalChapterUnit('flips')">Flips</button>
+                </div>
+                <div id="subgoal-chapter-pages-fields" style="display: flex; gap: 10px;">
                     <label style="flex: 1;">Start page
                         <input type="number" id="subgoal-chapter-start" min="1" step="1" placeholder="e.g. 120" oninput="updateSubGoalChapterPageCount()">
                     </label>
                     <label style="flex: 1;">End page
                         <input type="number" id="subgoal-chapter-end" min="1" step="1" placeholder="e.g. 138" oninput="updateSubGoalChapterPageCount()">
+                    </label>
+                </div>
+                <div id="subgoal-chapter-flips-fields" style="display: none;">
+                    <label>Flips left
+                        <input type="number" id="subgoal-chapter-flips" min="1" step="1" placeholder="e.g. 20" oninput="updateSubGoalChapterPageCount()">
                     </label>
                 </div>
                 <div id="subgoal-chapter-pagecount" class="subgoal-hint-text"></div>
@@ -1615,7 +1624,8 @@
             document.getElementById('subgoal-chapter-start').value = '';
             document.getElementById('subgoal-chapter-end').value = '';
             document.getElementById('subgoal-chapter-parts').value = '';
-            updateSubGoalChapterPageCount();
+            document.getElementById('subgoal-chapter-flips').value = '';
+            setSubGoalChapterUnit('pages');
             // Pad items have no "Page 12-16" style label to parse, so they
             // always go straight to the free-text "one per line" mode.
             subGoalDetected = editingSubGoalIsPad ? { type: 'portions' } : parseGoalLabelForSplit(editingSubGoalParentLabel);
@@ -1671,12 +1681,53 @@
             return labels;
         }
 
-        // Live "X pages in this chapter" hint as the user fills in the
-        // chapter's start/end page fields.
+        // Chapter splits can be done by page range ("pages") or by a
+        // countdown of flips left ("flips"). The toggle only changes which
+        // inputs are shown and how the labels are written.
+        let subGoalChapterUnit = 'pages';
+
+        function setSubGoalChapterUnit(unit) {
+            subGoalChapterUnit = unit === 'flips' ? 'flips' : 'pages';
+            const isFlips = subGoalChapterUnit === 'flips';
+            document.getElementById('subgoal-chapter-pages-fields').style.display = isFlips ? 'none' : 'flex';
+            document.getElementById('subgoal-chapter-flips-fields').style.display = isFlips ? 'block' : 'none';
+            document.getElementById('subgoal-unit-pages-btn').classList.toggle('active', !isFlips);
+            document.getElementById('subgoal-unit-flips-btn').classList.toggle('active', isFlips);
+            updateSubGoalChapterPageCount();
+        }
+
+        // Splits a countdown of `total` flips left into `parts` chunks,
+        // counting DOWN: e.g. 20 flips in 4 parts ->
+        // "20-16 flips left", "15-11 flips left", "10-6 flips left", "5-1 flips left".
+        function splitFlipsIntoLabels(total, parts) {
+            parts = Math.max(1, Math.min(parts, total));
+            const base = Math.floor(total / parts);
+            const remainder = total % parts;
+            const labels = [];
+            let cursor = total;
+            for (let i = 0; i < parts; i++) {
+                const size = base + (i < remainder ? 1 : 0);
+                const high = cursor;
+                const low = cursor - size + 1;
+                labels.push(high === low
+                    ? `${high} flip${high === 1 ? '' : 's'} left`
+                    : `${high}-${low} flips left`);
+                cursor = low - 1;
+            }
+            return labels;
+        }
+
+        // Live "X pages in this chapter" / "X flips" hint as the user fills in
+        // the chapter fields.
         function updateSubGoalChapterPageCount() {
+            const el = document.getElementById('subgoal-chapter-pagecount');
+            if (subGoalChapterUnit === 'flips') {
+                const flips = parseInt(document.getElementById('subgoal-chapter-flips').value, 10);
+                el.textContent = flips >= 1 ? `${flips} flip${flips === 1 ? '' : 's'} left in this chapter.` : '';
+                return;
+            }
             const start = parseInt(document.getElementById('subgoal-chapter-start').value, 10);
             const end = parseInt(document.getElementById('subgoal-chapter-end').value, 10);
-            const el = document.getElementById('subgoal-chapter-pagecount');
             if (start && end && end >= start) {
                 const count = end - start + 1;
                 el.textContent = `${count} page${count === 1 ? '' : 's'} in this chapter.`;
@@ -1712,7 +1763,7 @@
                 infoEl.textContent = `Type each sub-goal on its own line, then hit Add.`;
             } else {
                 chapterWrap.style.display = 'flex';
-                infoEl.textContent = `Chapter goal — enter its start and end page, then how many pieces to split it into.`;
+                infoEl.textContent = `Chapter goal — split it by pages (start & end page) or by flips (how many flips are left), then say how many pieces to split it into.`;
             }
         }
 
@@ -1742,7 +1793,8 @@
                 const start = document.getElementById('subgoal-chapter-start').value.trim();
                 const end = document.getElementById('subgoal-chapter-end').value.trim();
                 const parts = document.getElementById('subgoal-chapter-parts').value.trim();
-                if (start !== '' || end !== '' || parts !== '') return true;
+                const flips = document.getElementById('subgoal-chapter-flips').value.trim();
+                if (start !== '' || end !== '' || parts !== '' || flips !== '') return true;
             }
             return false;
         }
@@ -1832,7 +1884,14 @@
                     .map(line => line.trim())
                     .filter(Boolean);
             }
-            // Chapter (numbered or named): split by the page range the user gave us.
+            // Chapter (numbered or named): split by flips left (counting down)
+            // or by the page range the user gave us.
+            if (subGoalChapterUnit === 'flips') {
+                const flips = parseInt(document.getElementById('subgoal-chapter-flips').value, 10);
+                const flipParts = parseInt(document.getElementById('subgoal-chapter-parts').value, 10);
+                if (!flips || flips < 1 || !flipParts || flipParts < 1) return [];
+                return splitFlipsIntoLabels(flips, flipParts);
+            }
             const start = parseInt(document.getElementById('subgoal-chapter-start').value, 10);
             const end = parseInt(document.getElementById('subgoal-chapter-end').value, 10);
             const parts = parseInt(document.getElementById('subgoal-chapter-parts').value, 10);
